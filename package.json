@@ -10,6 +10,8 @@
     "build": "npm run build:backend && npm run build:frontend",
     "test:backend": "npm test --prefix backend",
     "test": "npm run test:backend",
+    "reingest": "npm run reingest --prefix backend",
+    "eval": "npm run eval --prefix backend",
     "generate:samples": "node backend/scripts/generate_sample_papers.js"
   },
   "keywords": [

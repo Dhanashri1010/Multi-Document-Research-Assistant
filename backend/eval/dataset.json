@@ -1,0 +1,128 @@
+[
+  {
+    "id": "q01",
+    "query": "What BLEU score did the big Transformer achieve on the WMT 2014 English-to-German translation benchmark?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 3,
+    "keyPhrases": ["28.4", "English-to-German", "BLEU"]
+  },
+  {
+    "id": "q02",
+    "query": "What was the BLEU score achieved by the Transformer model on the English-to-French translation task?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 3,
+    "keyPhrases": ["41.8", "English-to-French"]
+  },
+  {
+    "id": "q03",
+    "query": "How long did training the Transformer take on English-to-French and on what hardware?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 3,
+    "keyPhrases": ["3.5 days", "eight GPUs"]
+  },
+  {
+    "id": "q04",
+    "query": "What mathematical formula defines Scaled Dot-Product Attention?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 2,
+    "keyPhrases": ["softmax", "sqrt(d_k)", "Attention(Q, K, V)"]
+  },
+  {
+    "id": "q05",
+    "query": "Why does multi-head attention project queries, keys, and values h times?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 2,
+    "keyPhrases": ["linearly project", "parallel", "multi-head"]
+  },
+  {
+    "id": "q06",
+    "query": "What is the primary computational complexity limitation of standard self-attention?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 3,
+    "keyPhrases": ["O(n^2)", "quadratic", "sequence length"]
+  },
+  {
+    "id": "q07",
+    "query": "Why do recurrent models preclude parallelization within training examples?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 1,
+    "keyPhrases": ["sequential nature", "parallelization", "recurrent"]
+  },
+  {
+    "id": "q08",
+    "query": "Who are the authors of the paper Attention Is All You Need and their affiliation?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 1,
+    "keyPhrases": ["Ashish Vaswani", "Noam Shazeer", "Google"]
+  },
+  {
+    "id": "q09",
+    "query": "What architecture is proposed based entirely on attention mechanisms dispensing with recurrence?",
+    "targetDoc": "Attention Is All You Need",
+    "targetPage": 1,
+    "keyPhrases": ["Transformer", "recurrence", "attention mechanism"]
+  },
+  {
+    "id": "q10",
+    "query": "How does LoRA decompose the weight update matrix Delta W?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 2,
+    "keyPhrases": ["Delta W = B", "decomposition", "rank r"]
+  },
+  {
+    "id": "q11",
+    "query": "How are matrices A and B initialized in LoRA at the start of training?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 2,
+    "keyPhrases": ["Gaussian", "initialized to 0", "start of training"]
+  },
+  {
+    "id": "q12",
+    "query": "What scaling factor is applied to Delta W in LoRA?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 2,
+    "keyPhrases": ["alpha", "alpha / r", "scaling"]
+  },
+  {
+    "id": "q13",
+    "query": "By how much does LoRA reduce trainable parameters compared to full fine-tuning?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 3,
+    "keyPhrases": ["10,000x", "trainable parameters"]
+  },
+  {
+    "id": "q14",
+    "query": "On which benchmark and models was LoRA empirically evaluated?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 3,
+    "keyPhrases": ["GLUE", "RoBERTa", "DeBERTa"]
+  },
+  {
+    "id": "q15",
+    "query": "What is the primary operational limitation of LoRA regarding task batching?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 3,
+    "keyPhrases": ["batch inputs", "downstream tasks", "adapter"]
+  },
+  {
+    "id": "q16",
+    "query": "What problem does LoRA solve regarding large models like GPT-3 175B?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 1,
+    "keyPhrases": ["175B", "fine-tuning", "memory"]
+  },
+  {
+    "id": "q17",
+    "query": "What is the rank condition for r in the low-rank decomposition of LoRA?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 2,
+    "keyPhrases": ["r << min(d, k)", "rank r"]
+  },
+  {
+    "id": "q18",
+    "query": "Who are the authors of LoRA and what organization are they from?",
+    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "targetPage": 1,
+    "keyPhrases": ["Edward J. Hu", "Microsoft"]
+  }
+]

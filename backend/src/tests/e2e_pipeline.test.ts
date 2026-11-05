@@ -39,14 +39,16 @@ describe('End-to-End Pipeline & Real Ingestion Verification', () => {
   let isMongoReady = false;
 
   beforeAll(async () => {
+    // Ensure test files are always copied first so unit tests (extractPdf, chunkPages) work even if Mongo is offline
+    if (fs.existsSync(sample1)) fs.copyFileSync(sample1, paper1Path);
+    if (fs.existsSync(sample2)) fs.copyFileSync(sample2, paper2Path);
+
     isMongoReady = await checkMongoAvailability();
     if (!isMongoReady) {
       console.warn('[e2e_pipeline.test] MongoDB unavailable. Skipping live DB pipeline tests.');
       return;
     }
 
-    if (fs.existsSync(sample1)) fs.copyFileSync(sample1, paper1Path);
-    if (fs.existsSync(sample2)) fs.copyFileSync(sample2, paper2Path);
     await mongoose.connect(config.mongoUri);
   }, 15000);
 
@@ -55,6 +57,12 @@ describe('End-to-End Pipeline & Real Ingestion Verification', () => {
       if (doc1Id) await IngestionService.deleteDocument(doc1Id);
       if (doc2Id) await IngestionService.deleteDocument(doc2Id);
       await mongoose.disconnect();
+    }
+    try {
+      if (fs.existsSync(paper1Path)) fs.unlinkSync(paper1Path);
+      if (fs.existsSync(paper2Path)) fs.unlinkSync(paper2Path);
+    } catch {
+      // ignore cleanup errors
     }
   }, 15000);
 

@@ -10,11 +10,23 @@ export interface LLMGenerateOptions {
 
 function isRetryableError(err: any): boolean {
   if (!err) return false;
+  const msg = String(err.message || '').toLowerCase();
+
+  // Never retry 404, model-not-found, or deprecation errors
+  if (
+    err.status === 404 ||
+    msg.includes('not found') ||
+    msg.includes('no longer available') ||
+    msg.includes('deprecated') ||
+    msg.includes('model_not_found')
+  ) {
+    return false;
+  }
+
   const status = err.status || err.statusCode || err.response?.status;
   if (status === 429 || (typeof status === 'number' && status >= 500 && status < 600)) {
     return true;
   }
-  const msg = String(err.message || '').toLowerCase();
   return (
     msg.includes('429') ||
     msg.includes('rate limit') ||
@@ -97,68 +109,39 @@ export class LLMService {
           const { GoogleGenAI } = await import('@google/genai');
           const ai = new GoogleGenAI({ apiKey });
 
-          // Fast and reliable Gemini model cascade
-          const FAST_GEMINI_MODELS = [
-            'gemini-3.5-flash-lite',
-            'gemini-flash-lite-latest',
-            'gemini-3.5-flash',
-          ];
-
-          let targetModel = (model || '').trim();
-          if (
-            !targetModel ||
-            targetModel.startsWith('gemini-1.') ||
-            targetModel.startsWith('gemini-2.') ||
-            targetModel === 'gemini-pro' ||
-            targetModel === 'gemini-3.8-flash'
-          ) {
-            targetModel = 'gemini-3.5-flash-lite';
+          const targetModel = (model || '').trim();
+          if (!targetModel) {
+            throw new Error('LLM_MODEL is not configured in backend/.env.');
           }
 
-          const modelsToTry = [
-            targetModel,
-            ...FAST_GEMINI_MODELS.filter((m) => m !== targetModel),
-          ];
+          try {
+            const response = await ai.models.generateContent({
+              model: targetModel,
+              contents: prompt,
+              config: {
+                systemInstruction: options.systemPrompt,
+                temperature: options.temperature ?? 0.2,
+                maxOutputTokens: options.maxTokens ?? 2048,
+              },
+            });
 
-          let lastModelErr: any = null;
-          for (const currentModel of modelsToTry) {
-            try {
-              const response = await ai.models.generateContent({
-                model: currentModel,
-                contents: prompt,
-                config: {
-                  systemInstruction: options.systemPrompt,
-                  temperature: options.temperature ?? 0.2,
-                  maxOutputTokens: options.maxTokens ?? 2048,
-                },
-              });
+            return response.text || '';
+          } catch (modelErr: any) {
+            const isNotFoundOrDeprecated =
+              modelErr?.status === 404 ||
+              modelErr?.message?.includes('not found') ||
+              modelErr?.message?.includes('no longer available') ||
+              modelErr?.message?.includes('deprecated');
 
-              if (response.text !== undefined && response.text !== null) {
-                return response.text;
-              }
-            } catch (modelErr: any) {
-              lastModelErr = modelErr;
-              const isRecoverable =
-                modelErr?.status === 404 ||
-                modelErr?.status === 503 ||
-                modelErr?.status === 429 ||
-                modelErr?.message?.includes('not found') ||
-                modelErr?.message?.includes('no longer available') ||
-                modelErr?.message?.includes('high demand') ||
-                modelErr?.message?.includes('UNAVAILABLE') ||
-                modelErr?.message?.includes('RESOURCE_EXHAUSTED');
-
-              if (isRecoverable) {
-                console.warn(
-                  `[LLMService] Model "${currentModel}" unavailable or busy (${modelErr.status || modelErr.message?.slice(0, 50)}). Switching to next fast fallback...`
-                );
-                continue;
-              }
-              throw modelErr;
+            if (isNotFoundOrDeprecated) {
+              throw new Error(
+                `Configured Gemini model "${targetModel}" is not found or has been deprecated. ` +
+                `Please update LLM_MODEL in backend/.env to an active model (e.g. gemini-3.5-flash-lite). ` +
+                `Details: ${modelErr.message}`
+              );
             }
+            throw modelErr;
           }
-
-          throw lastModelErr;
         }
 
         if (provider === 'openai') {
@@ -171,7 +154,28 @@ export class LLMService {
           }
           messages.push({ role: 'user', content: prompt });
 
-          const completion = await client.chat.completions.create({
+          const targetModel = (model || '').trim() || 'gpt-4o-mini';
+
+          try {
+            const completion = await client.chat.completions.create({
+              model: targetModel,
+              messages,
+              temperature: options.temperature ?? 0.2,
+              max_tokens: options.maxTokens ?? 2048,
+            });
+
+            return completion.choices[0]?.message?.content || '';
+          } catch (err: any) {
+            if (err?.status === 404 || err?.message?.includes('model_not_found')) {
+              throw new Error(
+                `Configured OpenAI model "${targetModel}" is not found. ` +
+                `Please update LLM_MODEL in backend/.env to a valid model (e.g. gpt-4o-mini). ` +
+                `Details: ${err.message}`
+              );
+            }
+            throw err;
+          }
+        }
             model: model || 'gpt-4o-mini',
             messages,
             temperature: options.temperature ?? 0.2,

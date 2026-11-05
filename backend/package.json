@@ -8,6 +8,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "reingest": "tsx scripts/reingest.ts",
+    "eval": "tsx eval/evaluate.ts",
     "test": "vitest run"
   },
   "dependencies": {

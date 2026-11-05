@@ -173,3 +173,4 @@ Extractor            Chunker             VectorStore                    LLMServi
 | **Test Count** | "13 / 13 tests passing" | Actually contains 33 tests across 4 test suites (`nlp`, `phase1`, `phase2`, `e2e_pipeline`) |
 | **Retrieval Engine** | "In-memory cosine similarity" | Code has been upgraded with BM25 lexical ranking, RRF, MMR, and cross-encoder reranking |
 | **Output Validation**| "Strictly guards against hallucination" | Relies primarily on prompt instructions; lacks Zod schema verification and citation verification |
+
