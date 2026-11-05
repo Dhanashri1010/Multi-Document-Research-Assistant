@@ -58,23 +58,35 @@ async function ensureSampleDocuments(): Promise<{ docIds: string[]; docMap: Map<
       ? path.resolve(process.cwd(), 'samples', paper.sampleFile)
       : path.resolve(process.cwd(), '..', 'samples', paper.sampleFile);
 
-    let doc = await DocumentModel.findOne({ originalName: paper.name, status: 'ready' });
+    const destPath = path.join(uploadDir, paper.filename);
+    const sampleStat = fs.statSync(samplePath);
+
+    let doc = await DocumentModel.findOne({ originalName: paper.name });
 
     if (!doc) {
-      const destPath = path.join(uploadDir, paper.filename);
       fs.copyFileSync(samplePath, destPath);
-
       doc = await DocumentModel.create({
         filename: paper.filename,
         originalName: paper.name,
-        fileSize: fs.statSync(destPath).size,
+        fileSize: sampleStat.size,
         mimeType: 'application/pdf',
         filePath: destPath,
         status: 'uploaded',
       });
-
       await IngestionService.processDocument(doc._id);
       doc = await DocumentModel.findById(doc._id);
+    } else {
+      // Refresh dest file if sample is newer or size differs
+      const destExists = fs.existsSync(destPath);
+      const destStat = destExists ? fs.statSync(destPath) : null;
+      if (!destExists || destStat?.size !== sampleStat.size || doc.status !== 'ready') {
+        fs.copyFileSync(samplePath, destPath);
+        doc.fileSize = sampleStat.size;
+        doc.status = 'uploaded';
+        await doc.save();
+        await IngestionService.processDocument(doc._id);
+        doc = await DocumentModel.findById(doc._id);
+      }
     }
 
     if (doc) {
@@ -178,6 +190,8 @@ export async function runEvaluation(): Promise<EvalMetrics> {
       );
 
       const isRelevant = isTargetDoc && (pageMatches || hasKeyPhrase);
+
+
 
       if (isRelevant && firstMatchRank === 0) {
         firstMatchRank = rank;

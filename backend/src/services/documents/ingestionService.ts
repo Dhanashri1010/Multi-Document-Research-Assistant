@@ -104,6 +104,9 @@ export class IngestionService {
       if (extraction.metadata?.authors && extraction.metadata.authors.length > 0) {
         doc.authors = extraction.metadata.authors;
       }
+      if (extraction.metadata?.year) {
+        doc.year = extraction.metadata.year;
+      }
       if (extraction.metadata?.abstract) {
         doc.abstract = extraction.metadata.abstract;
       }

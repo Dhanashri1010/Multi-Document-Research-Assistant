@@ -34,14 +34,42 @@ The benchmark dataset (`backend/eval/dataset.json`) contains **42 rigorous evalu
 
 | Phase | Description | Hit@1 | Hit@3 | Hit@5 | MRR | Keyword Match @ 3 | Off-Topic Refusal | Date |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Phase 1 Baseline** | BM25 + Dense RRF on 6-Paper Corpus (42 Qs) | **94.4%** | **94.4%** | **94.4%** | **0.944** | **83.3%** | **33.3%** | Nov 6, 2026 |
-| **Phase 2** | Ingestion Quality (2-Column parsing, Headings) | TBD | TBD | TBD | TBD | TBD | TBD | Pending |
+| **Phase 1 Baseline** | BM25 + Dense RRF on 6-Paper Corpus (42 Qs) | **88.9%** | **94.4%** | **94.4%** | **0.924** | **83.3%** | **33.3%** | Nov 6, 2026 |
+| **Phase 2 Complete** | Ingestion Quality (2-Column, Headings, Balanced MMR) | **88.9%** | **97.2%** | **100.0%** | **0.938** | **94.4%** | **33.3%** | Nov 6, 2026 |
 | **Phase 3** | Grounded Generation (Zod, Citations, Refusals) | TBD | TBD | TBD | TBD | TBD | TBD | Pending |
 | **Phase 4** | Advanced Eval (Faithfulness & Citation Audit) | TBD | TBD | TBD | TBD | TBD | TBD | Pending |
 
 ---
 
 ## Detailed Run History
+
+### Run 2: Post-Phase 2 Ingestion Quality & Balanced MMR Evaluation
+- **Date**: 2026-11-06
+- **Dataset**: `backend/eval/dataset.json` (42 items: 36 grounded + 6 off-topic)
+- **Corpus**: 6 indexed academic papers in MongoDB with distractor papers (`attention`, `lora`, `bert`, `resnet`, `gpt3`, `adam`).
+- **Phase 2 Ingestion & Retrieval Upgrades**:
+  - Two-column PDF layout awareness & bounding-box column sorting.
+  - Section-aware chunking preserving academic headers (`Abstract`, `Methodology`, `Experiments`, `Results`, `Conclusion`).
+  - Automatic Page 1 metadata extraction (Title, Authors, Year via arXiv YYMM & regex, Abstract).
+  - SHA-256 file-hash duplicate detection.
+  - Corrupt / encrypted / scanned PDF detection with descriptive user-facing errors.
+  - Balanced MMR scale calibration (`lambda = 0.85`, RRF score normalization) resolving multi-document suppression.
+- **Global Metrics**:
+  - Total Queries: **42** (36 grounded, 6 off-topic)
+  - **Hit@1**: **88.9%** (32 / 36)
+  - **Hit@3**: **97.2%** (35 / 36) — **+2.8% improvement**
+  - **Hit@5**: **100.0%** (36 / 36) — **100% of all grounded queries retrieved (0 missed)**
+  - **MRR (Mean Reciprocal Rank)**: **0.938**
+  - **Keyword Match @ 3**: **94.4%** (34 / 36) — **+11.1% recall improvement**
+  - **Off-Topic Refusal**: **33.3%** (2 / 6 refused at embedding confidence threshold `0.22`)
+- **Category Breakdown**:
+  - `table` (N=6): **Hit@1 = 100% | Hit@3 = 100% | Hit@5 = 100% | MRR = 1.000**
+  - `equation` (N=6): **Hit@1 = 100% | Hit@3 = 100% | Hit@5 = 100% | MRR = 1.000**
+  - `paraphrased` (N=6): **Hit@1 = 100% | Hit@3 = 100% | Hit@5 = 100% | MRR = 1.000**
+  - `multi-doc` (N=6): **Hit@1 = 83.3% | Hit@3 = 100% | Hit@5 = 100% | MRR = 0.917**
+  - `single-doc` (N=12): **Hit@1 = 75.0% | Hit@3 = 91.7% | Hit@5 = 100% | MRR = 0.854**
+
+---
 
 ### Run 1: Expanded 42-Query Benchmark on Phase 1 Pipeline
 - **Date**: 2026-11-06

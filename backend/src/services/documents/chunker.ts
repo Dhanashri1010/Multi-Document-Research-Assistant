@@ -17,6 +17,7 @@ export interface ChunkerOptions {
   overlapTokens?: number;
   tokenCounter?: (text: string) => number;
   docTitle?: string;
+  stripReferences?: boolean;
 }
 
 interface PageMapEntry {
@@ -34,16 +35,16 @@ interface SentenceItem {
 }
 
 const SECTION_PATTERNS: { regex: RegExp; section: string }[] = [
-  { regex: /^(?:(?:\d+\.?\s*)?abstract)\b/i, section: 'Abstract' },
-  { regex: /^(?:(?:\d+\.?\s*)?introduction)\b/i, section: 'Introduction' },
-  { regex: /^(?:(?:\d+\.?\s*)?(?:background|related\s+work))\b/i, section: 'Background' },
-  { regex: /^(?:(?:\d+\.?\s*)?(?:methodology|methods|method|model\s+architecture|architecture|model))\b/i, section: 'Methodology' },
-  { regex: /^(?:(?:\d+\.?\s*)?(?:experimental\s+setup|experiments|evaluation|training))\b/i, section: 'Experiments' },
-  { regex: /^(?:(?:\d+\.?\s*)?results)\b/i, section: 'Results' },
-  { regex: /^(?:(?:\d+\.?\s*)?discussion)\b/i, section: 'Discussion' },
-  { regex: /^(?:(?:\d+\.?\s*)?(?:conclusion|conclusions|future\s+work))\b/i, section: 'Conclusion' },
-  { regex: /^(?:(?:\d+\.?\s*)?(?:references|bibliography))\b/i, section: 'References' },
-  { regex: /^(?:(?:\d+\.?\s*)?appendix)\b/i, section: 'Appendix' },
+  { regex: /^(?:(?:\d+(?:\.\d+)*\.?\s*)?abstract)\b/i, section: 'Abstract' },
+  { regex: /^(?:(?:\d+(?:\.\d+)*\.?\s*)?introduction)\b/i, section: 'Introduction' },
+  { regex: /^(?:(?:\d+(?:\.\d+)*\.?\s*)?(?:background|related\s+work))\b/i, section: 'Background' },
+  { regex: /^(?:(?:section\s+\d+[:\s]+)?(?:\d+(?:\.\d+)*\.?\s*)?(?:methodology|methods|method|model\s+architecture|architecture|model|problem\s+formulation|pre-training\s+objectives|residual\s+mapping|algorithm))\b/i, section: 'Methodology' },
+  { regex: /^(?:(?:section\s+\d+[:\s]+)?(?:\d+(?:\.\d+)*\.?\s*)?(?:experimental\s+setup|experiments|evaluation|training|benchmarks?|empirical\s+benchmarks|imagenet\s+benchmarks))\b/i, section: 'Experiments' },
+  { regex: /^(?:(?:\d+(?:\.\d+)*\.?\s*)?results)\b/i, section: 'Results' },
+  { regex: /^(?:(?:\d+(?:\.\d+)*\.?\s*)?discussion)\b/i, section: 'Discussion' },
+  { regex: /^(?:(?:section\s+\d+[:\s]+)?(?:\d+(?:\.\d+)*\.?\s*)?(?:conclusion|conclusions|future\s+work|limitations|reported\s+limitations))\b/i, section: 'Conclusion' },
+  { regex: /^(?:(?:\d+(?:\.\d+)*\.?\s*)?(?:references|bibliography))\b/i, section: 'References' },
+  { regex: /^(?:(?:\d+(?:\.\d+)*\.?\s*)?appendix)\b/i, section: 'Appendix' },
 ];
 
 /**
@@ -51,8 +52,10 @@ const SECTION_PATTERNS: { regex: RegExp; section: string }[] = [
  */
 export function detectSectionHeading(text: string): string | null {
   const trimmed = text.trim();
+  const firstLine = trimmed.split('\n')[0].trim();
+
   for (const p of SECTION_PATTERNS) {
-    if (p.regex.test(trimmed)) {
+    if (p.regex.test(trimmed) || p.regex.test(firstLine)) {
       return p.section;
     }
   }
@@ -168,6 +171,7 @@ function buildEmbeddingText(chunkText: string, section?: string, docTitle?: stri
 /**
  * Chunks a document cross-page across page boundaries by sentences with overlap,
  * attaches section headings, and produces embeddingText with document context.
+ * Strips bibliography/references sections by default to prevent vector space contamination.
  */
 export function chunkPages(
   pages: ExtractedPage[],
@@ -177,6 +181,7 @@ export function chunkPages(
   const overlapTokens = options.overlapTokens ?? config.chunkOverlapTokens ?? 40;
   const tokenCounter = options.tokenCounter ?? estimateTokenCount;
   const docTitle = options.docTitle?.trim();
+  const stripReferences = options.stripReferences ?? false;
 
   // 1. Build a single text stream for the whole document with char-offset -> page map
   const pageMap: PageMapEntry[] = [];
@@ -217,6 +222,11 @@ export function chunkPages(
       currentSection = detected;
     }
 
+    // Strip references section from embedding chunks if configured
+    if (stripReferences && currentSection === 'References') {
+      continue;
+    }
+
     const tokens = tokenCounter(text);
     if (tokens > targetTokens) {
       const splitItems = hardSplitSentence(text, item.index, targetTokens, tokenCounter, currentSection);
@@ -232,9 +242,25 @@ export function chunkPages(
     }
   }
 
+  // Fallback: If stripping references left zero sentences (rare edge case), re-include
+  if (sentenceItems.length === 0 && rawSegments.length > 0) {
+    for (const item of rawSegments) {
+      const text = item.segment.trim();
+      if (!text) continue;
+      const tokens = tokenCounter(text);
+      sentenceItems.push({
+        text,
+        startOffset: item.index,
+        endOffset: item.index + text.length,
+        tokenCount: tokens,
+        section: 'Content',
+      });
+    }
+  }
+
   if (sentenceItems.length === 0) return [];
 
-  // 3. Assemble cross-page chunks with overlap
+  // 3. Assemble cross-page chunks with overlap respecting section boundaries
   const chunks: TextChunk[] = [];
   let chunkIndex = 0;
   let currentItems: SentenceItem[] = [];

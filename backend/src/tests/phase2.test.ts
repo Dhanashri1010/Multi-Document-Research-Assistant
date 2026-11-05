@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { BM25Index, tokenizeText, stemToken } from '../services/ai/bm25.js';
 import {
   cosineSimilarityTyped,
@@ -7,10 +9,11 @@ import {
   invalidateVectorCache,
 } from '../services/ai/vectorStore.js';
 import { detectSectionHeading, chunkPages } from '../services/documents/chunker.js';
-import { extractPage1Metadata } from '../services/documents/extractor.js';
+import { extractPage1Metadata, extractPdf } from '../services/documents/extractor.js';
 import { RAGService } from '../services/ai/ragService.js';
 import { LLMService } from '../services/ai/llmService.js';
 import { IDocumentChunk } from '../models/DocumentChunk.js';
+import { config } from '../config/env.js';
 
 describe('Phase 2: BM25 Lexical Ranking Engine', () => {
   it('tokenizes, strips stopwords, and stems English tokens', () => {
@@ -153,11 +156,12 @@ describe('Phase 2: Section Heading Detection & References Awareness', () => {
 });
 
 describe('Phase 2: Page 1 Metadata Extraction & Deduplication', () => {
-  it('extracts paper title, authors, and abstract from page 1 text', () => {
+  it('extracts paper title, authors, year, and abstract from page 1 text', () => {
     const page1 = `Attention Is All You Need
 Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit
 Google Brain, Google Research
 {avaswani, noam}@google.com
+arXiv:1706.03762v5 [cs.CL] 6 Dec 2017
 
 Abstract
 The dominant sequence transduction models are based on complex recurrent or convolutional neural networks. We propose the Transformer based solely on attention mechanisms.
@@ -171,8 +175,42 @@ Recurrent neural networks have been firmly established as state of the art.`;
     expect(meta.authors).toBeDefined();
     expect(meta.authors).toContain('Ashish Vaswani');
     expect(meta.authors).toContain('Noam Shazeer');
+    expect(meta.year).toBe(2017);
     expect(meta.abstract).toContain('The dominant sequence transduction models');
     expect(meta.abstract).not.toContain('1 Introduction');
+  });
+
+  it('detects and strips references section when stripReferences is true', () => {
+    const pages = [
+      {
+        pageNumber: 1,
+        text: 'Abstract\nNovel neural architecture.\n\n3 Methodology\nModel parameters.\n\nReferences\n[1] Smith et al. Deep Learning, 2020.\n[2] Doe et al. Transformers, 2021.',
+      },
+    ];
+
+    const chunks = chunkPages(pages, {
+      stripReferences: true,
+      docTitle: 'Test Paper',
+    });
+
+    for (const chunk of chunks) {
+      expect(chunk.section).not.toBe('References');
+      expect(chunk.text).not.toContain('Smith et al. Deep Learning');
+    }
+  });
+
+  it('rejects corrupt files that lack %PDF- magic bytes with clear error', async () => {
+    const uploadDir = path.resolve(process.cwd(), config.uploadDir);
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+    const fakePdfPath = path.join(uploadDir, 'corrupt_test.pdf');
+    fs.writeFileSync(fakePdfPath, 'NOT_A_REAL_PDF_CONTENT_HERE_AT_ALL', 'utf-8');
+
+    try {
+      await expect(extractPdf(fakePdfPath)).rejects.toThrow(/Invalid PDF format/i);
+    } finally {
+      if (fs.existsSync(fakePdfPath)) fs.unlinkSync(fakePdfPath);
+    }
   });
 
   it('computes consistent SHA-256 hash for document deduplication', () => {

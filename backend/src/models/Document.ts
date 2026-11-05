@@ -15,6 +15,7 @@ export interface IDocument extends MongooseDoc {
   fileHash?: string;
   title?: string;
   authors?: string[];
+  year?: number;
   abstract?: string;
   status: DocumentStatus;
   errorDetails?: string;
@@ -36,6 +37,7 @@ const DocumentSchema = new Schema<IDocument>(
     fileHash: { type: String, index: true },
     title: { type: String },
     authors: { type: [String], default: [] },
+    year: { type: Number },
     abstract: { type: String },
     status: {
       type: String,

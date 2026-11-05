@@ -9,6 +9,7 @@ export interface ExtractedPage {
 export interface Page1Metadata {
   title?: string;
   authors?: string[];
+  year?: number;
   abstract?: string;
 }
 
@@ -24,8 +25,7 @@ export interface ExtractionResult {
  * - Replaces non-printable control characters (except tabs and newlines)
  * - De-hyphenates line-break words ("trans-\nformer" -> "transformer")
  * - Strips standalone page numbers
- * - Normalizes excessive consecutive whitespace
- * - Preserves paragraph breaks and sentence structure
+ * - Normalizes excessive consecutive whitespace while preserving paragraph structure
  */
 export function cleanText(rawText: string): string {
   if (!rawText) return '';
@@ -37,10 +37,10 @@ export function cleanText(rawText: string): string {
   // De-hyphenate line-break words: "trans-\nformer" -> "transformer"
   text = text.replace(/([a-zA-Z]+)-\n([a-zA-Z]+)/g, '$1$2');
 
-  // Strip standalone page numbers (lines containing only digits)
+  // Strip standalone page numbers (lines containing only digits or "Page X")
   text = text
     .split('\n')
-    .filter((line) => !/^\s*\d+\s*$/.test(line))
+    .filter((line) => !/^\s*(?:page\s+)?\d+\s*$/i.test(line))
     .join('\n');
 
   return text
@@ -113,7 +113,6 @@ export async function extractTxt(filePath: string): Promise<ExtractionResult> {
   while (offset < cleaned.length) {
     let end = Math.min(offset + pageSize, cleaned.length);
     if (end < cleaned.length) {
-      // Prefer breaking at paragraph or line boundary
       const lastLineBreak = cleaned.lastIndexOf('\n', end);
       if (lastLineBreak > offset + pageSize * 0.7) {
         end = lastLineBreak + 1;
@@ -141,36 +140,214 @@ export async function extractTxt(filePath: string): Promise<ExtractionResult> {
   };
 }
 
+interface RawTextItem {
+  str: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
- * Extracts text from a PDF file while preserving individual page numbers.
+ * Re-orders text items for academic two-column layouts.
+ * Prevents horizontal interleaving of columns by reading Column 1 top-to-bottom,
+ * then Column 2 top-to-bottom, while preserving full-width titles/abstracts at the top.
+ */
+function assemblePageTextFromItems(items: RawTextItem[]): string {
+  if (items.length === 0) return '';
+
+  // Determine horizontal page bounding box
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let minY = Infinity;
+
+  for (const it of items) {
+    if (it.str.trim().length === 0) continue;
+    if (it.x < minX) minX = it.x;
+    if (it.x + it.width > maxX) maxX = it.x + it.width;
+    if (it.y > maxY) maxY = it.y;
+    if (it.y < minY) minY = it.y;
+  }
+
+  const pageWidth = maxX - minX;
+
+  // If text width is small or items are sparse, sort normally top-down
+  if (pageWidth < 250 || items.length < 15) {
+    const sorted = [...items].sort((a, b) => {
+      if (Math.abs(b.y - a.y) > 3) return b.y - a.y; // top to bottom
+      return a.x - b.x; // left to right
+    });
+    return renderLineGroups(sorted);
+  }
+
+  const midX = minX + pageWidth / 2;
+  const leftColThreshold = midX - 15;
+  const rightColThreshold = midX + 15;
+
+  let leftCount = 0;
+  let rightCount = 0;
+  let centerSpanningCount = 0;
+
+  for (const it of items) {
+    if (it.str.trim().length === 0) continue;
+    if (it.x + it.width <= leftColThreshold) {
+      leftCount++;
+    } else if (it.x >= rightColThreshold) {
+      rightCount++;
+    } else {
+      centerSpanningCount++;
+    }
+  }
+
+  // Detect two-column layout: significant items in both columns and clear gutter
+  const isTwoColumn = leftCount >= 8 && rightCount >= 8 && (leftCount + rightCount) > centerSpanningCount * 1.5;
+
+  if (!isTwoColumn) {
+    const sorted = [...items].sort((a, b) => {
+      if (Math.abs(b.y - a.y) > 3) return b.y - a.y;
+      return a.x - b.x;
+    });
+    return renderLineGroups(sorted);
+  }
+
+  // In two-column layout:
+  // Identify where the two columns begin vertically (top banner cutoff)
+  let colTopY = -Infinity;
+  for (const it of items) {
+    if (it.str.trim().length === 0) continue;
+    if (it.x >= rightColThreshold && it.y > colTopY) {
+      colTopY = it.y;
+    }
+  }
+
+  // Any items above colTopY + 5 are top banner (title, authors, abstract)
+  const topBanner: RawTextItem[] = [];
+  const leftColumn: RawTextItem[] = [];
+  const rightColumn: RawTextItem[] = [];
+  const bottomBanner: RawTextItem[] = [];
+
+  for (const it of items) {
+    if (it.str.trim().length === 0) continue;
+
+    if (it.y > colTopY + 5) {
+      topBanner.push(it);
+    } else if (it.x + it.width <= midX + 5) {
+      leftColumn.push(it);
+    } else if (it.x >= midX - 5) {
+      rightColumn.push(it);
+    } else {
+      // Center item below top banner: assign based on center of item
+      const itemCenter = it.x + it.width / 2;
+      if (itemCenter < midX) {
+        leftColumn.push(it);
+      } else {
+        rightColumn.push(it);
+      }
+    }
+  }
+
+  const sortTopDown = (a: RawTextItem, b: RawTextItem) => {
+    if (Math.abs(b.y - a.y) > 3) return b.y - a.y;
+    return a.x - b.x;
+  };
+
+  topBanner.sort(sortTopDown);
+  leftColumn.sort(sortTopDown);
+  rightColumn.sort(sortTopDown);
+  bottomBanner.sort(sortTopDown);
+
+  const parts = [
+    renderLineGroups(topBanner),
+    renderLineGroups(leftColumn),
+    renderLineGroups(rightColumn),
+    renderLineGroups(bottomBanner),
+  ].filter(Boolean);
+
+  return parts.join('\n\n');
+}
+
+/**
+ * Groups sorted items with identical or close Y coordinates into continuous horizontal lines.
+ */
+function renderLineGroups(items: RawTextItem[]): string {
+  if (items.length === 0) return '';
+
+  let lines: string[] = [];
+  let currentLineItems: RawTextItem[] = [];
+  let currentY: number | null = null;
+
+  for (const item of items) {
+    if (currentY === null || Math.abs(currentY - item.y) <= 3) {
+      currentLineItems.push(item);
+      currentY = item.y;
+    } else {
+      // Flush current line
+      currentLineItems.sort((a, b) => a.x - b.x);
+      lines.push(currentLineItems.map((it) => it.str).join(' '));
+      currentLineItems = [item];
+      currentY = item.y;
+    }
+  }
+
+  if (currentLineItems.length > 0) {
+    currentLineItems.sort((a, b) => a.x - b.x);
+    lines.push(currentLineItems.map((it) => it.str).join(' '));
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Extracts text from a PDF file while preserving individual page numbers,
+ * handling academic two-column layouts, and detecting corrupt, encrypted, or scanned documents.
  */
 export async function extractPdf(filePath: string): Promise<ExtractionResult> {
-  const dataBuffer = await fs.promises.readFile(filePath);
+  // 1. Validate File Existence and Non-Zero Size
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found at path: ${filePath}`);
+  }
 
+  const stats = await fs.promises.stat(filePath);
+  if (stats.size === 0) {
+    throw new Error('Corrupt PDF: The uploaded file is empty (0 bytes).');
+  }
+
+  // 2. Validate Magic Bytes (%PDF-)
+  const headerBuf = Buffer.alloc(5);
+  const fd = await fs.promises.open(filePath, 'r');
+  await fd.read(headerBuf, 0, 5, 0);
+  await fd.close();
+
+  if (headerBuf.toString() !== '%PDF-') {
+    throw new Error('Invalid PDF format: File header does not start with "%PDF-". The document is damaged or not a valid PDF.');
+  }
+
+  const dataBuffer = await fs.promises.readFile(filePath);
   const pages: ExtractedPage[] = [];
 
-  // Custom page renderer hook to extract text per page
+  // 3. Custom page renderer hook to extract text per page with two-column sorting
   const pageRenderHook = async (pageData: any): Promise<string> => {
     const textContent = await pageData.getTextContent({
       normalizeWhitespace: true,
       disableCombineTextItems: false,
     });
 
-    let lastY: number | null = null;
-    let pageText = '';
-
+    const rawItems: RawTextItem[] = [];
     for (const item of textContent.items) {
-      if ('str' in item) {
-        if (lastY === null || Math.abs(lastY - item.transform[5]) < 3) {
-          pageText += (pageText.endsWith(' ') ? '' : ' ') + item.str;
-        } else {
-          pageText += '\n' + item.str;
-        }
-        lastY = item.transform[5];
+      if ('str' in item && typeof item.str === 'string') {
+        rawItems.push({
+          str: item.str,
+          x: item.transform ? item.transform[4] : 0,
+          y: item.transform ? item.transform[5] : 0,
+          width: item.width || 0,
+          height: item.height || 0,
+        });
       }
     }
 
-    const cleaned = cleanText(pageText);
+    const assembled = assemblePageTextFromItems(rawItems);
+    const cleaned = cleanText(assembled);
     const pageIndex = pageData.pageIndex !== undefined ? pageData.pageIndex + 1 : pages.length + 1;
 
     pages.push({
@@ -181,14 +358,24 @@ export async function extractPdf(filePath: string): Promise<ExtractionResult> {
     return cleaned;
   };
 
-  const parsed = await (pdfParse as any)(dataBuffer, {
-    pagerender: pageRenderHook,
-  });
+  // 4. Parse with pdf-parse and handle encryption/corruption errors
+  let parsed: any;
+  try {
+    parsed = await (pdfParse as any)(dataBuffer, {
+      pagerender: pageRenderHook,
+    });
+  } catch (err: any) {
+    const msg = (err?.message || '').toLowerCase();
+    if (msg.includes('password') || msg.includes('encrypted')) {
+      throw new Error('Encrypted PDF: The document is password-protected. Please upload an unencrypted version.');
+    }
+    throw new Error(`Corrupted PDF: Failed to parse PDF structure (${err.message}).`);
+  }
 
-  // Sort pages by pageNumber in case callbacks returned out of order
+  // Sort pages by pageNumber
   pages.sort((a, b) => a.pageNumber - b.pageNumber);
 
-  // If pageRenderHook didn't capture individual pages (e.g. single-page or alternate format), fallback
+  // If pageRenderHook didn't capture individual pages, fallback to parsed.text
   if (pages.length === 0 && parsed.text) {
     const cleaned = cleanText(parsed.text);
     pages.push({
@@ -197,7 +384,15 @@ export async function extractPdf(filePath: string): Promise<ExtractionResult> {
     });
   }
 
-  // Remove repeated headers and footers across pages
+  // 5. Scanned / Bitmap Detection
+  const totalChars = pages.reduce((sum, p) => sum + p.text.replace(/\s+/g, '').length, 0);
+  if (totalChars < 50 && (parsed.numpages || pages.length) > 0) {
+    throw new Error(
+      'Scanned Document: No machine-readable text found in the PDF. This document appears to be a scanned image or bitmap requiring OCR.'
+    );
+  }
+
+  // 6. Remove repeated headers and footers across pages
   const cleanedPages = removeRepeatedHeadersFooters(pages);
   const fullText = cleanedPages.map((p) => `--- Page ${p.pageNumber} ---\n${p.text}`).join('\n\n');
   const metadata = extractPage1Metadata(cleanedPages[0]?.text || '');
@@ -211,7 +406,7 @@ export async function extractPdf(filePath: string): Promise<ExtractionResult> {
 }
 
 /**
- * Extracts title, authors, and abstract from page 1 text.
+ * Extracts title, authors, year, and abstract from page 1 text.
  */
 export function extractPage1Metadata(page1Text: string): Page1Metadata {
   if (!page1Text || !page1Text.trim()) return {};
@@ -225,15 +420,38 @@ export function extractPage1Metadata(page1Text: string): Page1Metadata {
 
   let title = '';
   let authors: string[] = [];
+  let year: number | undefined;
   let abstract = '';
 
+  // 1. Year Extraction
+  // Look for arXiv tags (e.g. arXiv:2106.09685 -> 2021)
+  const arxivMatch = page1Text.match(/arxiv:\s*(\d{2})\d{2}\./i);
+  if (arxivMatch) {
+    const parsedYear = 2000 + parseInt(arxivMatch[1], 10);
+    if (parsedYear >= 1990 && parsedYear <= 2035) {
+      year = parsedYear;
+    }
+  }
+
+  // Look for 4-digit years near publication/conference terms or dates
+  if (!year) {
+    const yearMatch = page1Text.match(/\b(19\d{2}|20\d{2})\b/);
+    if (yearMatch) {
+      const parsedYear = parseInt(yearMatch[1], 10);
+      if (parsedYear >= 1970 && parsedYear <= 2035) {
+        year = parsedYear;
+      }
+    }
+  }
+
+  // 2. Abstract, Title, and Authors Extraction
   const abstractLineIdx = lines.findIndex((l) => /^(?:abstract[:\s-]*$|^abstract[:\s-]+)/i.test(l));
 
   if (abstractLineIdx > 0) {
-    // Title is typically the first 1-2 lines before authors
+    // Title is typically line 0 (and optionally line 1 if short and not an author)
     title = lines[0];
     if (abstractLineIdx > 2 && lines[1].length < 100 && !lines[1].includes('@') && !/^(by|authors?:)/i.test(lines[1])) {
-      if (!lines[1].includes(',') && !lines[1].toLowerCase().includes('university')) {
+      if (!lines[1].includes(',') && !lines[1].toLowerCase().includes('university') && !lines[1].toLowerCase().includes('google')) {
         title = `${title} ${lines[1]}`;
       }
     }
@@ -241,7 +459,7 @@ export function extractPage1Metadata(page1Text: string): Page1Metadata {
     // Authors are between title and abstract
     const authorLines = lines.slice(1, abstractLineIdx).filter((l) => {
       if (l.includes('@') || /arxiv:|http|published|accepted/i.test(l)) return false;
-      if (/department|university|laboratory|institute|google|research|corporation/i.test(l)) return false;
+      if (/department|university|laboratory|institute|google|research|microsoft|openai/i.test(l)) return false;
       return true;
     });
 
@@ -249,7 +467,7 @@ export function extractPage1Metadata(page1Text: string): Page1Metadata {
     for (const line of authorLines) {
       const parts = line.split(/,|(?:\band\b)|;/).map((p) => p.trim()).filter((p) => p.length >= 2 && p.length < 50);
       for (const p of parts) {
-        const cleanedName = p.replace(/[\d*†‡§]+/g, '').trim();
+        const cleanedName = p.replace(/[\d*†‡§()]+/g, '').trim();
         if (cleanedName.length >= 2 && !/^(and|by|et al\.?)$/i.test(cleanedName)) {
           candidateAuthors.push(cleanedName);
         }
@@ -282,6 +500,7 @@ export function extractPage1Metadata(page1Text: string): Page1Metadata {
   return {
     title: title || undefined,
     authors: authors.length > 0 ? authors : undefined,
+    year,
     abstract: abstract || undefined,
   };
 }

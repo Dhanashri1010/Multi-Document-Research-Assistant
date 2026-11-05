@@ -95,7 +95,7 @@ export function cosineSimilarityTyped(vecA: Float32Array, vecB: Float32Array): n
 export function maximalMarginalRelevance(
   candidates: { chunk: IDocumentChunk; vector: Float32Array; score: number; denseScore: number }[],
   topK: number,
-  lambda: number = 0.7
+  lambda: number = 0.85
 ): ScoredChunk[] {
   if (candidates.length <= topK) {
     return candidates.map((c) => ({
@@ -108,6 +108,11 @@ export function maximalMarginalRelevance(
   const selected: { chunk: IDocumentChunk; vector: Float32Array; score: number; denseScore: number }[] = [];
   const remaining = [...candidates].sort((a, b) => b.score - a.score);
 
+  // If scores are raw RRF values (typically < 0.1), scale by maxScore so relevance is in [0, 1]
+  // consistent with cosine similarity range without zeroing the tail.
+  const maxScore = remaining[0]?.score || 1;
+  const scale = maxScore > 0 && maxScore < 0.1 ? 1.0 / maxScore : 1.0;
+
   // First pick is the highest scoring candidate
   const first = remaining.shift()!;
   selected.push(first);
@@ -118,7 +123,7 @@ export function maximalMarginalRelevance(
 
     for (let i = 0; i < remaining.length; i++) {
       const candidate = remaining[i];
-      const relevance = candidate.score;
+      const relevance = candidate.score * scale;
 
       // Find max similarity between candidate and already selected items
       let maxSim = 0;
@@ -130,7 +135,7 @@ export function maximalMarginalRelevance(
       }
 
       // Strong deduplication penalty for near-identical chunks (>0.98 similarity)
-      const diversityPenalty = maxSim > 0.98 ? 1.0 : maxSim;
+      const diversityPenalty = maxSim > 0.98 ? 1.0 : Math.max(0, maxSim);
       const mmrScore = lambda * relevance - (1 - lambda) * diversityPenalty;
 
       if (mmrScore > bestMmrScore) {
@@ -315,11 +320,11 @@ export class LocalVectorStore implements IVectorStore {
       const bm25Info = bm25RankMap.get(idStr);
       const bm25Rank = bm25Info ? bm25Info.rank : 999;
 
-      // Base RRF score + subtle dense score tiebreaker
+      // Base RRF score + dense score tiebreaker
       const rrfScore =
         1.0 / (RRF_K + denseRank) +
         (bm25Info ? 1.0 / (RRF_K + bm25Rank) : 0) +
-        0.0001 * denseInfo.sim;
+        0.005 * denseInfo.sim;
 
       if (denseInfo.sim >= minScore || (bm25Info && bm25Info.score > 1.5)) {
         allFusedCandidates.push({
@@ -338,84 +343,33 @@ export class LocalVectorStore implements IVectorStore {
     allFusedCandidates.sort((a, b) => b.score - a.score);
 
     // 5. Apply Balanced Multi-Document Quota Allocation
-    // Ensures one paper cannot dominate multi-document synthesis by balancing candidates across documents
-    const docGrouped = new Map<string, typeof allFusedCandidates>();
+    // Ensures one paper cannot dominate multi-document synthesis by capping maximum chunks per document
+    const maxPerDoc = numDocs > 1 ? Math.max(2, Math.ceil(topK * 0.6)) : topK;
+    const docCounts = new Map<string, number>();
+    const quotaCandidates: typeof allFusedCandidates = [];
+
     for (const cand of allFusedCandidates) {
       const dId = cand.chunk.documentId.toString();
-      if (!docGrouped.has(dId)) {
-        docGrouped.set(dId, []);
+      const currentCount = docCounts.get(dId) || 0;
+      if (currentCount < maxPerDoc) {
+        quotaCandidates.push(cand);
+        docCounts.set(dId, currentCount + 1);
       }
-      docGrouped.get(dId)!.push(cand);
     }
-
-    // Helper: balance candidates across documents so no single paper dominates
-    const balanceCandidates = (targetK: number): typeof allFusedCandidates => {
-      if (numDocs <= 1) {
-        return allFusedCandidates;
-      }
-
-      const basePerDoc = Math.max(1, Math.floor(targetK / numDocs));
-      const selected: typeof allFusedCandidates = [];
-      const selectedIds = new Set<string>();
-      const remainingByDoc = new Map<string, typeof allFusedCandidates>();
-
-      // Pass 1: Guarantee proportional representation from each document with matching evidence
-      for (const [docId, cands] of docGrouped.entries()) {
-        cands.sort((a, b) => b.score - a.score);
-        const docDiverse = maximalMarginalRelevance(cands, basePerDoc, 0.7);
-        for (const d of docDiverse) {
-          const match = cands.find((c) => c.chunk._id.toString() === d.chunk._id.toString());
-          if (match && !selectedIds.has(match.chunk._id.toString())) {
-            selected.push(match);
-            selectedIds.add(match.chunk._id.toString());
-          }
-        }
-        const remaining = cands.filter((c) => !selectedIds.has(c.chunk._id.toString()));
-        remainingByDoc.set(docId, remaining);
-      }
-
-      // Pass 2: Fill remaining slots up to targetK from highest-scoring remaining candidates
-      if (selected.length < targetK) {
-        const leftovers = Array.from(remainingByDoc.values()).flat();
-        leftovers.sort((a, b) => b.score - a.score);
-        for (const cand of leftovers) {
-          if (selected.length >= targetK) break;
-          if (!selectedIds.has(cand.chunk._id.toString())) {
-            selected.push(cand);
-            selectedIds.add(cand.chunk._id.toString());
-          }
-        }
-      }
-
-      return selected;
-    };
 
     // 6. Candidate Pool Sizing & Reranking Step
     // When reranker is ON: retrieve top 20-30 balanced candidates, rerank to top 5-6
-    // When reranker is OFF: no-op fallback, return document-balanced MMR candidates
+    // When reranker is OFF: no-op fallback, return MMR diverse candidates
     const isRerankerActive = config.reranker === 'on' && queryText.trim().length > 0;
 
     if (isRerankerActive) {
-      // Retrieve top 20-30 candidate pool balanced across documents
-      const candidatePoolSize = Math.min(allFusedCandidates.length, Math.max(topK * 4, 25));
-      const balancedPool = balanceCandidates(candidatePoolSize);
-      const mmrPool = maximalMarginalRelevance(balancedPool, candidatePoolSize, 0.7);
-
-      // Cross-encoder rerank down to requested topK
+      const candidatePoolSize = Math.min(quotaCandidates.length, Math.max(topK * 4, 25));
+      const mmrPool = maximalMarginalRelevance(quotaCandidates, candidatePoolSize, 0.7);
       return await RerankerService.rerank(queryText, mmrPool, topK);
     }
 
-    // Standard path (reranker off / default): balanced document selection
-    if (numDocs > 1) {
-      const balancedResults = balanceCandidates(topK);
-      return balancedResults.map((b) => ({
-        chunk: b.chunk,
-        score: b.score,
-        denseScore: b.denseScore,
-      }));
-    }
-
-    const mmrResults = maximalMarginalRelevance(allFusedCandidates, topK, 0.7);
+    // Standard path (reranker off / default): MMR selects topK diverse chunks from quota candidates
+    const mmrResults = maximalMarginalRelevance(quotaCandidates, topK, 0.85);
     return mmrResults.slice(0, topK);
   }
 }
