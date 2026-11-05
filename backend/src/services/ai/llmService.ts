@@ -176,14 +176,6 @@ export class LLMService {
             throw err;
           }
         }
-            model: model || 'gpt-4o-mini',
-            messages,
-            temperature: options.temperature ?? 0.2,
-            max_tokens: options.maxTokens ?? 2048,
-          });
-
-          return completion.choices[0]?.message?.content || '';
-        }
 
         if (provider === 'ollama') {
           const response = await fetch(`${config.ollamaBaseUrl}/api/generate`, {

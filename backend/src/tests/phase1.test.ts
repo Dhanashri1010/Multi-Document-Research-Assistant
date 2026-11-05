@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { splitIntoSentences, chunkPages, estimateTokenCount } from '../services/documents/chunker.js';
 import { cleanText, extractTxt } from '../services/documents/extractor.js';
-import { VectorStore } from '../services/ai/vectorStore.js';
+import { VectorStore, getVectorStore, LocalVectorStore, AtlasVectorStore, invalidateVectorCache } from '../services/ai/vectorStore.js';
 import { LLMService } from '../services/ai/llmService.js';
 import { config } from '../config/env.js';
 import { DocumentChunkModel } from '../models/DocumentChunk.js';
@@ -140,8 +140,9 @@ describe('Phase 1 Unit Tests: TXT Support', () => {
   });
 });
 
-describe('Phase 1 Unit Tests: VectorStore Safety on Dimension Mismatch', () => {
+describe('Phase 1 Unit Tests: VectorStore Safety on Dimension & Model Mismatch', () => {
   it('skips chunks whose embedding dimension differs from active query embedding without crashing', async () => {
+    invalidateVectorCache();
     const doc1Id = '507f1f77bcf86cd799439011';
     const doc2Id = '507f1f77bcf86cd799439012';
 
@@ -186,6 +187,117 @@ describe('Phase 1 Unit Tests: VectorStore Safety on Dimension Mismatch', () => {
     } finally {
       findSpy.mockRestore();
       warnSpy.mockRestore();
+      invalidateVectorCache();
+    }
+  });
+
+  it('refuses to mix chunks from different embedding models even if dimension happens to match', async () => {
+    invalidateVectorCache();
+    const doc1Id = '507f1f77bcf86cd799439013';
+    const doc2Id = '507f1f77bcf86cd799439014';
+
+    const fakeChunks = [
+      {
+        _id: '507f1f77bcf86cd799439023',
+        documentId: doc1Id,
+        chunkIndex: 0,
+        text: 'Chunk with active model',
+        embedding: [0.1, 0.2, 0.3, 0.4],
+        embeddingModel: config.embeddingModel,
+        pageNumber: 1,
+      },
+      {
+        _id: '507f1f77bcf86cd799439024',
+        documentId: doc2Id,
+        chunkIndex: 0,
+        text: 'Chunk with foreign model',
+        embedding: [0.5, 0.6, 0.7, 0.8],
+        embeddingModel: 'foreign-embedding-model-v2', // Model mismatch
+        pageNumber: 1,
+      },
+    ];
+
+    const findSpy = vi.spyOn(DocumentChunkModel, 'find').mockReturnValue({
+      lean: () => Promise.resolve(fakeChunks),
+    } as any);
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const queryVec = [0.1, 0.2, 0.3, 0.4];
+      const results = await VectorStore.search(queryVec, [doc1Id, doc2Id], {
+        minScore: 0.1,
+      });
+
+      expect(results.length).toBe(1);
+      expect(results[0].chunk.text).toBe('Chunk with active model');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('differ from the active query embedding')
+      );
+    } finally {
+      findSpy.mockRestore();
+      warnSpy.mockRestore();
+      invalidateVectorCache();
+    }
+  });
+
+  it('provides IVectorStore interface implementation and getVectorStore factory', () => {
+    const store = getVectorStore();
+    expect(store).toBeDefined();
+    expect(typeof store.search).toBe('function');
+    if (config.vectorSearchProvider === 'atlas') {
+      expect(store).toBeInstanceOf(AtlasVectorStore);
+    } else {
+      expect(store).toBeInstanceOf(LocalVectorStore);
+    }
+  });
+
+  it('allocates balanced quotas per selected document to prevent one paper from dominating', async () => {
+    invalidateVectorCache();
+    const docA = '507f1f77bcf86cd7994390a1';
+    const docB = '507f1f77bcf86cd7994390b1';
+
+    // Document A has 10 high-scoring chunks
+    const chunksA = Array.from({ length: 10 }, (_, i) => ({
+      _id: `chunkA_${i}`,
+      documentId: docA,
+      chunkIndex: i,
+      text: `Paper A detailed passage number ${i}`,
+      embedding: [1.0, 0.0, 0.0, 0.0],
+      pageNumber: i + 1,
+    }));
+
+    // Document B has 5 moderate-scoring chunks
+    const chunksB = Array.from({ length: 5 }, (_, i) => ({
+      _id: `chunkB_${i}`,
+      documentId: docB,
+      chunkIndex: i,
+      text: `Paper B experimental analysis passage ${i}`,
+      embedding: [0.9, 0.1, 0.0, 0.0],
+      pageNumber: i + 1,
+    }));
+
+    const findSpy = vi.spyOn(DocumentChunkModel, 'find').mockReturnValue({
+      lean: () => Promise.resolve([...chunksA, ...chunksB]),
+    } as any);
+
+    try {
+      const queryVec = [1.0, 0.0, 0.0, 0.0];
+      const results = await VectorStore.search(queryVec, [docA, docB], {
+        topK: 6,
+        minScore: 0.1,
+      });
+
+      // Assert that both documents have representation in the returned topK
+      const docAIds = results.filter((r) => r.chunk.documentId.toString() === docA);
+      const docBIds = results.filter((r) => r.chunk.documentId.toString() === docB);
+
+      expect(docAIds.length).toBeGreaterThanOrEqual(1);
+      expect(docBIds.length).toBeGreaterThanOrEqual(1);
+      expect(results.length).toBeLessThanOrEqual(6);
+    } finally {
+      findSpy.mockRestore();
+      invalidateVectorCache();
     }
   });
 });
