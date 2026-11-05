@@ -1,128 +1,332 @@
 [
   {
     "id": "q01",
+    "category": "single-doc",
     "query": "What BLEU score did the big Transformer achieve on the WMT 2014 English-to-German translation benchmark?",
-    "targetDoc": "Attention Is All You Need",
+    "targetDocs": ["Attention Is All You Need"],
     "targetPage": 3,
     "keyPhrases": ["28.4", "English-to-German", "BLEU"]
   },
   {
     "id": "q02",
+    "category": "single-doc",
     "query": "What was the BLEU score achieved by the Transformer model on the English-to-French translation task?",
-    "targetDoc": "Attention Is All You Need",
+    "targetDocs": ["Attention Is All You Need"],
     "targetPage": 3,
     "keyPhrases": ["41.8", "English-to-French"]
   },
   {
     "id": "q03",
+    "category": "single-doc",
     "query": "How long did training the Transformer take on English-to-French and on what hardware?",
-    "targetDoc": "Attention Is All You Need",
+    "targetDocs": ["Attention Is All You Need"],
     "targetPage": 3,
     "keyPhrases": ["3.5 days", "eight GPUs"]
   },
   {
     "id": "q04",
-    "query": "What mathematical formula defines Scaled Dot-Product Attention?",
-    "targetDoc": "Attention Is All You Need",
-    "targetPage": 2,
-    "keyPhrases": ["softmax", "sqrt(d_k)", "Attention(Q, K, V)"]
-  },
-  {
-    "id": "q05",
-    "query": "Why does multi-head attention project queries, keys, and values h times?",
-    "targetDoc": "Attention Is All You Need",
-    "targetPage": 2,
-    "keyPhrases": ["linearly project", "parallel", "multi-head"]
-  },
-  {
-    "id": "q06",
+    "category": "single-doc",
     "query": "What is the primary computational complexity limitation of standard self-attention?",
-    "targetDoc": "Attention Is All You Need",
+    "targetDocs": ["Attention Is All You Need"],
     "targetPage": 3,
     "keyPhrases": ["O(n^2)", "quadratic", "sequence length"]
   },
   {
-    "id": "q07",
+    "id": "q05",
+    "category": "single-doc",
     "query": "Why do recurrent models preclude parallelization within training examples?",
-    "targetDoc": "Attention Is All You Need",
+    "targetDocs": ["Attention Is All You Need"],
     "targetPage": 1,
     "keyPhrases": ["sequential nature", "parallelization", "recurrent"]
   },
   {
-    "id": "q08",
+    "id": "q06",
+    "category": "single-doc",
     "query": "Who are the authors of the paper Attention Is All You Need and their affiliation?",
-    "targetDoc": "Attention Is All You Need",
+    "targetDocs": ["Attention Is All You Need"],
     "targetPage": 1,
-    "keyPhrases": ["Ashish Vaswani", "Noam Shazeer", "Google"]
+    "keyPhrases": ["Ashish Vaswani", "Google Brain", "Noam Shazeer"]
+  },
+  {
+    "id": "q07",
+    "category": "single-doc",
+    "query": "How does LoRA decompose the weight update matrix Delta W?",
+    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetPage": 2,
+    "keyPhrases": ["Delta W = B * A", "rank r", "low-rank decomposition"]
+  },
+  {
+    "id": "q08",
+    "category": "single-doc",
+    "query": "How are matrices A and B initialized in LoRA at the start of training?",
+    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetPage": 2,
+    "keyPhrases": ["random Gaussian", "zero for B", "Delta W = B A is initially zero"]
   },
   {
     "id": "q09",
-    "query": "What architecture is proposed based entirely on attention mechanisms dispensing with recurrence?",
-    "targetDoc": "Attention Is All You Need",
-    "targetPage": 1,
-    "keyPhrases": ["Transformer", "recurrence", "attention mechanism"]
+    "category": "single-doc",
+    "query": "What scaling factor is applied to Delta W in LoRA?",
+    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetPage": 2,
+    "keyPhrases": ["alpha / r", "constant hyperparameter alpha"]
   },
   {
     "id": "q10",
-    "query": "How does LoRA decompose the weight update matrix Delta W?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
-    "targetPage": 2,
-    "keyPhrases": ["Delta W = B", "decomposition", "rank r"]
+    "category": "single-doc",
+    "query": "What is the primary operational limitation of LoRA regarding task batching?",
+    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetPage": 3,
+    "keyPhrases": ["multi-tenant", "latency", "batched inputs"]
   },
   {
     "id": "q11",
-    "query": "How are matrices A and B initialized in LoRA at the start of training?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "category": "single-doc",
+    "query": "What are the pre-training objectives used by BERT for bidirectional language understanding?",
+    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers"],
     "targetPage": 2,
-    "keyPhrases": ["Gaussian", "initialized to 0", "start of training"]
+    "keyPhrases": ["Masked LM", "MLM", "Next Sentence Prediction", "NSP"]
   },
   {
     "id": "q12",
-    "query": "What scaling factor is applied to Delta W in LoRA?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
-    "targetPage": 2,
-    "keyPhrases": ["alpha", "alpha / r", "scaling"]
+    "category": "single-doc",
+    "query": "What is the degradation problem in deep convolutional networks observed by He et al.?",
+    "targetDocs": ["Deep Residual Learning for Image Recognition"],
+    "targetPage": 1,
+    "keyPhrases": ["degradation problem", "accuracy gets saturated", "higher training error"]
   },
   {
     "id": "q13",
-    "query": "By how much does LoRA reduce trainable parameters compared to full fine-tuning?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "category": "table",
+    "query": "According to the translation benchmarks table, what is the training time of Transformer base compared to ConvS2S on 8 P100 GPUs?",
+    "targetDocs": ["Attention Is All You Need"],
     "targetPage": 3,
-    "keyPhrases": ["10,000x", "trainable parameters"]
+    "keyPhrases": ["12 hours", "9.6 days", "ConvS2S", "Transformer (base)"]
   },
   {
     "id": "q14",
-    "query": "On which benchmark and models was LoRA empirically evaluated?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "category": "table",
+    "query": "In the parameter efficiency table, what is the checkpoint size and trainable parameter count for LoRA r=4 compared to full fine-tuning on GPT-3 175B?",
+    "targetDocs": ["LoRA: Low-Rank Adaptation"],
     "targetPage": 3,
-    "keyPhrases": ["GLUE", "RoBERTa", "DeBERTa"]
+    "keyPhrases": ["35 MB", "18M", "350 GB", "175,000M"]
   },
   {
     "id": "q15",
-    "query": "What is the primary operational limitation of LoRA regarding task batching?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "category": "table",
+    "query": "From the BERT architecture configurations table, how many layers and parameters does BERT_LARGE have, and what is its GLUE score?",
+    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers"],
     "targetPage": 3,
-    "keyPhrases": ["batch inputs", "downstream tasks", "adapter"]
+    "keyPhrases": ["24", "340M", "80.5%"]
   },
   {
     "id": "q16",
-    "query": "What problem does LoRA solve regarding large models like GPT-3 175B?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
-    "targetPage": 1,
-    "keyPhrases": ["175B", "fine-tuning", "memory"]
+    "category": "table",
+    "query": "In the ImageNet benchmark table, what is the top-5 error rate of ResNet-152 compared to ResNet-34?",
+    "targetDocs": ["Deep Residual Learning for Image Recognition"],
+    "targetPage": 3,
+    "keyPhrases": ["4.49%", "5.71%", "ResNet-152", "ResNet-34"]
   },
   {
     "id": "q17",
-    "query": "What is the rank condition for r in the low-rank decomposition of LoRA?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "category": "table",
+    "query": "According to the GPT-3 specifications table, how many layers, heads, and d_model dimensions does the 175B parameter model use?",
+    "targetDocs": ["Language Models are Few-Shot Learners"],
     "targetPage": 2,
-    "keyPhrases": ["r << min(d, k)", "rank r"]
+    "keyPhrases": ["96", "12288", "GPT-3 175B"]
   },
   {
     "id": "q18",
-    "query": "Who are the authors of LoRA and what organization are they from?",
-    "targetDoc": "LoRA: Low-Rank Adaptation",
+    "category": "table",
+    "query": "In the default hyperparameters table for the Adam optimizer, what are the recommended values for beta_1 and beta_2?",
+    "targetDocs": ["Adam: A Method for Stochastic Optimization"],
+    "targetPage": 3,
+    "keyPhrases": ["0.9", "0.999", "beta_1", "beta_2"]
+  },
+  {
+    "id": "q19",
+    "category": "equation",
+    "query": "What exact mathematical formula defines Scaled Dot-Product Attention in the Transformer?",
+    "targetDocs": ["Attention Is All You Need"],
+    "targetPage": 2,
+    "keyPhrases": ["Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V", "sqrt(d_k)"]
+  },
+  {
+    "id": "q20",
+    "category": "equation",
+    "query": "What formula defines the modified forward pass activation when applying LoRA decomposition?",
+    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetPage": 2,
+    "keyPhrases": ["h = W_0 x + (alpha / r) B A x", "alpha / r"]
+  },
+  {
+    "id": "q21",
+    "category": "equation",
+    "query": "How is the residual mapping building block mathematically formulated in ResNet?",
+    "targetDocs": ["Deep Residual Learning for Image Recognition"],
+    "targetPage": 2,
+    "keyPhrases": ["y = F(x, {W_i}) + x", "residual mapping"]
+  },
+  {
+    "id": "q22",
+    "category": "equation",
+    "query": "What is the update equation for the exponential moving average of squared gradients v_t in Adam?",
+    "targetDocs": ["Adam: A Method for Stochastic Optimization"],
+    "targetPage": 2,
+    "keyPhrases": ["v_t = beta_2 v_{t-1} + (1 - beta_2) g_t^2", "beta_2"]
+  },
+  {
+    "id": "q23",
+    "category": "equation",
+    "query": "How are the bias-corrected moment estimates hat{m}_t and hat{v}_t calculated in Adam?",
+    "targetDocs": ["Adam: A Method for Stochastic Optimization"],
+    "targetPage": 2,
+    "keyPhrases": ["hat{m}_t = m_t / (1 - beta_1^t)", "hat{v}_t = v_t / (1 - beta_2^t)"]
+  },
+  {
+    "id": "q24",
+    "category": "equation",
+    "query": "What is the mathematical loss formulation minimized for Masked Language Modeling in BERT?",
+    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers"],
+    "targetPage": 2,
+    "keyPhrases": ["Loss_MLM", "P(w_i | Context_{-i})", "Masked"]
+  },
+  {
+    "id": "q25",
+    "category": "paraphrased",
+    "query": "Why does processing long documents create a memory bottleneck in the vanilla Transformer architecture?",
+    "targetDocs": ["Attention Is All You Need"],
+    "targetPage": 3,
+    "keyPhrases": ["quadratic complexity", "O(n^2)", "sequence length"]
+  },
+  {
+    "id": "q26",
+    "category": "paraphrased",
+    "query": "What technique avoids catastrophic checkpoint explosion when adapting large models for dozens of downstream client tasks?",
+    "targetDocs": ["LoRA: Low-Rank Adaptation"],
     "targetPage": 1,
-    "keyPhrases": ["Edward J. Hu", "Microsoft"]
+    "keyPhrases": ["freezes the pre-trained", "rank decomposition", "checkpoint"]
+  },
+  {
+    "id": "q27",
+    "category": "paraphrased",
+    "query": "How does BERT overcome the left-to-right processing constraint of classical autoregressive models?",
+    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers"],
+    "targetPage": 1,
+    "keyPhrases": ["bidirectional", "jointly conditioning", "left and right context"]
+  },
+  {
+    "id": "q28",
+    "category": "paraphrased",
+    "query": "Why do extremely deep feedforward visual networks suffer performance drops even when not overfitting?",
+    "targetDocs": ["Deep Residual Learning for Image Recognition"],
+    "targetPage": 1,
+    "keyPhrases": ["degradation problem", "not caused by overfitting", "training error"]
+  },
+  {
+    "id": "q29",
+    "category": "paraphrased",
+    "query": "What allows Adam to handle parameters with very sparse gradients more effectively than standard SGD?",
+    "targetDocs": ["Adam: A Method for Stochastic Optimization"],
+    "targetPage": 1,
+    "keyPhrases": ["AdaGrad", "sparse gradients", "adaptive estimates"]
+  },
+  {
+    "id": "q30",
+    "category": "paraphrased",
+    "query": "How does few-shot learning in massive autoregressive models differ from traditional fine-tuning paradigms?",
+    "targetDocs": ["Language Models are Few-Shot Learners"],
+    "targetPage": 1,
+    "keyPhrases": ["without performing any parameter updates", "in-context learning", "prompt demonstrations"]
+  },
+  {
+    "id": "q31",
+    "category": "multi-doc",
+    "query": "Compare the parameter scaling approaches of LoRA versus full model scaling in GPT-3: how many weights are adapted vs total parameters?",
+    "targetDocs": ["LoRA: Low-Rank Adaptation", "Language Models are Few-Shot Learners"],
+    "targetPage": 2,
+    "keyPhrases": ["175 billion", "18M", "Delta W = B * A", "trainable parameters"]
+  },
+  {
+    "id": "q32",
+    "category": "multi-doc",
+    "query": "How does the bidirectional attention in BERT differ from the multi-head attention formulation in the original Transformer?",
+    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers", "Attention Is All You Need"],
+    "targetPage": 2,
+    "keyPhrases": ["bidirectional", "multi-head", "Attention(Q, K, V)"]
+  },
+  {
+    "id": "q33",
+    "category": "multi-doc",
+    "query": "How do the training durations and hardware footprints compare between the big Transformer and BERT_LARGE?",
+    "targetDocs": ["Attention Is All You Need", "BERT: Pre-training of Deep Bidirectional Transformers"],
+    "targetPage": 3,
+    "keyPhrases": ["3.5 days", "eight GPUs", "Cloud TPU", "64 TPU"]
+  },
+  {
+    "id": "q34",
+    "category": "multi-doc",
+    "query": "What optimization algorithm is typically used for training deep Transformer and ResNet models, and what are its standard moment decays?",
+    "targetDocs": ["Adam: A Method for Stochastic Optimization", "Attention Is All You Need"],
+    "targetPage": 3,
+    "keyPhrases": ["Adam", "beta_1", "0.9", "0.999"]
+  },
+  {
+    "id": "q35",
+    "category": "multi-doc",
+    "query": "How do ResNet shortcut identity connections relate conceptually to the residual parameter update in LoRA?",
+    "targetDocs": ["Deep Residual Learning for Image Recognition", "LoRA: Low-Rank Adaptation"],
+    "targetPage": 2,
+    "keyPhrases": ["F(x) + x", "W_0 x + Delta W x", "residual"]
+  },
+  {
+    "id": "q36",
+    "category": "multi-doc",
+    "query": "What maximum sequence length limits are reported for BERT versus standard quadratic self-attention in the original Transformer?",
+    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers", "Attention Is All You Need"],
+    "targetPage": 3,
+    "keyPhrases": ["512 tokens", "O(n^2)", "quadratic complexity"]
+  },
+  {
+    "id": "q37",
+    "category": "off-topic",
+    "query": "What polynomial-time quantum algorithm does Shor use to factor large prime integers on a fault-tolerant quantum computer?",
+    "isOffTopic": true,
+    "keyPhrases": ["quantum Fourier transform", "period finding", "Shor"]
+  },
+  {
+    "id": "q38",
+    "category": "off-topic",
+    "query": "What temperature and humidity are optimal for proofing sourdough baguettes using wild yeast levain?",
+    "isOffTopic": true,
+    "keyPhrases": ["fermentation", "sourdough", "proofing temperature"]
+  },
+  {
+    "id": "q39",
+    "category": "off-topic",
+    "query": "What strategic military tactics did Hannibal Barca utilize to defeat the Roman legions at the Battle of Cannae?",
+    "isOffTopic": true,
+    "keyPhrases": ["Cannae", "double envelopment", "Hannibal"]
+  },
+  {
+    "id": "q40",
+    "category": "off-topic",
+    "query": "How are ionizable lipid nanoparticles formulated to encapsulate therapeutic messenger RNA (mRNA) for targeted cellular delivery?",
+    "isOffTopic": true,
+    "keyPhrases": ["lipid nanoparticle", "mRNA delivery", "endosomal escape"]
+  },
+  {
+    "id": "q41",
+    "category": "off-topic",
+    "query": "What gravitational wave strain frequencies are detected by the Advanced LIGO laser interferometers during binary black hole mergers?",
+    "isOffTopic": true,
+    "keyPhrases": ["gravitational waves", "LIGO", "interferometer", "chirp mass"]
+  },
+  {
+    "id": "q42",
+    "category": "off-topic",
+    "query": "What are the rules and field positions in cricket regarding the leg before wicket (LBW) dismissal?",
+    "isOffTopic": true,
+    "keyPhrases": ["LBW", "pitching in line", "wicket keeper", "cricket"]
   }
 ]
