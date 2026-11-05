@@ -37,6 +37,41 @@ export class ChatController {
   }
 
   /**
+   * Ask question with Server-Sent Events (SSE) streaming.
+   */
+  static async askStream(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { question, documentIds, sessionId } = req.body;
+
+      if (!question || typeof question !== 'string') {
+        res.status(400).json({ success: false, error: 'Question is required.' });
+        return;
+      }
+
+      if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+        res.status(400).json({ success: false, error: 'At least one document ID must be selected.' });
+        return;
+      }
+
+      // Configure SSE response headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      if (typeof (res as any).flushHeaders === 'function') {
+        (res as any).flushHeaders();
+      }
+
+      await RAGService.askStream({ question, documentIds, sessionId }, (event) => {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      });
+
+      res.end();
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * List all research sessions.
    */
   static async getSessions(_req: Request, res: Response, next: NextFunction): Promise<void> {

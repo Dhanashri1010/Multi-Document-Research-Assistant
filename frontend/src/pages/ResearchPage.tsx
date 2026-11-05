@@ -79,25 +79,100 @@ export const ResearchPage: React.FC = () => {
     setMessages((prev) => [...prev, tempUserMsg]);
     setIsLoading(true);
 
+    let streamStarted = false;
+
     try {
-      const result = await researchService.ask({
-        question,
-        documentIds: selectedDocIds,
-        sessionId,
-      });
-
-      setSessionId(result.sessionId);
-
-      const assistantMsg: IChatMessage = {
-        sessionId: result.sessionId,
-        role: 'assistant',
-        content: result.answer,
-        citations: result.citations,
-        hasInsufficientEvidence: result.hasInsufficientEvidence,
-        createdAt: new Date().toISOString(),
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
+      await researchService.askStream(
+        {
+          question,
+          documentIds: selectedDocIds,
+          sessionId,
+        },
+        {
+          onStart: (data) => {
+            streamStarted = true;
+            if (data.sessionId) setSessionId(data.sessionId);
+            setMessages((prev) => [
+              ...prev,
+              {
+                sessionId: data.sessionId,
+                role: 'assistant',
+                content: '',
+                citations: data.citations || [],
+                createdAt: new Date().toISOString(),
+              },
+            ]);
+          },
+          onToken: (token) => {
+            setMessages((prev) => {
+              if (prev.length === 0) return prev;
+              const last = prev[prev.length - 1];
+              if (last.role !== 'assistant') return prev;
+              return [
+                ...prev.slice(0, -1),
+                { ...last, content: last.content + token },
+              ];
+            });
+          },
+          onDone: (data) => {
+            setSessionId(data.sessionId);
+            setMessages((prev) => {
+              if (prev.length === 0) return prev;
+              const last = prev[prev.length - 1];
+              if (last.role !== 'assistant') {
+                return [
+                  ...prev,
+                  {
+                    sessionId: data.sessionId,
+                    role: 'assistant',
+                    content: data.answer,
+                    citations: data.citations,
+                    hasInsufficientEvidence: data.hasInsufficientEvidence,
+                    degraded: data.degraded,
+                    degradedReason: data.degradedReason,
+                    createdAt: new Date().toISOString(),
+                  },
+                ];
+              }
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...last,
+                  content: data.answer,
+                  citations: data.citations,
+                  hasInsufficientEvidence: data.hasInsufficientEvidence,
+                  degraded: data.degraded,
+                  degradedReason: data.degradedReason,
+                },
+              ];
+            });
+          },
+          onError: async (streamErr) => {
+            console.warn('Streaming error, fallback to standard ask:', streamErr);
+            if (!streamStarted) {
+              const res = await researchService.ask({
+                question,
+                documentIds: selectedDocIds,
+                sessionId,
+              });
+              setSessionId(res.sessionId);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  sessionId: res.sessionId,
+                  role: 'assistant',
+                  content: res.answer,
+                  citations: res.citations,
+                  hasInsufficientEvidence: res.hasInsufficientEvidence,
+                  createdAt: new Date().toISOString(),
+                },
+              ]);
+            } else {
+              setApiError(streamErr.message || 'Stream error');
+            }
+          },
+        }
+      );
     } catch (err: any) {
       setApiError(err.message || 'Error communicating with research assistant.');
     } finally {

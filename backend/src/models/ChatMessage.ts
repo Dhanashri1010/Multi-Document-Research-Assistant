@@ -6,6 +6,8 @@ export interface ICitation {
   pageNumber: number;
   excerpt: string;
   score?: number;
+  verified?: boolean;
+  supportScore?: number;
 }
 
 export interface IChatMessage extends MongooseDoc {
@@ -26,6 +28,8 @@ const CitationSchema = new Schema<ICitation>(
     pageNumber: { type: Number, required: true },
     excerpt: { type: String, required: true },
     score: { type: Number },
+    verified: { type: Boolean, default: true },
+    supportScore: { type: Number },
   },
   { _id: false }
 );

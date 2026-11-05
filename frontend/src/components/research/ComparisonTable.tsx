@@ -33,6 +33,20 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+      {/* Degraded / Fallback Banner */}
+      {comparison.degraded && (
+        <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-900 flex items-start gap-3 text-xs">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-semibold text-amber-900">Degraded / Grounded Fallback Answer</span>
+            <p className="mt-0.5 text-amber-800">
+              {comparison.degradedReason ||
+                'Generative multi-document synthesis was temporarily unavailable or timed out. Cross-paper analysis was synthesized directly from grounded document excerpts.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header bar */}
       <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-slate-50/60">
         <div>

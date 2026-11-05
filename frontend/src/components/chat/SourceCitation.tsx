@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { ICitation } from '../../types/research.js';
 
 interface SourceCitationProps {
@@ -16,7 +16,7 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
           <FileText className="w-3.5 h-3.5 text-brand-600" />
-          Retrieved Evidence & Citations ({citations.length})
+          Retrieved Evidence & Verified Citations ({citations.length})
         </span>
       </div>
 
@@ -26,7 +26,11 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
           return (
             <div
               key={index}
-              className="p-2.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-all text-xs"
+              className={`p-2.5 rounded-lg border transition-all text-xs ${
+                cite.verified === false
+                  ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
+              }`}
             >
               <div
                 className="flex items-center justify-between cursor-pointer select-none"
@@ -45,9 +49,21 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
                   <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[11px]">
                     p. {cite.pageNumber}
                   </span>
-                  {cite.score && (
-                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono text-[10px]">
-                      {Math.round(cite.score * 100)}%
+                  {cite.verified !== false ? (
+                    <span
+                      title="Citation verified against claim"
+                      className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold text-[10px] flex items-center gap-0.5"
+                    >
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      verified
+                    </span>
+                  ) : (
+                    <span
+                      title="Low evidence overlap"
+                      className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] flex items-center gap-0.5"
+                    >
+                      <AlertCircle className="w-3 h-3 text-amber-600" />
+                      unverified
                     </span>
                   )}
                   {isExpanded ? (

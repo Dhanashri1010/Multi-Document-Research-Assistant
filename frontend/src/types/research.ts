@@ -6,6 +6,8 @@ export interface ICitation {
   pageEnd?: number;
   excerpt: string;
   score?: number;
+  verified?: boolean;
+  supportScore?: number;
 }
 
 export interface IChatMessage {

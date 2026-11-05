@@ -207,6 +207,87 @@ export class LLMService {
   }
 
   /**
+   * Generates a streamed completion, calling onToken for each incremental chunk.
+   */
+  static async generateStream(
+    prompt: string,
+    options: LLMGenerateOptions = {},
+    onToken: (token: string) => void
+  ): Promise<string> {
+    const provider = config.llmProvider;
+    const apiKey = config.llmApiKey;
+    const model = config.llmModel;
+
+    if (provider === 'mock') {
+      const full = this.generateMock(prompt, options);
+      const words = full.split(/(\s+)/);
+      for (const w of words) {
+        onToken(w);
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      return full;
+    }
+
+    if (provider === 'gemini') {
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+      const targetModel = (model || '').trim();
+
+      const responseStream = await ai.models.generateContentStream({
+        model: targetModel,
+        contents: prompt,
+        config: {
+          systemInstruction: options.systemPrompt,
+          temperature: options.temperature ?? 0.15,
+          maxOutputTokens: options.maxTokens ?? 2048,
+        },
+      });
+
+      let fullText = '';
+      for await (const chunk of responseStream) {
+        const text = chunk.text || '';
+        if (text) {
+          fullText += text;
+          onToken(text);
+        }
+      }
+      return fullText;
+    }
+
+    if (provider === 'openai') {
+      const OpenAI = (await import('openai')).default;
+      const client = new OpenAI({ apiKey, timeout: options.timeoutMs ?? config.llmTimeoutMs });
+      const messages: any[] = [];
+      if (options.systemPrompt) {
+        messages.push({ role: 'system', content: options.systemPrompt });
+      }
+      messages.push({ role: 'user', content: prompt });
+
+      const stream = await client.chat.completions.create({
+        model: (model || '').trim() || 'gpt-4o-mini',
+        messages,
+        temperature: options.temperature ?? 0.15,
+        stream: true,
+      });
+
+      let fullText = '';
+      for await (const part of stream) {
+        const text = part.choices[0]?.delta?.content || '';
+        if (text) {
+          fullText += text;
+          onToken(text);
+        }
+      }
+      return fullText;
+    }
+
+    // Default fallback to standard generate if streaming not implemented for provider
+    const result = await this.generate(prompt, options);
+    onToken(result);
+    return result;
+  }
+
+  /**
    * Deterministic mock generator used for offline testing and verification.
    */
   private static generateMock(prompt: string, _options: LLMGenerateOptions): string {
