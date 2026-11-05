@@ -54,7 +54,7 @@ async function withRetry<T>(
       lastError = err;
 
       if (attempt < maxRetries && isRetryableError(err)) {
-        const delay = Math.min(500 * Math.pow(2, attempt), 4000) + Math.floor(Math.random() * 100);
+        const delay = Math.min(300 * Math.pow(2, attempt), 1500) + Math.floor(Math.random() * 80);
         console.warn(`[LLMService] Retryable error encountered (attempt ${attempt + 1}/${maxRetries}): ${err.message}. Retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         attempt++;
@@ -97,43 +97,34 @@ export class LLMService {
           const { GoogleGenAI } = await import('@google/genai');
           const ai = new GoogleGenAI({ apiKey });
 
-          // Normalize retired or legacy Gemini model names to active Google GenAI models
+          // Fast and reliable Gemini model cascade
+          const FAST_GEMINI_MODELS = [
+            'gemini-3.5-flash-lite',
+            'gemini-flash-lite-latest',
+            'gemini-3.5-flash',
+          ];
+
           let targetModel = (model || '').trim();
           if (
             !targetModel ||
             targetModel.startsWith('gemini-1.') ||
             targetModel.startsWith('gemini-2.') ||
-            targetModel === 'gemini-pro'
+            targetModel === 'gemini-pro' ||
+            targetModel === 'gemini-3.8-flash'
           ) {
             targetModel = 'gemini-3.5-flash-lite';
           }
 
-          try {
-            const response = await ai.models.generateContent({
-              model: targetModel,
-              contents: prompt,
-              config: {
-                systemInstruction: options.systemPrompt,
-                temperature: options.temperature ?? 0.2,
-                maxOutputTokens: options.maxTokens ?? 2048,
-              },
-            });
+          const modelsToTry = [
+            targetModel,
+            ...FAST_GEMINI_MODELS.filter((m) => m !== targetModel),
+          ];
 
-            return response.text || '';
-          } catch (modelErr: any) {
-            // If the model is retired, not found, or experiencing temporary issues, try fallback to gemini-3.8-flash
-            if (
-              modelErr?.status === 404 ||
-              modelErr?.message?.includes('not found') ||
-              modelErr?.message?.includes('no longer available') ||
-              modelErr?.message?.includes('high demand')
-            ) {
-              const fallbackModel = targetModel === 'gemini-3.5-flash-lite' ? 'gemini-3.8-flash' : 'gemini-3.5-flash-lite';
-              console.warn(
-                `[LLMService] Model "${targetModel}" is unavailable on Gemini API. Retrying with fallback "${fallbackModel}"...`
-              );
-              const fallbackRes = await ai.models.generateContent({
-                model: fallbackModel,
+          let lastModelErr: any = null;
+          for (const currentModel of modelsToTry) {
+            try {
+              const response = await ai.models.generateContent({
+                model: currentModel,
                 contents: prompt,
                 config: {
                   systemInstruction: options.systemPrompt,
@@ -141,10 +132,33 @@ export class LLMService {
                   maxOutputTokens: options.maxTokens ?? 2048,
                 },
               });
-              return fallbackRes.text || '';
+
+              if (response.text !== undefined && response.text !== null) {
+                return response.text;
+              }
+            } catch (modelErr: any) {
+              lastModelErr = modelErr;
+              const isRecoverable =
+                modelErr?.status === 404 ||
+                modelErr?.status === 503 ||
+                modelErr?.status === 429 ||
+                modelErr?.message?.includes('not found') ||
+                modelErr?.message?.includes('no longer available') ||
+                modelErr?.message?.includes('high demand') ||
+                modelErr?.message?.includes('UNAVAILABLE') ||
+                modelErr?.message?.includes('RESOURCE_EXHAUSTED');
+
+              if (isRecoverable) {
+                console.warn(
+                  `[LLMService] Model "${currentModel}" unavailable or busy (${modelErr.status || modelErr.message?.slice(0, 50)}). Switching to next fast fallback...`
+                );
+                continue;
+              }
+              throw modelErr;
             }
-            throw modelErr;
           }
+
+          throw lastModelErr;
         }
 
         if (provider === 'openai') {

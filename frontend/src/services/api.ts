@@ -7,7 +7,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 120000, // 2 minutes for heavy PDF chunking / LLM reasoning
+  timeout: 180000, // 3 minutes for heavy cross-document analysis & reasoning
 });
 
 apiClient.interceptors.response.use(

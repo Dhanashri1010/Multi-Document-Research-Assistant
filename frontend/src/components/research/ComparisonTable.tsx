@@ -106,41 +106,52 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {comparison.matrix.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3.5 px-4 text-xs font-bold text-slate-800 align-top bg-slate-50/30">
-                      {row.dimension}
+                {comparison.matrix.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={comparison.documents.length + 1}
+                      className="py-8 px-4 text-center text-xs text-slate-500 italic"
+                    >
+                      No comparison dimensions available. Please see the Source Evidence tab for document passages.
                     </td>
-                    {comparison.documents.map((doc) => {
-                      const item = row.values.find(
-                        (v) => v.documentId === doc.id || v.documentName === doc.name
-                      );
-                      const isNotFound =
-                        !item?.finding ||
-                        item.finding.toLowerCase().includes('not found') ||
-                        item.finding.toLowerCase().includes('not mentioned');
-
-                      return (
-                        <td key={doc.id} className="py-3.5 px-4 text-xs align-top">
-                          {isNotFound ? (
-                            <span className="inline-block px-2 py-1 rounded bg-slate-100 text-slate-500 italic text-[11px] border border-slate-200">
-                              Not found in provided document
-                            </span>
-                          ) : (
-                            <div className="space-y-1">
-                              <p className="text-slate-700 leading-relaxed">{item.finding}</p>
-                              {item.pageNumber && (
-                                <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 font-medium">
-                                  Page {item.pageNumber}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
                   </tr>
-                ))}
+                ) : (
+                  comparison.matrix.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3.5 px-4 text-xs font-bold text-slate-800 align-top bg-slate-50/30">
+                        {row.dimension}
+                      </td>
+                      {comparison.documents.map((doc) => {
+                        const item = row.values.find(
+                          (v) => v.documentId === doc.id || v.documentName === doc.name
+                        );
+                        const isNotFound =
+                          !item?.finding ||
+                          item.finding.toLowerCase().includes('not found') ||
+                          item.finding.toLowerCase().includes('not mentioned');
+
+                        return (
+                          <td key={doc.id} className="py-3.5 px-4 text-xs align-top">
+                            {isNotFound ? (
+                              <span className="inline-block px-2 py-1 rounded bg-slate-100 text-slate-500 italic text-[11px] border border-slate-200">
+                                Not found in provided document
+                              </span>
+                            ) : (
+                              <div className="space-y-1">
+                                <p className="text-slate-700 leading-relaxed">{item.finding}</p>
+                                {item.pageNumber && (
+                                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 font-medium">
+                                    Page {item.pageNumber}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

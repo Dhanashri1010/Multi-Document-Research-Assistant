@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
+dotenv.config({ path: path.resolve(process.cwd(), 'backend', '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 export const config = {
@@ -25,7 +26,7 @@ export const config = {
 
   chunkTargetTokens: parseInt(process.env.CHUNK_TARGET_TOKENS || (process.env.EMBEDDING_PROVIDER === 'local' || !process.env.EMBEDDING_PROVIDER ? '220' : '450'), 10),
   chunkOverlapTokens: parseInt(process.env.CHUNK_OVERLAP_TOKENS || (process.env.EMBEDDING_PROVIDER === 'local' || !process.env.EMBEDDING_PROVIDER ? '40' : '90'), 10),
-  llmTimeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || '50000', 10),
-  llmMaxRetries: parseInt(process.env.LLM_MAX_RETRIES || '3', 10),
+  llmTimeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || '30000', 10),
+  llmMaxRetries: parseInt(process.env.LLM_MAX_RETRIES || '2', 10),
   reranker: (process.env.RERANKER || 'off') as 'on' | 'off',
 };
