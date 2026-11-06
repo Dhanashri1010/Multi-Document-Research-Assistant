@@ -36,7 +36,7 @@ class LocalEmbeddingProvider implements EmbeddingProvider {
           return encoded.input_ids.length;
         }
       }
-    } catch (err) {
+    } catch (_err) {
       // Fallback silently if tokenizer error
     }
     return 0;
@@ -63,7 +63,7 @@ class LocalEmbeddingProvider implements EmbeddingProvider {
           const slice = Array.from(data.slice(b * dim, (b + 1) * dim)) as number[];
           results.push(slice);
         }
-      } catch (batchErr) {
+      } catch (_batchErr) {
         // Fallback to sequential items if batch fails
         for (const text of batch) {
           const output = await extractor(text, { pooling: 'mean', normalize: true });

@@ -2,11 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { BM25Index, tokenizeText, stemToken } from '../services/ai/bm25.js';
+import { BM25Index, tokenizeText } from '../services/ai/bm25.js';
 import {
   cosineSimilarityTyped,
   maximalMarginalRelevance,
-  invalidateVectorCache,
 } from '../services/ai/vectorStore.js';
 import { detectSectionHeading, chunkPages } from '../services/documents/chunker.js';
 import { extractPage1Metadata, extractPdf } from '../services/documents/extractor.js';

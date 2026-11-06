@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Files, FileText, CheckSquare, Square, FileSearch } from 'lucide-react';
+import { Search, Files, CheckSquare, Square, FileSearch } from 'lucide-react';
 import { IDocument } from '../../types/document.js';
-import { Button } from '../common/Button.js';
 
 interface DocumentSelectorProps {
   documents: IDocument[];

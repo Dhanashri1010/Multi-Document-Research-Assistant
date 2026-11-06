@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   StructuredRAGAnswerSchema,
   StructuredComparisonSchema,
-  GroundedClaimSchema,
 } from '../services/ai/schemas.js';
 import { CitationVerifier } from '../services/ai/citationVerifier.js';
 import { LLMService } from '../services/ai/llmService.js';

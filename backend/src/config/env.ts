@@ -1,34 +1,80 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { z } from 'zod';
 
 dotenv.config({ path: path.resolve(process.cwd(), 'backend', '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
+const envSchema = z.object({
+  PORT: z.coerce.number().int().positive().default(5000),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+  MONGODB_URI: z.string().default('mongodb://127.0.0.1:27017/multi_doc_research'),
+  UPLOAD_DIR: z.string().default('./uploads'),
+  MAX_FILE_SIZE_MB: z.coerce.number().positive().default(25),
+
+  VECTOR_SEARCH_PROVIDER: z.enum(['local', 'atlas']).default('local'),
+  VECTOR_INDEX_NAME: z.string().default('default'),
+
+  EMBEDDING_PROVIDER: z.enum(['local', 'gemini', 'openai']).default('local'),
+  EMBEDDING_MODEL: z.string().optional(),
+  EMBEDDING_API_KEY: z.string().optional(),
+
+  LLM_PROVIDER: z.enum(['gemini', 'openai', 'ollama', 'mock']).default('gemini'),
+  LLM_MODEL: z.string().default('gemini-3.5-flash-lite'),
+  LLM_API_KEY: z.string().optional(),
+  OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
+
+  CHUNK_TARGET_TOKENS: z.coerce.number().int().positive().default(380),
+  CHUNK_OVERLAP_TOKENS: z.coerce.number().int().nonnegative().default(60),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  LLM_MAX_RETRIES: z.coerce.number().int().nonnegative().default(2),
+  COMPARE_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  PRE_LLM_COSINE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.28),
+  RERANKER: z.enum(['on', 'off']).default('off'),
+});
+
+const parsed = envSchema.safeParse(process.env);
+if (!parsed.success) {
+  const errorDetails = parsed.error.issues
+    .map((issue) => `  - [${issue.path.join('.')}] ${issue.message}`)
+    .join('\n');
+  console.error('\n======================================================');
+  console.error(' [FATAL] Environment Configuration Validation Failed:');
+  console.error(errorDetails);
+  console.error('======================================================\n');
+  throw new Error(`Invalid environment configuration:\n${errorDetails}`);
+}
+
+const env = parsed.data;
+
 export const config = {
-  port: parseInt(process.env.PORT || '5000', 10),
-  nodeEnv: process.env.NODE_ENV || 'development',
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
-  mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/multi_doc_research',
-  uploadDir: process.env.UPLOAD_DIR || './uploads',
-  maxFileSizeMB: parseInt(process.env.MAX_FILE_SIZE_MB || '25', 10),
+  port: env.PORT,
+  nodeEnv: env.NODE_ENV,
+  frontendUrl: env.FRONTEND_URL,
+  mongoUri: env.MONGODB_URI,
+  uploadDir: env.UPLOAD_DIR,
+  maxFileSizeMB: env.MAX_FILE_SIZE_MB,
 
-  vectorSearchProvider: (process.env.VECTOR_SEARCH_PROVIDER || 'local') as 'local' | 'atlas',
-  vectorIndexName: process.env.VECTOR_INDEX_NAME || 'default',
+  vectorSearchProvider: env.VECTOR_SEARCH_PROVIDER,
+  vectorIndexName: env.VECTOR_INDEX_NAME,
 
-  embeddingProvider: (process.env.EMBEDDING_PROVIDER || 'local') as 'local' | 'gemini' | 'openai',
-  embeddingModel: process.env.EMBEDDING_MODEL || (process.env.EMBEDDING_PROVIDER === 'gemini' ? 'gemini-embedding-001' : 'all-MiniLM-L6-v2'),
-  embeddingApiKey: process.env.EMBEDDING_API_KEY || process.env.LLM_API_KEY || '',
+  embeddingProvider: env.EMBEDDING_PROVIDER,
+  embeddingModel:
+    env.EMBEDDING_MODEL ||
+    (env.EMBEDDING_PROVIDER === 'gemini' ? 'gemini-embedding-001' : 'all-MiniLM-L6-v2'),
+  embeddingApiKey: env.EMBEDDING_API_KEY || env.LLM_API_KEY || '',
 
-  llmProvider: (process.env.LLM_PROVIDER || 'gemini') as 'gemini' | 'openai' | 'ollama' | 'mock',
-  llmModel: process.env.LLM_MODEL || 'gemini-3.5-flash-lite',
-  llmApiKey: process.env.LLM_API_KEY || '',
-  ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+  llmProvider: env.LLM_PROVIDER,
+  llmModel: env.LLM_MODEL,
+  llmApiKey: env.LLM_API_KEY || '',
+  ollamaBaseUrl: env.OLLAMA_BASE_URL,
 
-  chunkTargetTokens: parseInt(process.env.CHUNK_TARGET_TOKENS || '380', 10),
-  chunkOverlapTokens: parseInt(process.env.CHUNK_OVERLAP_TOKENS || '60', 10),
-  llmTimeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || '30000', 10),
-  llmMaxRetries: parseInt(process.env.LLM_MAX_RETRIES || '2', 10),
-  compareTimeoutMs: parseInt(process.env.COMPARE_TIMEOUT_MS || '30000', 10),
-  preLlmCosineThreshold: parseFloat(process.env.PRE_LLM_COSINE_THRESHOLD || '0.28'),
-  reranker: (process.env.RERANKER || 'off') as 'on' | 'off',
+  chunkTargetTokens: env.CHUNK_TARGET_TOKENS,
+  chunkOverlapTokens: env.CHUNK_OVERLAP_TOKENS,
+  llmTimeoutMs: env.LLM_TIMEOUT_MS,
+  llmMaxRetries: env.LLM_MAX_RETRIES,
+  compareTimeoutMs: env.COMPARE_TIMEOUT_MS,
+  preLlmCosineThreshold: env.PRE_LLM_COSINE_THRESHOLD,
+  reranker: env.RERANKER,
 };

@@ -1,4 +1,3 @@
-import { Types } from 'mongoose';
 import { DocumentModel } from '../../models/Document.js';
 import { ResearchSessionModel } from '../../models/ResearchSession.js';
 import { ChatMessageModel, ICitation } from '../../models/ChatMessage.js';

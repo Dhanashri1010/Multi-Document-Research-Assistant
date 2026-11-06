@@ -4,11 +4,12 @@ import { Request, Response, NextFunction } from 'express';
 import { DocumentModel } from '../models/Document.js';
 import { IngestionService } from '../services/documents/ingestionService.js';
 import { ComparisonService } from '../services/ai/comparisonService.js';
+import { validatePdfMagicBytes, sanitizeFilename } from '../utils/fileValidator.js';
 
 export class DocumentController {
   /**
    * Upload one or multiple documents.
-   * Performs SHA-256 deduplication: if identical file is already processed, reuses existing record.
+   * Performs magic-byte verification, filename sanitization, and SHA-256 deduplication.
    * Immediately persists new records and enqueues background ingestion.
    */
   static async upload(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -22,6 +23,18 @@ export class DocumentController {
       const createdDocs = [];
 
       for (const file of files) {
+        // Magic-byte PDF verification
+        if (!validatePdfMagicBytes(file.path)) {
+          await fs.promises.unlink(file.path).catch(() => {});
+          res.status(400).json({
+            success: false,
+            error: `Invalid file "${file.originalname}". Only valid PDF files containing the "%PDF-" header are permitted.`,
+          });
+          return;
+        }
+
+        const safeOriginalName = sanitizeFilename(file.originalname);
+
         // Compute SHA-256 file hash
         let fileHash: string | undefined;
         try {
@@ -44,7 +57,7 @@ export class DocumentController {
 
         const doc = await DocumentModel.create({
           filename: file.filename,
-          originalName: file.originalname,
+          originalName: safeOriginalName,
           fileSize: file.size,
           mimeType: file.mimetype,
           filePath: file.path,
@@ -224,6 +237,24 @@ export class DocumentController {
         success: true,
         ...summaryResult,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Serve raw document PDF for in-app viewing.
+   */
+  static async getFile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const doc = await DocumentModel.findById(req.params.id as string);
+      if (!doc || !fs.existsSync(doc.filePath)) {
+        res.status(404).json({ success: false, error: 'Document file not found on disk.' });
+        return;
+      }
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.originalName)}"`);
+      fs.createReadStream(doc.filePath).pipe(res);
     } catch (err) {
       next(err);
     }

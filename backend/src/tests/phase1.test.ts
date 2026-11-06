@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { splitIntoSentences, chunkPages, estimateTokenCount } from '../services/documents/chunker.js';
+import { splitIntoSentences, chunkPages } from '../services/documents/chunker.js';
 import { cleanText, extractTxt } from '../services/documents/extractor.js';
 import { VectorStore, getVectorStore, LocalVectorStore, AtlasVectorStore, invalidateVectorCache } from '../services/ai/vectorStore.js';
 import { LLMService } from '../services/ai/llmService.js';

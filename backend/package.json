@@ -14,6 +14,8 @@
     "eval:retrieval": "tsx eval/evaluate.ts",
     "eval:citations": "tsx eval/eval_citation_verifier.ts",
     "eval:pipeline": "tsx eval/eval_full_pipeline.ts",
+    "lint": "eslint src/",
+    "format": "prettier --check src/",
     "test": "vitest run"
   },
   "dependencies": {
@@ -26,6 +28,8 @@
     "multer": "^1.4.5-lts.1",
     "openai": "^4.82.0",
     "pdf-parse": "^1.1.1",
+    "pino": "^10.4.0",
+    "pino-pretty": "^13.2.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -35,7 +39,11 @@
     "@types/node": "^22.10.7",
     "@types/pdf-parse": "^1.1.4",
     "@types/pdfkit": "^0.17.6",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
+    "eslint": "^10.14.0",
     "pdfkit": "^0.20.2",
+    "prettier": "^3.9.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^3.0.4"

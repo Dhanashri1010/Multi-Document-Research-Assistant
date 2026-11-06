@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config/env.js';
 import apiRouter from './routes/index.js';
+import { healthRouter } from './routes/healthRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 export function createApp(): express.Application {
@@ -34,17 +35,9 @@ export function createApp(): express.Application {
     });
   });
 
-  // Health check endpoint
-  app.get('/api/health', (_req, res) => {
-    res.json({
-      status: 'ok',
-      service: 'Multi-Document Research Assistant API',
-      embeddingProvider: config.embeddingProvider,
-      llmProvider: config.llmProvider,
-      vectorProvider: config.vectorSearchProvider,
-      timestamp: new Date().toISOString(),
-    });
-  });
+  // Health check endpoints (both /health and /api/health)
+  app.use('/health', healthRouter);
+  app.use('/api/health', healthRouter);
 
   // Mount API Routes
   app.use('/api', apiRouter);
