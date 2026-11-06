@@ -1,6 +1,11 @@
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: path.resolve(process.cwd(), 'backend', '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
 import { RAGService } from '../src/services/ai/ragService.js';
 import { DocumentModel } from '../src/models/Document.js';
 import { config } from '../src/config/env.js';
@@ -68,8 +73,8 @@ async function main() {
   // Aggregate stats
   const tuningDist = results.filter((r) => r.split === 'tuning' && !r.isTrap);
   const tuningTrap = results.filter((r) => r.split === 'tuning' && r.isTrap);
-  const heldDist = results.filter((r) => r.split === 'held-out' && !r.isTrap);
-  const heldTrap = results.filter((r) => r.split === 'held-out' && r.isTrap);
+  const heldDist = results.filter((r) => (r.split === 'held-out' || r.split === 'seen-held-out') && !r.isTrap);
+  const heldTrap = results.filter((r) => (r.split === 'held-out' || r.split === 'seen-held-out') && r.isTrap);
 
   const calcAcc = (subset: QueryResult[]) => {
     if (subset.length === 0) return 0;
