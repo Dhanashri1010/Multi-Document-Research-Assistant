@@ -1,197 +1,211 @@
 # Multi-Document Research Assistant
 
-> A complete, production-grade NLP web application for academic document processing, dense semantic vector retrieval, Retrieval-Augmented Generation (RAG), and multi-paper comparative analysis.
+> Production-grade NLP web application for academic literature cross-analysis, dense semantic vector retrieval, Retrieval-Augmented Generation (RAG), and evidence-grounded comparative synthesis.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.0-green)](https://nodejs.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Local%20%7C%20Atlas-forestgreen)](https://www.mongodb.com/)
+[![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-teal)](https://tailwindcss.com/)
 
 ---
 
-## 1. Project Overview & Architecture
+## 1. System Architecture
 
-The **Multi-Document Research Assistant** reduces the time required to read, cross-analyze, and extract evidence across complex academic papers, technical reports, and preprints. 
+The Multi-Document Research Assistant extracts, parses, embeds, and indexes multi-page academic papers (PDF/TXT) with strict page-level attribution. Queries undergo dense vector retrieval, Reciprocal Rank Fusion (RRF), a pre-LLM cosine similarity gate, and Zod-enforced structured generation with claim-level citation verification.
 
-Unlike generic chatbots that produce hallucinated or generic answers, this application is a **genuine RAG system**:
-- Extracts text while preserving individual page numbers.
-- Segments text into page-attributed overlapping chunks (~450 tokens, ~90 tokens overlap).
-- Generates 384-dimensional dense semantic embeddings using Sentence Transformers (`Xenova/all-MiniLM-L6-v2`) or 768-dim Google Gemini embeddings.
-- Filters candidate embeddings exclusively within user-selected documents and executes high-performance cosine similarity vector retrieval combined with keyword overlap scoring.
-- Grounds LLM answers in exact retrieved passages, providing verifiable citations with document names, page numbers, and expandable excerpts.
-- Features an 8-dimension comparative synthesis matrix for comparing multiple research papers.
-- Strictly guards against hallucination: detects questions outside document scope and returns an honest insufficient-evidence response.
+```mermaid
+flowchart TD
+    subgraph Ingestion ["Ingestion & Preprocessing Pipeline"]
+        A[User Upload / arXiv Import] --> B[File Validator: Magic Bytes %PDF- & Filename Sanitizer]
+        B --> C[Page-Aware PDF Extractor pdf-parse]
+        C --> D[Text Density & Scanned Page Checker]
+        D --> E[Token Chunker 380 Tokens, 60 Overlap]
+        E --> F[Embedding Service Xenova all-MiniLM-L6-v2]
+        F --> G[(MongoDB DocumentChunks & Vector Indexes)]
+    end
 
-```
-Multi-Document Research Assistant/
-├── backend/
-│   ├── src/
-│   │   ├── config/          # DB connection and environment validation
-│   │   ├── models/          # Mongoose Schemas (Document, DocumentChunk, ResearchSession, ChatMessage)
-│   │   ├── services/
-│   │   │   ├── documents/   # PDF extraction, page-aware chunker, background ingestion
-│   │   │   └── ai/          # Embeddings (Xenova/Gemini/OpenAI), VectorStore, RAG, Comparison
-│   │   ├── controllers/     # Document, Chat, and Research controllers
-│   │   ├── routes/          # REST API endpoints
-│   │   ├── middleware/      # Multer file upload & centralized error handling
-│   │   ├── tests/           # Vitest NLP unit tests & E2E integration test suite
-│   │   ├── app.ts           # Express application setup & CORS
-│   │   └── server.ts        # Server bootstrap & graceful shutdown
-│   ├── scripts/             # PDFKit test paper generation script
-│   ├── package.json
-│   └── tsconfig.json
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/      # Persistent Sidebar, Header, AppLayout
-│   │   │   ├── documents/   # DocumentUploader, DocumentList, DocumentCard, ProcessingStatus
-│   │   │   ├── chat/        # DocumentSelector, ChatMessage, ChatInput, SourceCitation
-│   │   │   ├── research/    # ComparisonTable, SummaryPanel
-│   │   │   └── common/      # Button, Modal, EmptyState, LoadingState, ErrorMessage
-│   │   ├── pages/
-│   │   │   ├── DashboardPage.tsx   # Real metrics, recent documents, quick start
-│   │   │   ├── DocumentsPage.tsx   # Drag-and-drop upload, management, retry, delete
-│   │   │   ├── ResearchPage.tsx    # Split-view chat, citations, insufficient evidence alerts
-│   │   │   └── ComparePage.tsx     # 8-dimension comparison matrix across ≥2 papers
-│   │   ├── context/         # WorkspaceContext for cross-page document selection
-│   │   ├── services/        # Centralized Axios API clients
-│   │   ├── types/           # TypeScript interfaces
-│   │   ├── App.tsx          # React Router v6 configuration
-│   │   └── main.tsx
-│   ├── package.json
-│   ├── tailwind.config.js
-│   └── vite.config.ts
-├── samples/                 # Sample research PDFs (Attention Is All You Need, LoRA)
-└── package.json             # Root unified scripts
+    subgraph Retrieval ["Hybrid Retrieval & Gating"]
+        H[User Query] --> I[Candidate Filtering by Selected Documents]
+        I --> J[Dense Cosine Similarity Search]
+        I --> K[BM25-style Lexical Keyword Search]
+        J & K --> L[Reciprocal Rank Fusion RRF k=60]
+        L --> M{Pre-LLM Cosine Gate best_chunk >= 0.28}
+        M -- "No (< 0.28)" --> N[Instant Insufficient Evidence Refusal]
+        M -- "Yes (>= 0.28)" --> O[Context Assembler & Injection Delimiters]
+    end
+
+    subgraph Generation ["Synthesis & Verification"]
+        O --> P[Gemini / OpenAI / Ollama Structured LLM Stream]
+        P --> Q[Zod Validation: StructuredRAGAnswerSchema]
+        Q --> R[Claim-Level Citation Verifier Cross-Encoder & Numeric Integrity]
+        R --> S[Frontend UI: Answer, Citations & Verified Badges]
+        P -- "Timeout / Error" --> T[Degraded Fallback Synthesis from Grounded Excerpts]
+        T --> S
+    end
 ```
 
 ---
 
-## 2. Four Important Frontend Pages
+## 2. Key Features
 
-1. **Research Dashboard (`/dashboard`)**:
-   - Real database metrics: Total Documents, Ready, Ingesting, and Failed.
-   - Recent papers table with page count, upload date, status badges, and direct "Research" action.
-   - Global document upload modal trigger.
-2. **Document Management (`/documents`)**:
-   - Drag-and-drop multi-file PDF uploader with progress tracking and file validation (max 25MB).
-   - Searchable document grid with status badges (`Ready`, `Processing`, `Queued`, `Failed`).
-   - Modal inspection for failed processing errors with a 1-click retry ingestion action.
-   - Safe cascading deletion (removes PDF from disk, document metadata, and all vector chunks).
-   - Quick Paper Summarize modal.
-3. **Research Workspace (`/research`)**:
-   - Main RAG split-view interface: left panel for selecting target documents with search and select-all controls.
-   - Conversational chat area with session persistence and Markdown rendering.
-   - Verifiable source citations for every assistant answer showing document name, page number, relevance score, and expandable excerpts.
-   - Dedicated banner alert for questions lacking sufficient document evidence.
-   - Starter academic query shortcuts.
-4. **Compare Documents (`/compare`)**:
-   - Multi-document selector requiring at least 2 ready papers.
-   - Optional comparison focus input (e.g. "Attention mechanisms and parameter efficiency").
-   - Structured 8-dimension comparison table:
-     1. *Research Objective*
-     2. *Methodology*
-     3. *Model or Technique*
-     4. *Dataset*
-     5. *Evaluation Metrics*
-     6. *Results*
-     7. *Limitations*
-     8. *Conclusion*
-   - Dedicated tabs for Common Similarities, Methodological Differences, Key Findings, Stated Limitations, and Grounded Excerpts.
-   - Explicitly displays *"Not found in the provided document"* when a claim is absent.
+### In-App PDF Viewer with Page Jumping
+- When citations appear under research answers or comparisons, users can click **"Open in PDF Viewer at Page X"**.
+- A modal opens embedding the original PDF with `#page=${pageNumber}`, jumping straight to the cited evidence without leaving the workspace.
+- Supports external tab view and raw PDF download.
+
+### Full-Fidelity Markdown Export
+- **Research Answers**: Export answers with date, question, degraded notices, and complete numbered citations directly to `.md`.
+- **Comparative Analysis**: Export structured Markdown tables of the 8 academic evaluation dimensions, key findings, similarities, differences, limitations, and citations.
+
+### Real-Time Reliability & Safety Notices
+- **Degraded Synthesis Mode**: Explicit banner shown across both Q&A and Compare when the LLM service times out or falls back to extracted passage excerpts.
+- **Unverified Citation Warning**: Citations with semantic conflict or mismatched numerical claims are flagged with an amber warning badge.
+- **Low Text Density / Scanned PDF Warning**: Flagged automatically during ingestion when pages contain minimal text, advising OCR usage.
+
+### Collections & Projects
+- Group uploaded papers into research collections (e.g. `Transformers`, `Efficiency`, `Computer Vision`).
+- Filter documents in the repository and multi-document selector by collection.
+
+### Direct arXiv Import
+- Paste any arXiv abstract or PDF URL (e.g., `https://arxiv.org/abs/2106.09685` or `2106.09685`).
+- The backend downloads the PDF, validates `%PDF-` magic bytes, extracts metadata, indexes passages into MongoDB, and optionally assigns it to a collection.
 
 ---
 
-## 3. Technology Stack
+## 3. Empirical Benchmark & Evaluation
 
-- **Frontend**: React 18+, TypeScript, Vite, Tailwind CSS, React Router v6, Axios, Lucide React.
-- **Backend**: Node.js 18+ (tested on Node 24), Express.js, TypeScript, Mongoose, Multer.
-- **Database**: MongoDB 8.2 (tested and running locally on `mongodb://127.0.0.1:27017/multi_doc_research`).
-- **NLP & Ingestion**:
-  - `pdf-parse`: page-by-page text extraction.
-  - Page-aware recursive text chunker preserving sentence boundaries.
-  - `@xenova/transformers`: local `all-MiniLM-L6-v2` ONNX embeddings (runs directly in Node.js without requiring paid API keys or Python services).
-- **LLM Integrations**: Configurable support for Google Gemini (`gemini-1.5-flash`), OpenAI (`gpt-4o-mini`), or local Ollama (`llama3`).
-- **Vector Retrieval**: High-efficiency in-memory cosine similarity engine filtered by selected document IDs + hybrid keyword scoring, with seamless support for MongoDB Atlas `$vectorSearch`.
+All retrieval metrics and generative answer rates are benchmarked against 75 evaluation queries across 6 real academic papers (`Attention Is All You Need`, `LoRA`, `BERT`, `ResNet`, `GPT-3`, `Adam`, and `Unmasking AI-Generated Texts`).
 
----
+The dataset is partitioned into **Tuning** ($n=29$), **Seen Held-Out** ($n=16$), and a **Mostly Blind Set** ($n=15$, queries `q61`–`q75`):
 
-## 4. Environment Configuration
+| Evaluation Split | Metric / Matching Type | Hit@1 | Hit@3 | Hit@5 | MRR |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **Tuning Set** ($n=29$) | **Strict Exact Match** | 44.8% | 69.0% | 75.9% | 0.564 |
+| | **Span-Only Match** | 55.2% | 79.3% | 86.2% | 0.676 |
+| | **Normalized Match** | **75.9%** | **89.7%** | **93.1%** | **0.829** |
+| **Seen Held-Out** ($n=16$) | **Strict Exact Match** | 43.8% | 62.5% | 68.8% | 0.563 |
+| | **Span-Only Match** | 62.5% | 81.3% | 87.5% | 0.750 |
+| | **Normalized Match** | **81.3%** | **93.8%** | **100.0%** | **0.906** |
+| **Mostly Blind** ($n=15$, `q61`–`q75`) | **Strict Exact Match** | 20.0% | 40.0% | 40.0% | 0.261 |
+| | **Span-Only Match** | 20.0% | 46.7% | 46.7% | 0.283 |
+| | **Normalized Match** | **86.7%** | **93.3%** | **93.3%** | **0.880** |
+| **Overall Grounded** ($n=60$) | **Strict Exact Match** | 38.3% | 60.0% | 65.0% | 0.488 |
+| | **Span-Only Match** | 48.3% | 71.7% | 76.7% | 0.598 |
+| | **Normalized Match** | **80.0%** | **91.7%** | **95.0%** | **0.862** |
 
-Copy the example environment configuration:
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-`backend/.env` options:
-
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `PORT` | Backend server port | `5000` |
-| `MONGODB_URI` | MongoDB connection string | `mongodb://127.0.0.1:27017/multi_doc_research` |
-| `FRONTEND_URL` | Allowed CORS origin | `http://localhost:5173` |
-| `EMBEDDING_PROVIDER` | Embedding provider (`local`, `gemini`, `openai`) | `local` |
-| `EMBEDDING_MODEL` | Embedding model identifier | `all-MiniLM-L6-v2` |
-| `LLM_PROVIDER` | LLM provider (`gemini`, `openai`, `ollama`) | `gemini` |
-| `LLM_MODEL` | LLM model name | `gemini-1.5-flash` |
-| `LLM_API_KEY` | API key for Gemini or OpenAI | *(Set your key for generative answers)* |
-| `UPLOAD_DIR` | Local directory for storing PDFs | `./uploads` |
-| `MAX_FILE_SIZE_MB` | Maximum PDF file upload size | `25` |
-| `VECTOR_SEARCH_PROVIDER`| Vector engine (`local` or `atlas`) | `local` |
-
-> **Note**: Even without an LLM API key, the local vector embedding and retrieval engine operates at 100% capacity: chunks are indexed, cosine similarity retrieval locates the exact passages with page numbers, and evidence is displayed cleanly in the UI. Adding an `LLM_API_KEY` enables generative answer synthesis.
+### Answer Rate & Refusal Performance (Full Pipeline)
+- **Grounded Answer Rate** (3-Run Mean @ Temperature 0.0): **90.6% ± 1.7%** (Target: $\ge 88\%$)
+- **Grounded Answer Correctness**: **98.2%**
+- **Out-of-Domain Refusal Accuracy** ($n=6$): **100.0%**
+- **In-Domain Deceptive Trap Refusal Accuracy** ($n=9$): **88.9%**
+- **Overall Off-Topic Refusal Accuracy** ($n=15$): **93.3%**
 
 ---
 
-## 5. Quick Start Instructions
+## 4. Quick Start & Setup
 
 ### Prerequisites
-1. Node.js 18+ installed
-2. MongoDB running locally on port 27017 (or MongoDB Atlas URI)
+- Node.js $\ge 20.0$
+- MongoDB $\ge 6.0$ (running locally at `mongodb://127.0.0.1:27017` or MongoDB Atlas URI)
 
-### 1. Install Dependencies
+### Installation
+Clone the repository and install all workspace dependencies:
 ```bash
-# In backend
-cd backend
-npm install
+git clone https://github.com/Dhanashri1010/Multi-Document-Research-Assistant.git
+cd Multi-Document-Research-Assistant
 
-# In frontend
-cd ../frontend
-npm install
+# Install backend and frontend dependencies
+npm --prefix backend install
+npm --prefix frontend install
 ```
 
-### 2. Run Tests
-Verify the entire ingestion, vector search, and RAG pipeline:
+### Environment Configuration
+Copy `.env.example` to `backend/.env`:
 ```bash
-cd backend
-npm test
+cp .env.example backend/.env
 ```
-*Expected: 13 / 13 tests passing across unit and end-to-end integration suites.*
 
-### 3. Start Development Servers
-From the root directory:
+| Environment Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `PORT` | `5000` | Backend API server port |
+| `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin |
+| `MONGODB_URI` | `mongodb://127.0.0.1:27017/multi_doc_research` | MongoDB connection URI |
+| `UPLOAD_DIR` | `./uploads` | Storage directory for uploaded PDF files |
+| `MAX_FILE_SIZE_MB` | `25` | Maximum upload file size limit |
+| `VECTOR_SEARCH_PROVIDER` | `local` | `local` (in-memory cosine) or `atlas` ($vectorSearch) |
+| `EMBEDDING_PROVIDER` | `local` | `local` (`all-MiniLM-L6-v2`), `gemini`, or `openai` |
+| `CHUNK_TARGET_TOKENS` | `380` | Target token length for passages |
+| `CHUNK_OVERLAP_TOKENS` | `60` | Overlap between adjacent chunks |
+| `LLM_PROVIDER` | `gemini` | `gemini`, `openai`, `ollama`, or `mock` |
+| `LLM_MODEL` | `gemini-3.5-flash-lite`| Configured generative LLM model |
+| `LLM_API_KEY` | *(empty)* | API key for Gemini or OpenAI |
+| `PRE_LLM_COSINE_THRESHOLD` | `0.28` | Pre-LLM refusal gate similarity threshold |
+| `COMPARE_TIMEOUT_MS` | `30000` | Timeout budget for cross-paper comparative analysis |
+| `RERANKER` | `off` | `off` or `on` (cross-encoder reranking) |
+
+### Ingestion & Seeding
+To index the benchmark research papers into your local MongoDB:
 ```bash
-# Start backend (runs on http://localhost:5000)
+npm run reingest
+```
+
+### Running the Application
+```bash
+# Terminal 1: Start Backend API
 npm run dev:backend
 
-# In a second terminal, start frontend (runs on http://localhost:5173)
+# Terminal 2: Start Frontend UI
 npm run dev:frontend
 ```
-
-Now open **`http://localhost:5173`** in your browser.
-
----
-
-## 6. Sample Documents Provided
-
-Two multi-page academic research PDFs are included in `samples/` for immediate testing:
-1. `samples/attention_is_all_you_need.pdf` (Vaswani et al. — Transformers, Scaled Dot-Product Attention, BLEU benchmarks)
-2. `samples/lora_low_rank_adaptation.pdf` (Hu et al. — Low-Rank Adaptation, $\Delta W = B \cdot A$, GLUE benchmarks)
-
-You can upload these directly via the UI in the Documents page or Dashboard.
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 7. Verification Results
+## 5. Testing & Evaluation
 
-All tests have been executed and passed:
-- `backend/src/tests/nlp.test.ts`: 6/6 tests passed (text cleaning, token estimation, page preservation, cosine similarity).
-- `backend/src/tests/e2e_pipeline.test.ts`: 7/7 tests passed (PDF extraction, sentence chunking, dense vector embeddings with `@xenova/transformers`, MongoDB persistence, semantic retrieval, page-accurate citations, and insufficient evidence handling).
-- Frontend production build: `vite build` completed with 0 errors.
-- Backend TypeScript compilation: `tsc` completed with 0 errors.
+### Run All Unit and Component Tests
+```bash
+# Runs 62 backend tests + 7 frontend component tests
+npm test
+```
+
+### Run Evaluation Suites
+```bash
+# Full retrieval benchmark over all 75 queries
+npm run eval:retrieval --prefix backend
+
+# Citation verifier precision/recall test on labeled pairs
+npm run eval:citations --prefix backend
+
+# Full-pipeline answer rate and trap refusal evaluation
+npm run eval:pipeline --prefix backend
+```
+
+### Code Quality & Linting
+```bash
+# Backend ESLint (ESLint 10 Flat Config)
+npm run lint --prefix backend
+
+# Frontend Oxlint
+npm run lint --prefix frontend
+
+# Typecheck and production build
+npm run build
+```
+
+---
+
+## 6. Known Limitations & Scope Boundaries
+
+1. **Table Column Ordering**: PDF text extraction flattens complex multi-column grid tables into sequential text streams. Strict string matching on multi-cell tables is sensitive to column interleaving.
+2. **Scanned & Image-Only PDFs**: Text extraction relies on raw text streams. For scanned or rasterized PDFs, a "Low text density · OCR recommended" banner is flagged. Native OCR engine integration is not bundled in the local sandbox.
+3. **Multi-Document Dispersed Evidence**: For broad queries requiring joint synthesis across 5+ documents, retrieval top-k per document must be balanced to fit context windows.
+4. **Local Hardware Constraints**: Running local embeddings (`all-MiniLM-L6-v2`) in Node.js CPU processes takes approximately 80–120ms per query.
+
+---
+
+## 7. License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
