@@ -7,11 +7,15 @@ import {
   AlertTriangle,
   Sparkles,
   FileSearch,
+  BookOpen,
+  Folder,
+  Check,
 } from 'lucide-react';
 import { IDocument } from '../../types/document.js';
 import { ProcessingStatusBadge } from './ProcessingStatus.js';
 import { Button } from '../common/Button.js';
 import { Modal } from '../common/Modal.js';
+import { PdfViewerModal } from '../common/PdfViewerModal.js';
 
 interface DocumentCardProps {
   document: IDocument;
@@ -21,6 +25,7 @@ interface DocumentCardProps {
   onReprocess: (id: string) => Promise<void>;
   onSummarize: (id: string) => void;
   onOpenResearch: (id: string) => void;
+  onUpdateCollection?: (id: string, col: string) => Promise<void>;
 }
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({
@@ -31,11 +36,17 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onReprocess,
   onSummarize,
   onOpenResearch,
+  onUpdateCollection,
 }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+
+  // Inline collection editing
+  const [isEditingCollection, setIsEditingCollection] = useState(false);
+  const [collectionInput, setCollectionInput] = useState(document.collectionName || 'General');
 
   const formattedDate = new Date(document.createdAt).toLocaleDateString(undefined, {
     year: 'numeric',
@@ -62,6 +73,13 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     } finally {
       setIsRetrying(false);
     }
+  };
+
+  const handleSaveCollection = async () => {
+    if (onUpdateCollection) {
+      await onUpdateCollection(document._id, collectionInput.trim() || 'General');
+    }
+    setIsEditingCollection(false);
   };
 
   return (
@@ -117,8 +135,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             </div>
             <div className="min-w-0 flex-1">
               <h4
-                className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug"
+                className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug cursor-pointer hover:text-brand-600"
                 title={document.originalName}
+                onClick={() => setShowPdfModal(true)}
               >
                 {document.originalName}
               </h4>
@@ -126,11 +145,42 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             </div>
           </div>
 
+          {/* Collection Tag */}
+          <div className="mb-3 flex items-center gap-1.5">
+            <Folder className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            {isEditingCollection ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={collectionInput}
+                  onChange={(e) => setCollectionInput(e.target.value)}
+                  className="px-2 py-0.5 text-xs border border-brand-300 rounded focus:outline-none"
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveCollection}
+                  className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                  title="Save collection"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <span
+                onClick={() => setIsEditingCollection(true)}
+                title="Click to edit collection"
+                className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 text-[11px] font-medium cursor-pointer border border-slate-200"
+              >
+                {document.collectionName || 'General'}
+              </span>
+            )}
+          </div>
+
           {/* Low text density warning chip */}
-          {document.warning && (
+          {(document.warning || document.isLowTextDensity) && (
             <div
               className="mb-3 p-2 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 flex items-start gap-1.5"
-              title={document.warning}
+              title={document.warning || 'Low text density detected. OCR is recommended for scanned / slide PDFs.'}
             >
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
               <span className="line-clamp-2">Low text density · OCR recommended</span>
@@ -162,6 +212,17 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
         {/* Card Action Buttons */}
         <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+          <Button
+            size="sm"
+            variant="outline"
+            className="px-2"
+            icon={<BookOpen className="w-3.5 h-3.5" />}
+            onClick={() => setShowPdfModal(true)}
+            title="View PDF document"
+          >
+            PDF
+          </Button>
+
           {document.status === 'ready' && (
             <>
               <Button
@@ -188,9 +249,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           {document.status === 'failed' && (
             <Button
               size="sm"
-              variant="outline"
-              className="w-full text-rose-700 border-rose-300 hover:bg-rose-50"
-              icon={<RefreshCw className="w-3.5 h-3.5" />}
+              variant="secondary"
+              className="flex-1 text-rose-700 hover:bg-rose-50"
+              icon={<RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />}
               isLoading={isRetrying}
               onClick={handleReprocess}
             >
@@ -198,9 +259,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             </Button>
           )}
 
-          {(document.status === 'processing' || document.status === 'uploaded') && (
-            <div className="w-full text-center py-1.5 text-xs text-blue-600 font-medium animate-pulse">
-              Extracting text & generating vectors...
+          {document.status === 'processing' && (
+            <div className="flex-1 text-center py-1.5 text-xs text-slate-400 font-medium">
+              Indexing chunks...
             </div>
           )}
         </div>
@@ -210,18 +271,22 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       <Modal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        title="Confirm Document Deletion"
+        title="Delete Research Document"
         maxWidth="sm"
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
             Are you sure you want to delete <strong className="text-slate-900">{document.originalName}</strong>?
+            All parsed sections, vectors, and embeddings will be permanently removed.
           </p>
-          <p className="text-xs text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
-            This will permanently remove the original file, all extracted text passages, and semantic vector embeddings from your database.
-          </p>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowDeleteModal(false)}>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeleting}
+            >
               Cancel
             </Button>
             <Button
@@ -229,7 +294,6 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               size="sm"
               isLoading={isDeleting}
               onClick={handleDelete}
-              icon={<Trash2 className="w-3.5 h-3.5" />}
             >
               Delete Document
             </Button>
@@ -241,18 +305,23 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       <Modal
         isOpen={showErrorModal}
         onClose={() => setShowErrorModal(false)}
-        title="Ingestion Error Details"
+        title="Processing Failure Details"
         maxWidth="md"
       >
         <div className="space-y-4">
-          <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 font-mono overflow-x-auto">
-            {document.errorDetails || 'Unknown error occurred during document extraction or embedding.'}
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">
+            <p className="font-semibold mb-1">Error Information:</p>
+            <p className="font-mono whitespace-pre-wrap">
+              {document.errorDetails || 'An unspecified error occurred during extraction or embedding generation.'}
+            </p>
           </div>
-          <p className="text-xs text-slate-500">
-            Common causes include password-protected PDFs, scanned image-only files with no embedded text, or temporary model timeouts.
-          </p>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowErrorModal(false)}>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowErrorModal(false)}
+            >
               Close
             </Button>
             <Button
@@ -265,11 +334,20 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                 await handleReprocess();
               }}
             >
-              Retry Ingestion
+              Retry Processing
             </Button>
           </div>
         </div>
       </Modal>
+
+      {/* In-app PDF Viewer Modal */}
+      <PdfViewerModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        documentId={document._id}
+        documentName={document.originalName}
+        pageNumber={1}
+      />
     </>
   );
 };

@@ -1,10 +1,12 @@
 import fs from 'fs';
+import path from 'path';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { DocumentModel } from '../models/Document.js';
 import { IngestionService } from '../services/documents/ingestionService.js';
 import { ComparisonService } from '../services/ai/comparisonService.js';
-import { validatePdfMagicBytes, sanitizeFilename } from '../utils/fileValidator.js';
+import { validatePdfMagicBytes, validatePdfBuffer, sanitizeFilename } from '../utils/fileValidator.js';
+import { config } from '../config/env.js';
 
 export class DocumentController {
   /**
@@ -255,6 +257,144 @@ export class DocumentController {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.originalName)}"`);
       fs.createReadStream(doc.filePath).pipe(res);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Update document collection / project group.
+   */
+  static async updateCollection(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const doc = await DocumentModel.findById(req.params.id as string);
+      if (!doc) {
+        res.status(404).json({ success: false, error: 'Document not found.' });
+        return;
+      }
+      const rawCollection = req.body.collectionName;
+      doc.collectionName = (rawCollection && typeof rawCollection === 'string' ? rawCollection.trim() : '') || 'General';
+      await doc.save();
+      res.json({ success: true, message: 'Collection updated.', document: doc });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * List all unique collections with document counts.
+   */
+  static async listCollections(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const counts = await DocumentModel.aggregate([
+        { $group: { _id: { $ifNull: ['$collectionName', 'General'] }, count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]);
+      const collections = counts.map((c) => ({
+        name: c._id || 'General',
+        count: c.count,
+      }));
+      res.json({ success: true, collections });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Import academic paper directly from arXiv URL.
+   */
+  static async importArxiv(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { url, collectionName } = req.body;
+      if (!url || typeof url !== 'string') {
+        res.status(400).json({ success: false, error: 'Please provide a valid arXiv URL or identifier.' });
+        return;
+      }
+
+      // Extract arXiv ID e.g. 2106.09685 or 1706.03762
+      const match = url.match(/(?:arxiv\.org\/(?:abs|pdf)\/|arxiv:)?([0-9]{4}\.[0-9]{4,5}(?:v[0-9]+)?)/i);
+      if (!match || !match[1]) {
+        res.status(400).json({
+          success: false,
+          error: 'Could not extract a valid arXiv ID from the provided URL. Expected format e.g. "https://arxiv.org/abs/2106.09685" or "2106.09685".',
+        });
+        return;
+      }
+
+      const arxivId = match[1];
+      const pdfDownloadUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
+
+      const uploadDir = config.uploadDir || './uploads';
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const filename = `arxiv_${arxivId.replace(/[^a-zA-Z0-9.-]/g, '_')}.pdf`;
+      const filePath = path.resolve(uploadDir, filename);
+
+      // Download PDF from arXiv
+      const response = await fetch(pdfDownloadUrl, {
+        headers: {
+          'User-Agent': 'MultiDocumentResearchAssistant/1.0 (academic-nlp-tool)',
+        },
+      });
+
+      if (!response.ok) {
+        res.status(502).json({
+          success: false,
+          error: `Failed to download PDF from arXiv (${response.status}: ${response.statusText}).`,
+        });
+        return;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      if (!validatePdfBuffer(buffer)) {
+        res.status(400).json({
+          success: false,
+          error: 'Downloaded arXiv payload does not begin with valid PDF magic bytes "%PDF-".',
+        });
+        return;
+      }
+
+      fs.writeFileSync(filePath, buffer);
+
+      const fileHash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+      // Deduplication check
+      const existing = await DocumentModel.findOne({ fileHash, status: 'ready' });
+      if (existing) {
+        fs.unlinkSync(filePath);
+        res.json({
+          success: true,
+          message: 'Document already exists in corpus.',
+          document: existing,
+          isDuplicate: true,
+        });
+        return;
+      }
+
+      const doc = await DocumentModel.create({
+        filename,
+        originalName: `arXiv_${arxivId}.pdf`,
+        fileSize: buffer.length,
+        mimeType: 'application/pdf',
+        filePath,
+        fileHash,
+        collectionName: (collectionName && typeof collectionName === 'string' ? collectionName.trim() : '') || 'arXiv',
+        status: 'uploaded',
+      });
+
+      IngestionService.queueDocument(doc._id).catch((err) => {
+        console.error(`[DocumentController] Background ingestion failed for arXiv ${doc._id}:`, err);
+      });
+
+      res.status(201).json({
+        success: true,
+        message: `Successfully fetched and queued arXiv paper ${arxivId} for ingestion.`,
+        document: doc,
+      });
     } catch (err) {
       next(err);
     }

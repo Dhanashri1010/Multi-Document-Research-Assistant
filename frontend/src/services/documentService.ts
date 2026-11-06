@@ -89,4 +89,27 @@ export const documentService = {
     }>('/documents/reindex-all');
     return response.data;
   },
+
+  async updateCollection(id: string, collectionName: string): Promise<IDocument> {
+    const response = await apiClient.patch<{ success: boolean; document: IDocument }>(
+      `/documents/${id}/collection`,
+      { collectionName }
+    );
+    return response.data.document;
+  },
+
+  async listCollections(): Promise<{ name: string; count: number }[]> {
+    const response = await apiClient.get<{ success: boolean; collections: { name: string; count: number }[] }>(
+      '/documents/collections'
+    );
+    return response.data.collections;
+  },
+
+  async importArxiv(url: string, collectionName?: string): Promise<IDocument> {
+    const response = await apiClient.post<{ success: boolean; document: IDocument }>(
+      '/documents/import-arxiv',
+      { url, collectionName }
+    );
+    return response.data.document;
+  },
 };

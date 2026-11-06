@@ -82,6 +82,15 @@ export const DocumentsPage: React.FC = () => {
     }
   };
 
+  const handleUpdateCollection = async (id: string, col: string) => {
+    try {
+      await documentService.updateCollection(id, col);
+      await refreshDocuments();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update collection.');
+    }
+  };
+
   const handleSummarize = async (id: string) => {
     const doc = documents.find((d) => d._id === id);
     if (!doc) return;
@@ -180,6 +189,7 @@ export const DocumentsPage: React.FC = () => {
           onReprocessDocument={handleReprocess}
           onSummarizeDocument={handleSummarize}
           onOpenUpload={() => setIsUploadModalOpen(true)}
+          onUpdateCollection={handleUpdateCollection}
         />
       )}
 

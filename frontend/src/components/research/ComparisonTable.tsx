@@ -9,6 +9,7 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Download,
 } from 'lucide-react';
 
 interface ComparisonTableProps {
@@ -21,6 +22,75 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
   >('matrix');
 
   const [expandedExcerpt, setExpandedExcerpt] = useState<number | null>(null);
+
+  const exportComparisonMarkdown = () => {
+    let md = `# Cross-Document Comparative Analysis\n\n`;
+    if (comparison.focusTopic) {
+      md += `**Focus Topic**: ${comparison.focusTopic}\n\n`;
+    }
+    md += `**Date**: ${new Date().toLocaleString()}\n`;
+    md += `**Papers Compared (${comparison.documents.length})**:\n`;
+    comparison.documents.forEach((d) => {
+      md += `- **${d.name}** (${d.pageCount} pages)\n`;
+    });
+    md += `\n---\n\n`;
+
+    if (comparison.degraded) {
+      md += `> **Notice**: Synthesized in degraded fallback mode (${comparison.degradedReason || 'Extracted excerpts'})\n\n`;
+    }
+
+    md += `## 1. Comparison Matrix\n\n`;
+    const docNames = comparison.documents.map((d) => d.name);
+    md += `| Evaluation Dimension | ${docNames.join(' | ')} |\n`;
+    md += `| :--- | ${docNames.map(() => ':---').join(' | ')} |\n`;
+    comparison.matrix.forEach((dim) => {
+      const row = comparison.documents.map((doc) => {
+        const item = dim.values.find((v) => v.documentId === doc.id || v.documentName === doc.name);
+        return (item?.finding || 'Not mentioned').replace(/\|/g, '\\|');
+      });
+      md += `| **${dim.dimension}** | ${row.join(' | ')} |\n`;
+    });
+    md += `\n`;
+
+    md += `## 2. Shared Methodologies & Similarities\n\n`;
+    comparison.similarities.forEach((s, idx) => {
+      md += `${idx + 1}. ${s}\n`;
+    });
+    md += `\n`;
+
+    md += `## 3. Key Differences & Contrasts\n\n`;
+    comparison.differences.forEach((d, idx) => {
+      md += `${idx + 1}. ${d}\n`;
+    });
+    md += `\n`;
+
+    md += `## 4. Key Findings & Insights\n\n`;
+    comparison.keyFindings.forEach((f, idx) => {
+      md += `${idx + 1}. ${f}\n`;
+    });
+    md += `\n`;
+
+    md += `## 5. Identified Limitations\n\n`;
+    comparison.limitations.forEach((l, idx) => {
+      md += `${idx + 1}. ${l}\n`;
+    });
+    md += `\n`;
+
+    if (comparison.citations && comparison.citations.length > 0) {
+      md += `## 6. Citations & Grounded Evidence\n\n`;
+      comparison.citations.forEach((c, idx) => {
+        md += `${idx + 1}. **${c.documentName}** (Page ${c.pageNumber}): "${c.excerpt}"\n`;
+      });
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comparison_analysis_${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const tabs = [
     { id: 'matrix', label: 'Comparison Matrix', icon: Table },
@@ -61,8 +131,19 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
           </p>
         </div>
 
-        {/* Tab pills */}
-        <div className="flex flex-wrap items-center gap-1.5 bg-slate-200/70 p-1 rounded-lg">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={exportComparisonMarkdown}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 hover:text-brand-700 hover:bg-brand-50 border border-slate-300 transition-colors shrink-0 shadow-2xs"
+            title="Export complete comparison to Markdown (.md)"
+          >
+            <Download className="w-3.5 h-3.5 text-brand-600" />
+            <span>Export .md</span>
+          </button>
+
+          {/* Tab pills */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-200/70 p-1 rounded-lg">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -91,6 +172,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
             );
           })}
         </div>
+      </div>
       </div>
 
       {/* Tab Content */}

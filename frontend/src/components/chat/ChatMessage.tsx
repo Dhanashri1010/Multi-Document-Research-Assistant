@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Sparkles, AlertCircle } from 'lucide-react';
+import { User, Sparkles, AlertCircle, Download } from 'lucide-react';
 import { IChatMessage } from '../../types/research.js';
 import { SourceCitation } from './SourceCitation.js';
 
@@ -9,6 +9,32 @@ interface ChatMessageProps {
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isUser = message.role === 'user';
+
+  const exportMarkdown = () => {
+    let md = `# Multi-Document Research Answer\n\n`;
+    md += `**Date**: ${new Date(message.createdAt).toLocaleString()}\n\n`;
+    if (message.degraded) {
+      md += `> **Notice**: Synthesized in degraded fallback mode (${message.degradedReason || 'Direct excerpt fallback'})\n\n`;
+    }
+    if (message.hasInsufficientEvidence) {
+      md += `> **Notice**: Flagged as having insufficient evidence.\n\n`;
+    }
+    md += `## Answer\n\n${message.content}\n\n`;
+    if (message.citations && message.citations.length > 0) {
+      md += `## Retrieved Evidence & Citations\n\n`;
+      message.citations.forEach((c, idx) => {
+        md += `${idx + 1}. **${c.documentName}** (Page ${c.pageNumber}) ${c.verified !== false ? '*(Verified)*' : '*(Unverified)*'}\n`;
+        md += `   > "${c.excerpt}"\n\n`;
+      });
+    }
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `research_answer_${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Basic formatted text renderer (paragraphs, bold, bullet points, headers)
   const renderFormattedContent = (content: string) => {
@@ -101,13 +127,26 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-bold text-slate-900">
-            {isUser ? 'You' : 'Research Assistant'}
-          </span>
-          <span className="text-[11px] text-slate-400">
-            {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-900">
+              {isUser ? 'You' : 'Research Assistant'}
+            </span>
+            <span className="text-[11px] text-slate-400">
+              {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+          {!isUser && (
+            <button
+              type="button"
+              onClick={exportMarkdown}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-slate-600 hover:text-brand-600 hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200"
+              title="Export response to Markdown (.md)"
+            >
+              <Download className="w-3 h-3" />
+              <span>Export .md</span>
+            </button>
+          )}
         </div>
 
         {/* Insufficient Evidence Notice */}
