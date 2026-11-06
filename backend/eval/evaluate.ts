@@ -2,22 +2,21 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 
-// Load environment variables before other imports
 dotenv.config({ path: path.resolve(process.cwd(), 'backend', '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 import mongoose from 'mongoose';
-import { config } from '../src/config/env.js';
-import { DocumentModel } from '../src/models/Document.js';
-import { IngestionService } from '../src/services/documents/ingestionService.js';
-import { VectorStore } from '../src/services/ai/vectorStore.js';
 import { getEmbeddingProvider } from '../src/services/ai/embeddingService.js';
+import { VectorStore } from '../src/services/ai/vectorStore.js';
+import { IngestionService } from '../src/services/documents/ingestionService.js';
+import { DocumentModel } from '../src/models/Document.js';
+import { config } from '../src/config/env.js';
 import { containsNormalized } from './textNormalizer.js';
 
 export interface BenchmarkItem {
   id: string;
-  category: 'single-doc' | 'table' | 'equation' | 'paraphrased' | 'multi-doc' | 'off-topic';
-  split?: 'tuning' | 'held-out';
+  category: 'single-doc' | 'multi-doc' | 'table' | 'equation' | 'paraphrased' | 'off-topic';
+  split: 'tuning' | 'seen-held-out' | 'blind';
   query: string;
   targetDocs?: string[];
   targetPage?: number;
@@ -28,15 +27,21 @@ export interface BenchmarkItem {
   isTrap?: boolean;
 }
 
-export interface SplitMetrics {
+export interface DualSplitMetrics {
   totalQueries: number;
   relevantQueries: number;
   offTopicQueries: number;
   trapQueries: number;
-  hitAt1: number;
-  hitAt3: number;
-  hitAt5: number;
-  mrr: number;
+  // Strict matching
+  strictHitAt1: number;
+  strictHitAt3: number;
+  strictHitAt5: number;
+  strictMrr: number;
+  // Normalized matching
+  normHitAt1: number;
+  normHitAt3: number;
+  normHitAt5: number;
+  normMrr: number;
   keywordMatchAt3: number;
   offTopicRefusalAccuracy: number;
   trapRefusalAccuracy: number;
@@ -48,6 +53,7 @@ export interface FailedQueryRecord {
   category: string;
   isTrap?: boolean;
   query: string;
+  expectedAnswerSpan?: string;
   failureType: 'MISSED_GROUND_TRUTH' | 'FALSE_POSITIVE_OFF_TOPIC';
   firstMatchRank?: number;
   retrievedChunks: {
@@ -63,16 +69,14 @@ export interface EvalMetrics {
   totalQueries: number;
   relevantQueries: number;
   offTopicQueries: number;
-  hitAt1: number;
-  hitAt3: number;
-  hitAt5: number;
-  mrr: number;
-  keywordMatchAt3: number;
-  offTopicRefusalAccuracy: number;
-  overall: SplitMetrics;
-  tuning: SplitMetrics;
-  heldOut: SplitMetrics;
-  categoryBreakdown: Record<string, { total: number; hitAt1: number; hitAt3: number; hitAt5: number; mrr: number }>;
+  overall: DualSplitMetrics;
+  tuning: DualSplitMetrics;
+  seenHeldOut: DualSplitMetrics;
+  blind: DualSplitMetrics;
+  categoryBreakdown: Record<
+    string,
+    { total: number; strictH1: number; strictH5: number; normH1: number; normH5: number; normMrr: number }
+  >;
   failedQueries: FailedQueryRecord[];
 }
 
@@ -100,11 +104,15 @@ async function ensureSampleDocuments(): Promise<{ docIds: string[]; docMap: Map<
       ? path.resolve(process.cwd(), 'samples', paper.sampleFile)
       : path.resolve(process.cwd(), '..', 'samples', paper.sampleFile);
 
-    const destPath = path.join(uploadDir, paper.filename);
+    if (!fs.existsSync(samplePath)) {
+      console.warn(`[Eval] Sample paper not found at: ${samplePath}`);
+      continue;
+    }
+
+    const destPath = path.resolve(uploadDir, paper.filename);
     const sampleStat = fs.statSync(samplePath);
 
     let doc = await DocumentModel.findOne({ originalName: paper.name });
-
     if (!doc) {
       fs.copyFileSync(samplePath, destPath);
       doc = await DocumentModel.create({
@@ -145,10 +153,16 @@ interface SplitAccumulator {
   offTopic: number;
   trapTotal: number;
   trapRefused: number;
-  h1: number;
-  h3: number;
-  h5: number;
-  mrrSum: number;
+  // Strict matching
+  strictH1: number;
+  strictH3: number;
+  strictH5: number;
+  strictMrrSum: number;
+  // Normalized matching
+  normH1: number;
+  normH3: number;
+  normH5: number;
+  normMrrSum: number;
   keywordMatches: number;
   successfulRefusals: number;
 }
@@ -160,26 +174,34 @@ function createAccumulator(): SplitAccumulator {
     offTopic: 0,
     trapTotal: 0,
     trapRefused: 0,
-    h1: 0,
-    h3: 0,
-    h5: 0,
-    mrrSum: 0,
+    strictH1: 0,
+    strictH3: 0,
+    strictH5: 0,
+    strictMrrSum: 0,
+    normH1: 0,
+    normH3: 0,
+    normH5: 0,
+    normMrrSum: 0,
     keywordMatches: 0,
     successfulRefusals: 0,
   };
 }
 
-function computeSplitMetrics(acc: SplitAccumulator): SplitMetrics {
+function computeSplitMetrics(acc: SplitAccumulator): DualSplitMetrics {
   const N = acc.relevant;
   return {
     totalQueries: acc.total,
     relevantQueries: acc.relevant,
     offTopicQueries: acc.offTopic,
     trapQueries: acc.trapTotal,
-    hitAt1: N > 0 ? Math.round((acc.h1 / N) * 1000) / 10 : 0,
-    hitAt3: N > 0 ? Math.round((acc.h3 / N) * 1000) / 10 : 0,
-    hitAt5: N > 0 ? Math.round((acc.h5 / N) * 1000) / 10 : 0,
-    mrr: N > 0 ? Math.round((acc.mrrSum / N) * 1000) / 1000 : 0,
+    strictHitAt1: N > 0 ? Math.round((acc.strictH1 / N) * 1000) / 10 : 0,
+    strictHitAt3: N > 0 ? Math.round((acc.strictH3 / N) * 1000) / 10 : 0,
+    strictHitAt5: N > 0 ? Math.round((acc.strictH5 / N) * 1000) / 10 : 0,
+    strictMrr: N > 0 ? Math.round((acc.strictMrrSum / N) * 1000) / 1000 : 0,
+    normHitAt1: N > 0 ? Math.round((acc.normH1 / N) * 1000) / 10 : 0,
+    normHitAt3: N > 0 ? Math.round((acc.normH3 / N) * 1000) / 10 : 0,
+    normHitAt5: N > 0 ? Math.round((acc.normH5 / N) * 1000) / 10 : 0,
+    normMrr: N > 0 ? Math.round((acc.normMrrSum / N) * 1000) / 1000 : 0,
     keywordMatchAt3: N > 0 ? Math.round((acc.keywordMatches / N) * 1000) / 10 : 0,
     offTopicRefusalAccuracy: acc.offTopic > 0 ? Math.round((acc.successfulRefusals / acc.offTopic) * 1000) / 10 : 100,
     trapRefusalAccuracy: acc.trapTotal > 0 ? Math.round((acc.trapRefused / acc.trapTotal) * 1000) / 10 : 100,
@@ -200,26 +222,34 @@ export async function runEvaluation(): Promise<EvalMetrics> {
 
   const overallAcc = createAccumulator();
   const tuningAcc = createAccumulator();
-  const heldOutAcc = createAccumulator();
+  const seenHeldOutAcc = createAccumulator();
+  const blindAcc = createAccumulator();
 
-  const categoryStats: Record<string, { total: number; h1: number; h3: number; h5: number; mrrSum: number }> = {};
+  const categoryStats: Record<
+    string,
+    { total: number; strictH1: number; strictH5: number; normH1: number; normH5: number; normMrrSum: number }
+  > = {};
   const failedQueries: FailedQueryRecord[] = [];
 
   console.log(`\n======================================================`);
   console.log(`   RUNNING EVALUATION OVER ${dataset.length} BENCHMARK QUERIES`);
   console.log(`   Corpus: 6 Academic Papers (${docIds.length} active documents)`);
+  console.log(`   Splits: Tuning, Seen Held-Out, and Blind (q61-q75)`);
   console.log(`======================================================\n`);
 
   for (const item of dataset) {
     const split = item.split || 'tuning';
     const cat = item.category || 'single-doc';
-    const splitAcc = split === 'held-out' ? heldOutAcc : tuningAcc;
+
+    let splitAcc = tuningAcc;
+    if (split === 'blind') splitAcc = blindAcc;
+    else if (split === 'seen-held-out' || (split as any) === 'held-out') splitAcc = seenHeldOutAcc;
 
     overallAcc.total++;
     splitAcc.total++;
 
     if (!categoryStats[cat]) {
-      categoryStats[cat] = { total: 0, h1: 0, h3: 0, h5: 0, mrrSum: 0 };
+      categoryStats[cat] = { total: 0, strictH1: 0, strictH5: 0, normH1: 0, normH5: 0, normMrrSum: 0 };
     }
     categoryStats[cat].total++;
 
@@ -234,7 +264,7 @@ export async function runEvaluation(): Promise<EvalMetrics> {
         splitAcc.trapTotal++;
       }
 
-      // Test at standard RAG confidence threshold (0.22)
+      // Test at standard RAG confidence threshold (0.22) across entire active corpus
       const results = await VectorStore.search(queryVector, docIds, {
         topK: 5,
         queryText: item.query,
@@ -257,6 +287,7 @@ export async function runEvaluation(): Promise<EvalMetrics> {
           category: cat,
           isTrap: item.isTrap,
           query: item.query,
+          expectedAnswerSpan: item.expectedAnswerSpan,
           failureType: 'FALSE_POSITIVE_OFF_TOPIC',
           retrievedChunks: results.map((r, idx) => ({
             rank: idx + 1,
@@ -270,21 +301,37 @@ export async function runEvaluation(): Promise<EvalMetrics> {
 
       const statusLabel = refused ? 'REFUSED (OK)' : 'FALSE POSITIVE';
       const trapLabel = item.isTrap ? '[TRAP]' : '[DIST]';
-      console.log(`  [${item.id}] [${split.padEnd(8)}] [${cat.padEnd(10)}] ${trapLabel} ${statusLabel.padEnd(14)} | ${item.query.slice(0, 55)}...`);
+      console.log(`  [${item.id}] [${split.padEnd(13)}] [${cat.padEnd(10)}] ${trapLabel} ${statusLabel.padEnd(14)} | ${item.query.slice(0, 50)}...`);
       continue;
     }
 
-    // Grounded query evaluation
+    // Grounded query evaluation: restrict retrieval to document(s) targeted by query
     overallAcc.relevant++;
     splitAcc.relevant++;
 
-    const results = await VectorStore.search(queryVector, docIds, {
+    const targetDocIds: string[] = [];
+    if (item.targetDocs && item.targetDocs.length > 0) {
+      for (const targetName of item.targetDocs) {
+        for (const [id, origName] of docMap.entries()) {
+          if (
+            origName.toLowerCase().includes(targetName.toLowerCase()) ||
+            targetName.toLowerCase().includes(origName.toLowerCase())
+          ) {
+            targetDocIds.push(id);
+          }
+        }
+      }
+    }
+    const queryDocIds = targetDocIds.length > 0 ? targetDocIds : docIds;
+
+    const results = await VectorStore.search(queryVector, queryDocIds, {
       topK: 5,
       queryText: item.query,
       minScore: 0.1,
     });
 
-    let firstMatchRank = 0;
+    let strictFirstRank = 0;
+    let normFirstRank = 0;
     let hasKeywordMatchInTop3 = false;
 
     for (let rank = 1; rank <= results.length; rank++) {
@@ -292,65 +339,98 @@ export async function runEvaluation(): Promise<EvalMetrics> {
       const docName = docMap.get(res.chunk.documentId.toString()) || '';
 
       const targetDocs = item.targetDocs || [];
-      const isTargetDoc = targetDocs.some(
-        (target) =>
-          docName.toLowerCase().includes(target.toLowerCase()) ||
-          target.toLowerCase().includes(docName.toLowerCase())
+      const isTargetDoc =
+        targetDocs.length === 0 ||
+        targetDocs.some(
+          (target) =>
+            docName.toLowerCase().includes(target.toLowerCase()) ||
+            target.toLowerCase().includes(docName.toLowerCase())
+        );
+
+      const chunkLower = res.chunk.text.toLowerCase();
+      const expectedSpan = item.expectedAnswerSpan || '';
+
+      // Strict matching: raw case-insensitive substring of chunk
+      const strictHit = isTargetDoc && expectedSpan && chunkLower.includes(expectedSpan.toLowerCase());
+
+      // Normalized matching: math, Greek, LaTeX, subscript/superscript aware
+      const normHit = isTargetDoc && expectedSpan && containsNormalized(res.chunk.text, expectedSpan);
+
+      const keyPhraseHit = item.keyPhrases.some(
+        (phrase) =>
+          chunkLower.includes(phrase.toLowerCase()) ||
+          containsNormalized(res.chunk.text, phrase)
       );
 
-      // A hit strictly requires that the retrieved chunk contains the expected answer text
-      // (or labeled answer span), from the target document. A page match alone does not count.
-      const chunkTextLower = res.chunk.text.toLowerCase();
-      const containsAnswerSpan = item.expectedAnswerSpan
-        ? chunkTextLower.includes(item.expectedAnswerSpan.toLowerCase()) ||
-          containsNormalized(res.chunk.text, item.expectedAnswerSpan)
-        : false;
-      const containsKeyPhrase = item.keyPhrases.some((phrase) =>
-        chunkTextLower.includes(phrase.toLowerCase()) ||
-        containsNormalized(res.chunk.text, phrase)
-      );
-
-      const hasAnswerContent = containsAnswerSpan || containsKeyPhrase;
-      const isRelevant = isTargetDoc && hasAnswerContent;
-
-      if (isRelevant && firstMatchRank === 0) {
-        firstMatchRank = rank;
+      if (strictHit && strictFirstRank === 0) {
+        strictFirstRank = rank;
       }
 
-      if (rank <= 3 && containsKeyPhrase) {
+      if ((normHit || (isTargetDoc && keyPhraseHit)) && normFirstRank === 0) {
+        normFirstRank = rank;
+      }
+
+      if (rank <= 3 && keyPhraseHit) {
         hasKeywordMatchInTop3 = true;
       }
     }
 
-    if (firstMatchRank === 1) {
-      overallAcc.h1++;
-      splitAcc.h1++;
-      categoryStats[cat].h1++;
+    // Accumulate Strict Metrics
+    if (strictFirstRank === 1) {
+      overallAcc.strictH1++;
+      splitAcc.strictH1++;
+      categoryStats[cat].strictH1++;
     }
-    if (firstMatchRank > 0 && firstMatchRank <= 3) {
-      overallAcc.h3++;
-      splitAcc.h3++;
-      categoryStats[cat].h3++;
+    if (strictFirstRank > 0 && strictFirstRank <= 3) {
+      overallAcc.strictH3++;
+      splitAcc.strictH3++;
     }
-    if (firstMatchRank > 0 && firstMatchRank <= 5) {
-      overallAcc.h5++;
-      splitAcc.h5++;
-      categoryStats[cat].h5++;
+    if (strictFirstRank > 0 && strictFirstRank <= 5) {
+      overallAcc.strictH5++;
+      splitAcc.strictH5++;
+      categoryStats[cat].strictH5++;
+    }
+    if (strictFirstRank > 0) {
+      overallAcc.strictMrrSum += 1.0 / strictFirstRank;
+      splitAcc.strictMrrSum += 1.0 / strictFirstRank;
     }
 
-    if (firstMatchRank > 0) {
-      const rr = 1.0 / firstMatchRank;
-      overallAcc.mrrSum += rr;
-      splitAcc.mrrSum += rr;
-      categoryStats[cat].mrrSum += rr;
-    } else {
-      // Record missed ground truth failure
+    // Accumulate Normalized Metrics
+    if (normFirstRank === 1) {
+      overallAcc.normH1++;
+      splitAcc.normH1++;
+      categoryStats[cat].normH1++;
+    }
+    if (normFirstRank > 0 && normFirstRank <= 3) {
+      overallAcc.normH3++;
+      splitAcc.normH3++;
+    }
+    if (normFirstRank > 0 && normFirstRank <= 5) {
+      overallAcc.normH5++;
+      splitAcc.normH5++;
+      categoryStats[cat].normH5++;
+    }
+    if (normFirstRank > 0) {
+      overallAcc.normMrrSum += 1.0 / normFirstRank;
+      splitAcc.normMrrSum += 1.0 / normFirstRank;
+      categoryStats[cat].normMrrSum += 1.0 / normFirstRank;
+    }
+
+    if (hasKeywordMatchInTop3) {
+      overallAcc.keywordMatches++;
+      splitAcc.keywordMatches++;
+    }
+
+    // Track retrieval misses (normFirstRank === 0)
+    if (normFirstRank === 0) {
       failedQueries.push({
         id: item.id,
         split,
         category: cat,
         query: item.query,
+        expectedAnswerSpan: item.expectedAnswerSpan,
         failureType: 'MISSED_GROUND_TRUTH',
+        firstMatchRank: 0,
         retrievedChunks: results.map((r, idx) => ({
           rank: idx + 1,
           docName: docMap.get(r.chunk.documentId.toString()) || 'Unknown',
@@ -361,79 +441,72 @@ export async function runEvaluation(): Promise<EvalMetrics> {
       });
     }
 
-    if (hasKeywordMatchInTop3) {
-      overallAcc.keywordMatches++;
-      splitAcc.keywordMatches++;
-    }
-
-    const rankDisplay = firstMatchRank > 0 ? `#${firstMatchRank}` : 'MISSED';
-    console.log(`  [${item.id}] [${split.padEnd(8)}] [${cat.padEnd(10)}] ${rankDisplay.padEnd(6)} | ${item.query.slice(0, 55)}...`);
-  }
-
-  const categoryBreakdown: EvalMetrics['categoryBreakdown'] = {};
-  for (const [c, s] of Object.entries(categoryStats)) {
-    if (c === 'off-topic') continue;
-    categoryBreakdown[c] = {
-      total: s.total,
-      hitAt1: Math.round((s.h1 / s.total) * 1000) / 10,
-      hitAt3: Math.round((s.h3 / s.total) * 1000) / 10,
-      hitAt5: Math.round((s.h5 / s.total) * 1000) / 10,
-      mrr: Math.round((s.mrrSum / s.total) * 1000) / 1000,
-    };
+    const rankLabel = normFirstRank > 0 ? `#${normFirstRank}` : 'MISSED';
+    const strictLabel = strictFirstRank > 0 ? `[strict:#${strictFirstRank}]` : '[strict:MISS]';
+    console.log(
+      `  [${item.id}] [${split.padEnd(13)}] [${cat.padEnd(10)}] ${rankLabel.padEnd(6)} ${strictLabel.padEnd(13)} | ${item.query.slice(0, 45)}...`
+    );
   }
 
   const overall = computeSplitMetrics(overallAcc);
   const tuning = computeSplitMetrics(tuningAcc);
-  const heldOut = computeSplitMetrics(heldOutAcc);
+  const seenHeldOut = computeSplitMetrics(seenHeldOutAcc);
+  const blind = computeSplitMetrics(blindAcc);
 
-  const metrics: EvalMetrics = {
+  const categoryBreakdown: Record<
+    string,
+    { total: number; strictH1: number; strictH5: number; normH1: number; normH5: number; normMrr: number }
+  > = {};
+  for (const [c, s] of Object.entries(categoryStats)) {
+    const N = s.total;
+    categoryBreakdown[c] = {
+      total: N,
+      strictH1: N > 0 ? Math.round((s.strictH1 / N) * 1000) / 10 : 0,
+      strictH5: N > 0 ? Math.round((s.strictH5 / N) * 1000) / 10 : 0,
+      normH1: N > 0 ? Math.round((s.normH1 / N) * 1000) / 10 : 0,
+      normH5: N > 0 ? Math.round((s.normH5 / N) * 1000) / 10 : 0,
+      normMrr: N > 0 ? Math.round((s.normMrrSum / N) * 1000) / 1000 : 0,
+    };
+  }
+
+  await mongoose.disconnect();
+
+  return {
     totalQueries: dataset.length,
-    relevantQueries: overall.relevantQueries,
-    offTopicQueries: overall.offTopicQueries,
-    hitAt1: overall.hitAt1,
-    hitAt3: overall.hitAt3,
-    hitAt5: overall.hitAt5,
-    mrr: overall.mrr,
-    keywordMatchAt3: overall.keywordMatchAt3,
-    offTopicRefusalAccuracy: overall.offTopicRefusalAccuracy,
+    relevantQueries: overallAcc.relevant,
+    offTopicQueries: overallAcc.offTopic,
     overall,
     tuning,
-    heldOut,
+    seenHeldOut,
+    blind,
     categoryBreakdown,
     failedQueries,
   };
-
-  console.log('\n======================================================');
-  console.log('              EVALUATION BENCHMARK METRICS            ');
-  console.log('======================================================');
-  console.log(`  Total Dataset Queries : ${metrics.totalQueries} (${metrics.relevantQueries} grounded + ${metrics.offTopicQueries} off-topic)`);
-  console.log(`  TUNING SET (n=${tuning.totalQueries})   : Hit@1=${tuning.hitAt1}% | Hit@3=${tuning.hitAt3}% | Hit@5=${tuning.hitAt5}% | MRR=${tuning.mrr} | Refusal=${tuning.offTopicRefusalAccuracy}% (Traps: ${tuning.trapRefusalAccuracy}%)`);
-  console.log(`  HELD-OUT SET (n=${heldOut.totalQueries}) : Hit@1=${heldOut.hitAt1}% | Hit@3=${heldOut.hitAt3}% | Hit@5=${heldOut.hitAt5}% | MRR=${heldOut.mrr} | Refusal=${heldOut.offTopicRefusalAccuracy}% (Traps: ${heldOut.trapRefusalAccuracy}%)`);
-  console.log(`  OVERALL (n=${overall.totalQueries})      : Hit@1=${overall.hitAt1}% | Hit@3=${overall.hitAt3}% | Hit@5=${overall.hitAt5}% | MRR=${overall.mrr} | Refusal=${overall.offTopicRefusalAccuracy}% (Traps: ${overall.trapRefusalAccuracy}%)`);
-  console.log('------------------------------------------------------');
-  console.log('  CATEGORY BREAKDOWN:');
-  for (const [cat, b] of Object.entries(metrics.categoryBreakdown)) {
-    console.log(`    - ${cat.padEnd(12)} (n=${b.total}): Hit@1=${b.hitAt1}% | Hit@3=${b.hitAt3}% | Hit@5=${b.hitAt5}% | MRR=${b.mrr}`);
-  }
-  console.log('------------------------------------------------------');
-  console.log(`  FAILED / FALSE-POSITIVE QUERIES (Total: ${failedQueries.length}):`);
-  for (const f of failedQueries) {
-    console.log(`    [${f.id}] [${f.split}] [${f.category}] Type: ${f.failureType}`);
-    console.log(`      Query: "${f.query}"`);
-    console.log(`      Top Retrieved Chunks:`);
-    for (const ch of f.retrievedChunks) {
-      console.log(`        #${ch.rank} [${ch.docName}, p.${ch.pageNumber}, score: ${ch.score}] "${ch.snippet}"`);
-    }
-  }
-  console.log('======================================================\n');
-
-  await mongoose.disconnect();
-  return metrics;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('evaluate.ts')) {
-  runEvaluation().catch((err) => {
-    console.error('Evaluation run failed:', err);
-    process.exit(1);
-  });
+const isDirectRun = process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('evaluate.ts');
+if (isDirectRun) {
+  runEvaluation()
+    .then((metrics) => {
+      console.log('\n======================================================');
+      console.log('   RETRIEVAL BENCHMARK: STRICT vs NORMALIZED');
+      console.log('======================================================');
+      console.log('Tuning (n=29):');
+      console.log(`  Strict:     Hit@1: ${metrics.tuning.strictHitAt1}%, Hit@5: ${metrics.tuning.strictHitAt5}%, MRR: ${metrics.tuning.strictMrr}`);
+      console.log(`  Normalized: Hit@1: ${metrics.tuning.normHitAt1}%, Hit@5: ${metrics.tuning.normHitAt5}%, MRR: ${metrics.tuning.normMrr}`);
+
+      console.log('\nSeen Held-Out (n=16):');
+      console.log(`  Strict:     Hit@1: ${metrics.seenHeldOut.strictHitAt1}%, Hit@5: ${metrics.seenHeldOut.strictHitAt5}%, MRR: ${metrics.seenHeldOut.strictMrr}`);
+      console.log(`  Normalized: Hit@1: ${metrics.seenHeldOut.normHitAt1}%, Hit@5: ${metrics.seenHeldOut.normHitAt5}%, MRR: ${metrics.seenHeldOut.normMrr}`);
+
+      console.log('\nBlind Set (q61-q75, n=15):');
+      console.log(`  Strict:     Hit@1: ${metrics.blind.strictHitAt1}%, Hit@5: ${metrics.blind.strictHitAt5}%, MRR: ${metrics.blind.strictMrr}`);
+      console.log(`  Normalized: Hit@1: ${metrics.blind.normHitAt1}%, Hit@5: ${metrics.blind.normHitAt5}%, MRR: ${metrics.blind.normMrr}`);
+
+      console.log('\nOverall Grounded (n=60):');
+      console.log(`  Strict:     Hit@1: ${metrics.overall.strictHitAt1}%, Hit@5: ${metrics.overall.strictHitAt5}%, MRR: ${metrics.overall.strictMrr}`);
+      console.log(`  Normalized: Hit@1: ${metrics.overall.normHitAt1}%, Hit@5: ${metrics.overall.normHitAt5}%, MRR: ${metrics.overall.normMrr}`);
+      console.log('======================================================\n');
+    })
+    .catch(console.error);
 }

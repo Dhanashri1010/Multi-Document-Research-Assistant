@@ -433,18 +433,38 @@ export async function extractPdf(filePath: string): Promise<ExtractionResult> {
 /**
  * Extracts title, authors, year, and abstract from page 1 text.
  */
+export interface Page1Metadata {
+  title?: string;
+  authors?: string[];
+  affiliations?: string[];
+  year?: number;
+  abstract?: string;
+  frontMatterText?: string;
+}
+
+/**
+ * Extracts title, authors, year, and abstract from page 1 text.
+ */
 export function extractPage1Metadata(page1Text: string): Page1Metadata {
   if (!page1Text || !page1Text.trim()) return {};
 
-  const lines = page1Text
+  const rawLines = page1Text
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
+
+  if (rawLines.length === 0) return {};
+
+  // Filter out boilerplate permission notices at the very top
+  const lines = rawLines.filter((l) => {
+    return !/^(?:provided proper attribution|google hereby grants|reproduce the tables|journalistic or scholarly|proceedings of the|published as a conference|accepted as a conference|under review as a conference)/i.test(l);
+  });
 
   if (lines.length === 0) return {};
 
   let title = '';
   let authors: string[] = [];
+  let affiliations: string[] = [];
   let year: number | undefined;
   let abstract = '';
 
@@ -470,46 +490,55 @@ export function extractPage1Metadata(page1Text: string): Page1Metadata {
   }
 
   // 2. Abstract, Title, and Authors Extraction
-  const abstractLineIdx = lines.findIndex((l) => /^(?:abstract[:\s-]*$|^abstract[:\s-]+)/i.test(l));
+  // Support spaced letters like "A B S T R A C T" or "A BSTRACT"
+  const abstractLineIdx = lines.findIndex((l) =>
+    /^(?:a\s*b\s*s\s*t\s*r\s*a\s*c\s*t[:\s-]*$|^a\s*b\s*s\s*t\s*r\s*a\s*c\s*t[:\s-]+)/i.test(l)
+  );
 
   if (abstractLineIdx > 0) {
     // Title is typically line 0 (and optionally line 1 if short and not an author)
     title = lines[0];
-    if (abstractLineIdx > 2 && lines[1].length < 100 && !lines[1].includes('@') && !/^(by|authors?:)/i.test(lines[1])) {
-      if (!lines[1].includes(',') && !lines[1].toLowerCase().includes('university') && !lines[1].toLowerCase().includes('google')) {
+    if (abstractLineIdx > 2 && lines[1].length < 120 && !lines[1].includes('@') && !/^(by|authors?:)/i.test(lines[1])) {
+      if (!lines[1].includes(',') && !lines[1].toLowerCase().includes('university') && !lines[1].toLowerCase().includes('google') && !lines[1].toLowerCase().includes('microsoft')) {
         title = `${title} ${lines[1]}`;
       }
     }
 
-    // Authors are between title and abstract
-    const authorLines = lines.slice(1, abstractLineIdx).filter((l) => {
-      if (l.includes('@') || /arxiv:|http|published|accepted/i.test(l)) return false;
-      if (/department|university|laboratory|institute|google|research|microsoft|openai/i.test(l)) return false;
-      return true;
-    });
-
+    // Authors and affiliations are between title and abstract
+    const headerLines = lines.slice(1, abstractLineIdx);
     const candidateAuthors: string[] = [];
-    for (const line of authorLines) {
+    const candidateAffiliations: string[] = [];
+
+    for (const line of headerLines) {
+      if (line.includes('@') || /arxiv:|http|published|accepted|equal contribution/i.test(line)) continue;
+
+      if (/google\s*brain|google\s*research|university\s*of|microsoft|openai|cornell|cmu|mit|stanford|berkeley|laboratory|institute|department/i.test(line)) {
+        candidateAffiliations.push(line.replace(/[\d*†‡§()]+/g, '').trim());
+        continue;
+      }
+
       const parts = line.split(/,|(?:\band\b)|;/).map((p) => p.trim()).filter((p) => p.length >= 2 && p.length < 50);
       for (const p of parts) {
         const cleanedName = p.replace(/[\d*†‡§()]+/g, '').trim();
-        if (cleanedName.length >= 2 && !/^(and|by|et al\.?)$/i.test(cleanedName)) {
+        if (cleanedName.length >= 2 && !/^(and|by|et al\.?|\*)$/i.test(cleanedName)) {
           candidateAuthors.push(cleanedName);
         }
       }
     }
+
     authors = Array.from(new Set(candidateAuthors)).slice(0, 15);
+    affiliations = Array.from(new Set(candidateAffiliations)).slice(0, 10);
 
     // Abstract text
     const abstractLines: string[] = [];
-    const firstAbsLine = lines[abstractLineIdx].replace(/^abstract[:\s-]*/i, '').trim();
+    const firstAbsLine = lines[abstractLineIdx].replace(/^a\s*b\s*s\s*t\s*r\s*a\s*c\s*t[:\s-]*/i, '').trim();
     if (firstAbsLine) {
       abstractLines.push(firstAbsLine);
     }
 
     for (let i = abstractLineIdx + 1; i < lines.length; i++) {
       const line = lines[i];
-      if (/^(?:(?:\d+\.?\s*)?(?:introduction|background|overview)|index terms)/i.test(line)) {
+      if (/^(?:(?:\d+\.?\s*)?(?:i\s*n\s*t\s*r\s*o\s*d\s*u\s*c\s*t\s*i\s*o\s*n|background|overview)|index terms)/i.test(line)) {
         break;
       }
       abstractLines.push(line);
@@ -522,10 +551,21 @@ export function extractPage1Metadata(page1Text: string): Page1Metadata {
     }
   }
 
+  // Clean title formatting (e.g. "L O RA" -> "LoRA", "A DAM" -> "Adam")
+  title = title
+    .replace(/\bL\s+O\s+RA\b/gi, 'LoRA')
+    .replace(/\bA\s+DAM\b/gi, 'Adam')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const frontMatterText = lines.slice(0, Math.min(abstractLineIdx > 0 ? abstractLineIdx + 10 : 15, lines.length)).join('\n');
+
   return {
     title: title || undefined,
     authors: authors.length > 0 ? authors : undefined,
+    affiliations: affiliations.length > 0 ? affiliations : undefined,
     year,
     abstract: abstract || undefined,
+    frontMatterText,
   };
 }

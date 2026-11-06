@@ -113,18 +113,54 @@ export class IngestionService {
 
       // 2. Cross-page Chunking with section detection
       const embeddingProvider = getEmbeddingProvider();
-      const chunks = chunkPages(extraction.pages, {
+      const rawChunks = chunkPages(extraction.pages, {
         targetTokens: config.chunkTargetTokens,
         overlapTokens: config.chunkOverlapTokens,
         tokenCounter: estimateTokenCount,
         docTitle: doc.title || doc.originalName,
       });
 
-      if (chunks.length === 0) {
+      if (rawChunks.length === 0) {
         throw new Error('Document contained text but generated zero chunks after filtering.');
       }
 
-      console.log(`[Ingestion] Generated ${chunks.length} chunks. Generating embeddings...`);
+      // Add dedicated Front-Matter chunk (title, authors, affiliations, year, abstract) at chunkIndex 0
+      const frontMatterParts: string[] = [];
+      const paperTitle = doc.title || extraction.metadata?.title || doc.originalName.replace(/\.pdf$/i, '');
+      frontMatterParts.push(`Paper Title: ${paperTitle}`);
+      if (doc.authors && doc.authors.length > 0) {
+        frontMatterParts.push(`Authors: ${doc.authors.join(', ')}`);
+      }
+      if (extraction.metadata?.affiliations && extraction.metadata.affiliations.length > 0) {
+        frontMatterParts.push(`Affiliations: ${extraction.metadata.affiliations.join('; ')}`);
+      }
+      if (doc.year) {
+        frontMatterParts.push(`Publication Year: ${doc.year}`);
+      }
+      if (doc.abstract) {
+        frontMatterParts.push(`Abstract: ${doc.abstract}`);
+      }
+      if (extraction.metadata?.frontMatterText) {
+        frontMatterParts.push(`Front Matter Overview:\n${extraction.metadata.frontMatterText}`);
+      }
+
+      const frontMatterText = frontMatterParts.join('\n\n').trim();
+      const frontMatterChunk = {
+        chunkIndex: 0,
+        text: frontMatterText,
+        embeddingText: `Document: ${paperTitle} | Section: Front Matter, Authors & Abstract\n${frontMatterText}`,
+        section: 'Front Matter, Authors & Abstract',
+        pageStart: 1,
+        pageEnd: 1,
+        tokenCount: estimateTokenCount(frontMatterText),
+      };
+
+      const chunks = [
+        frontMatterChunk,
+        ...rawChunks.map((c, i) => ({ ...c, chunkIndex: i + 1 })),
+      ];
+
+      console.log(`[Ingestion] Generated ${chunks.length} chunks (including Front-Matter chunk). Generating embeddings...`);
 
       // 3. Dense Embeddings (embed embeddingText if present for title/section context)
       const chunkTexts = chunks.map((c) => c.embeddingText || c.text);

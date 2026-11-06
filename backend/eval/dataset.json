@@ -33,7 +33,7 @@
   {
     "id": "q03",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "How long did training the Transformer take on English-to-French and on what hardware?",
     "targetDocs": [
       "Attention Is All You Need"
@@ -96,7 +96,7 @@
   {
     "id": "q07",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "How does LoRA decompose the weight update matrix Delta W?",
     "targetDocs": [
       "LoRA: Low-Rank Adaptation"
@@ -144,7 +144,7 @@
   {
     "id": "q10",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "What is the primary operational limitation of LoRA regarding multi-task serving?",
     "targetDocs": [
       "LoRA: Low-Rank Adaptation"
@@ -177,7 +177,7 @@
   {
     "id": "q12",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "What is the degradation problem in deep convolutional networks addressed by ResNet?",
     "targetDocs": [
       "Deep Residual Learning for Image Recognition"
@@ -209,7 +209,7 @@
   {
     "id": "q14",
     "category": "table",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "In the parameter efficiency table, what is the checkpoint size comparison between full fine-tuning and LoRA on GPT-3 175B?",
     "targetDocs": [
       "LoRA: Low-Rank Adaptation"
@@ -258,7 +258,7 @@
   {
     "id": "q17",
     "category": "table",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "According to the GPT-3 specifications table, how many layers, hidden dimensions, and attention heads does GPT-3 175B have?",
     "targetDocs": [
       "Language Models are Few-Shot Learners"
@@ -308,7 +308,7 @@
   {
     "id": "q20",
     "category": "equation",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "What formula defines the modified forward pass activation when applying LoRA with scaling factor alpha?",
     "targetDocs": [
       "LoRA: Low-Rank Adaptation"
@@ -353,7 +353,7 @@
   {
     "id": "q23",
     "category": "equation",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "How are the bias-corrected moment estimates hat{m}_t and hat{v}_t calculated in the Adam algorithm?",
     "targetDocs": [
       "Adam: A Method for Stochastic Optimization"
@@ -399,7 +399,7 @@
   {
     "id": "q26",
     "category": "paraphrased",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "What technique avoids catastrophic checkpoint explosion when deploying dozens of task-adapted language models?",
     "targetDocs": [
       "LoRA: Low-Rank Adaptation"
@@ -447,7 +447,7 @@
   {
     "id": "q29",
     "category": "paraphrased",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "What allows Adam to handle parameters with very sparse gradients better than standard SGD?",
     "targetDocs": [
       "Adam: A Method for Stochastic Optimization"
@@ -501,7 +501,7 @@
   {
     "id": "q32",
     "category": "multi-doc",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "How does the bidirectional attention in BERT differ from the encoder-decoder attention in the original Transformer?",
     "targetDocs": [
       "BERT: Pre-training of Deep Bidirectional Transformers",
@@ -565,7 +565,7 @@
   {
     "id": "q35",
     "category": "multi-doc",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "How do ResNet shortcut identity connections relate conceptually to the residual connections used in the Transformer architecture?",
     "targetDocs": [
       "Deep Residual Learning for Image Recognition",
@@ -601,7 +601,7 @@
       "tokens",
       "sequence length"
     ],
-    "expectedAnswerSpan": "512"
+    "expectedAnswerSpan": "512 tokens"
   },
   {
     "id": "q37",
@@ -615,7 +615,7 @@
   {
     "id": "q38",
     "category": "off-topic",
-    "split": "held-out",
+    "split": "seen-held-out",
     "isOffTopic": true,
     "isTrap": false,
     "query": "What temperature and humidity are optimal for proofing sourdough bread dough overnight?",
@@ -642,7 +642,7 @@
   {
     "id": "q41",
     "category": "off-topic",
-    "split": "held-out",
+    "split": "seen-held-out",
     "isOffTopic": true,
     "isTrap": false,
     "query": "What gravitational wave strain frequencies are detected by the LIGO interferometers during binary black hole mergers?",
@@ -669,7 +669,7 @@
   {
     "id": "q44",
     "category": "off-topic",
-    "split": "held-out",
+    "split": "seen-held-out",
     "isOffTopic": true,
     "isTrap": true,
     "query": "What is the maximum low-rank adaptation dimension r evaluated for Vision Transformers on ImageNet-1K in the LoRA paper?",
@@ -696,7 +696,7 @@
   {
     "id": "q47",
     "category": "off-topic",
-    "split": "held-out",
+    "split": "seen-held-out",
     "isOffTopic": true,
     "isTrap": true,
     "query": "What zero-shot F1 score does GPT-3 175B achieve on the BioASQ biomedical question answering challenge?",
@@ -723,7 +723,7 @@
   {
     "id": "q50",
     "category": "off-topic",
-    "split": "held-out",
+    "split": "seen-held-out",
     "isOffTopic": true,
     "isTrap": true,
     "query": "What are the exact gradient accumulation batch sizes used by LoRA for quantized 4-bit QLoRA NF4 base models?",
@@ -834,7 +834,7 @@
   {
     "id": "q57",
     "category": "table",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "Which two machine learning models achieved 100% accuracy during the training phase in Table V?",
     "targetDocs": [
       "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
@@ -852,7 +852,7 @@
   {
     "id": "q58",
     "category": "table",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "What was the mean text length in words for human-written texts versus AI-generated texts in Tables II and III?",
     "targetDocs": [
       "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
@@ -870,7 +870,7 @@
   {
     "id": "q59",
     "category": "table",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "What evaluation accuracy and F1 score were obtained by Logistic Regression and SVM on the custom dataset in Table VI?",
     "targetDocs": [
       "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
@@ -888,7 +888,7 @@
   {
     "id": "q60",
     "category": "paraphrased",
-    "split": "held-out",
+    "split": "seen-held-out",
     "query": "In the stylistic comparison of generated versus natural prose, which text category exhibited a higher reading difficulty requiring more schooling?",
     "targetDocs": [
       "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
@@ -906,7 +906,7 @@
   {
     "id": "q61",
     "category": "table",
-    "split": "held-out",
+    "split": "blind",
     "query": "What total word count and breakdown of AI-generated versus human-written records were obtained after cleaning in the AI text detection dataset?",
     "targetDocs": [
       "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
@@ -924,7 +924,7 @@
   {
     "id": "q62",
     "category": "table",
-    "split": "held-out",
+    "split": "blind",
     "query": "What training phase accuracy was achieved by Logistic Regression compared to Support Vector Machine in Table V?",
     "targetDocs": [
       "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
@@ -943,7 +943,7 @@
   {
     "id": "q63",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "How does the study utilize sentiment polarity to differentiate between human-written and AI-generated text?",
     "targetDocs": [
       "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
@@ -960,7 +960,7 @@
   {
     "id": "q64",
     "category": "equation",
-    "split": "held-out",
+    "split": "blind",
     "query": "What exact equation describes the accumulated forward pass when applying LoRA adaptation with base weight W_0 and matrices B and A?",
     "targetDocs": [
       "LoRA: Low-Rank Adaptation"
@@ -977,7 +977,7 @@
   {
     "id": "q65",
     "category": "equation",
-    "split": "held-out",
+    "split": "blind",
     "query": "What is the mathematical equation for Multi-Head Attention formed by concatenating head projections?",
     "targetDocs": [
       "Attention Is All You Need"
@@ -993,7 +993,7 @@
   {
     "id": "q66",
     "category": "equation",
-    "split": "held-out",
+    "split": "blind",
     "query": "What equation defines the linear projection shortcut connection used when input and output channels differ in ResNet?",
     "targetDocs": [
       "Deep Residual Learning for Image Recognition"
@@ -1010,7 +1010,7 @@
   {
     "id": "q67",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "What learning rate schedule formula is used for the Adam optimizer during Transformer training?",
     "targetDocs": [
       "Attention Is All You Need"
@@ -1027,7 +1027,7 @@
   {
     "id": "q68",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "Which weight matrices in the Transformer self-attention module does LoRA adapt in its main experiments?",
     "targetDocs": [
       "LoRA: Low-Rank Adaptation"
@@ -1044,7 +1044,7 @@
   {
     "id": "q69",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "What tokenization method and vocabulary size does BERT use for text representation?",
     "targetDocs": [
       "BERT: Pre-training of Deep Bidirectional Transformers"
@@ -1060,7 +1060,7 @@
   {
     "id": "q70",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "What batch size and number of epochs are recommended for fine-tuning BERT on GLUE benchmark tasks?",
     "targetDocs": [
       "BERT: Pre-training of Deep Bidirectional Transformers"
@@ -1077,7 +1077,7 @@
   {
     "id": "q71",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "How many layers are in the deepest residual network evaluated on ImageNet in the ResNet paper?",
     "targetDocs": [
       "Deep Residual Learning for Image Recognition"
@@ -1089,12 +1089,12 @@
       "deepest",
       "layers"
     ],
-    "expectedAnswerSpan": "152"
+    "expectedAnswerSpan": "152 layers"
   },
   {
     "id": "q72",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "How does few-shot prompting differ from zero-shot prompting in the evaluation methodology of GPT-3?",
     "targetDocs": [
       "Language Models are Few-Shot Learners"
@@ -1111,7 +1111,7 @@
   {
     "id": "q73",
     "category": "table",
-    "split": "held-out",
+    "split": "blind",
     "query": "What training dataset constitutes the largest proportion of tokens in the GPT-3 pre-training mixture?",
     "targetDocs": [
       "Language Models are Few-Shot Learners"
@@ -1128,7 +1128,7 @@
   {
     "id": "q74",
     "category": "single-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "Why does the Adam optimizer require bias-correction terms for the first and second moment vectors?",
     "targetDocs": [
       "Adam: A Method for Stochastic Optimization"
@@ -1144,7 +1144,7 @@
   {
     "id": "q75",
     "category": "multi-doc",
-    "split": "held-out",
+    "split": "blind",
     "query": "How does the dimension of attention hidden states scale from the original Transformer base model to GPT-3 175B?",
     "targetDocs": [
       "Attention Is All You Need",
@@ -1160,6 +1160,6 @@
       "d_model",
       "hidden dimension"
     ],
-    "expectedAnswerSpan": "512"
+    "expectedAnswerSpan": "d_model = 512"
   }
 ]

@@ -259,7 +259,7 @@ Generate your JSON response now.`;
     try {
       const rawResponse = await LLMService.generate(userPrompt, {
         systemPrompt,
-        temperature: 0.1,
+        temperature: 0.0,
         timeoutMs: 25000,
         maxRetries: 1,
       });

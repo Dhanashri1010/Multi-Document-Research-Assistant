@@ -226,45 +226,74 @@ export class LocalVectorStore implements IVectorStore {
     options: VectorSearchOptions = {}
   ): Promise<ScoredChunk[]> {
     const topK = options.topK || 6;
-    const minScore = options.minScore || 0.22;
-    const queryText = options.queryText || '';
-
     const docIdStrings = documentIds.map((id) => id.toString());
     if (docIdStrings.length === 0) return [];
+
+    // Multi-document retrieval: retrieve top-k PER selected document, then merge
+    if (docIdStrings.length > 1) {
+      const perDocK = Math.max(2, Math.min(4, Math.ceil(topK / docIdStrings.length) + 1));
+      const perDocPromises = docIdStrings.map((docId) =>
+        this.searchSingleDoc(queryEmbedding, docId, {
+          ...options,
+          topK: perDocK,
+        })
+      );
+      const perDocResults = await Promise.all(perDocPromises);
+
+      // Merge and interleave candidates from all documents
+      const merged: ScoredChunk[] = [];
+      const maxLen = Math.max(...perDocResults.map((r) => r.length));
+      for (let r = 0; r < maxLen; r++) {
+        for (const docRes of perDocResults) {
+          if (r < docRes.length) {
+            merged.push(docRes[r]);
+          }
+        }
+      }
+      return merged.slice(0, Math.max(topK, docIdStrings.length * 2));
+    }
+
+    return this.searchSingleDoc(queryEmbedding, docIdStrings[0], options);
+  }
+
+  private async searchSingleDoc(
+    queryEmbedding: number[],
+    docId: string,
+    options: VectorSearchOptions = {}
+  ): Promise<ScoredChunk[]> {
+    const topK = options.topK || 6;
+    const minScore = options.minScore || 0.22;
+    const queryText = options.queryText || '';
 
     const queryVecTyped = new Float32Array(queryEmbedding);
     const queryMentionsReferences = /\b(references?|citations?|bibliography)\b/i.test(queryText);
     const activeModel = config.embeddingModel;
 
     // 1. Fetch chunks using in-memory Float32Array cache
-    const docChunksMap = await this.getCachedChunksForDocs(docIdStrings);
-    const numDocs = docIdStrings.length;
-
+    const docChunksMap = await this.getCachedChunksForDocs([docId]);
     const validChunks: CachedChunk[] = [];
     const mismatchedDocIds = new Set<string>();
 
-    for (const docId of docIdStrings) {
-      const docChunks = docChunksMap.get(docId) || [];
-      for (const item of docChunks) {
-        // Enforce embedding dimension match
-        if (item.embeddingVector.length !== queryVecTyped.length) {
-          mismatchedDocIds.add(docId);
-          continue;
-        }
-
-        // Refuse to mix models: verify chunk model matches active embedding model if specified
-        if (item.chunk.embeddingModel && item.chunk.embeddingModel !== activeModel) {
-          mismatchedDocIds.add(docId);
-          continue;
-        }
-
-        // Section filter: skip bibliography/references unless requested
-        if (!queryMentionsReferences && item.chunk.section === 'References') {
-          continue;
-        }
-
-        validChunks.push(item);
+    const docChunks = docChunksMap.get(docId) || [];
+    for (const item of docChunks) {
+      // Enforce embedding dimension match
+      if (item.embeddingVector.length !== queryVecTyped.length) {
+        mismatchedDocIds.add(docId);
+        continue;
       }
+
+      // Refuse to mix models: verify chunk model matches active embedding model if specified
+      if (item.chunk.embeddingModel && item.chunk.embeddingModel !== activeModel) {
+        mismatchedDocIds.add(docId);
+        continue;
+      }
+
+      // Section filter: skip bibliography/references unless requested
+      if (!queryMentionsReferences && item.chunk.section === 'References') {
+        continue;
+      }
+
+      validChunks.push(item);
     }
 
     if (mismatchedDocIds.size > 0) {
@@ -277,7 +306,7 @@ export class LocalVectorStore implements IVectorStore {
       return [];
     }
 
-    // 2. Compute Global Dense Similarities
+    // 2. Compute Dense Similarities
     const denseRankMap = new Map<string, { rank: number; sim: number }>();
     const denseScored = validChunks.map((item) => ({
       item,
@@ -288,7 +317,7 @@ export class LocalVectorStore implements IVectorStore {
       denseRankMap.set(entry.item.chunk._id.toString(), { rank: idx + 1, sim: entry.sim });
     });
 
-    // 3. Compute Global BM25 Scores across all candidate chunks
+    // 3. Compute BM25 Scores across candidate chunks
     const bm25RankMap = new Map<string, { rank: number; score: number }>();
     if (queryText.trim().length > 0) {
       const bm25Docs: BM25Document[] = validChunks.map((c) => ({
@@ -342,34 +371,16 @@ export class LocalVectorStore implements IVectorStore {
 
     allFusedCandidates.sort((a, b) => b.score - a.score);
 
-    // 5. Apply Balanced Multi-Document Quota Allocation
-    // Ensures one paper cannot dominate multi-document synthesis by capping maximum chunks per document
-    const maxPerDoc = numDocs > 1 ? Math.max(2, Math.ceil(topK * 0.6)) : topK;
-    const docCounts = new Map<string, number>();
-    const quotaCandidates: typeof allFusedCandidates = [];
-
-    for (const cand of allFusedCandidates) {
-      const dId = cand.chunk.documentId.toString();
-      const currentCount = docCounts.get(dId) || 0;
-      if (currentCount < maxPerDoc) {
-        quotaCandidates.push(cand);
-        docCounts.set(dId, currentCount + 1);
-      }
-    }
-
-    // 6. Candidate Pool Sizing & Reranking Step
-    // When reranker is ON: retrieve top 20-30 balanced candidates, rerank to top 5-6
-    // When reranker is OFF: no-op fallback, return MMR diverse candidates
+    // 5. Candidate Pool Sizing & Reranking Step
     const isRerankerActive = config.reranker === 'on' && queryText.trim().length > 0;
-
     if (isRerankerActive) {
-      const candidatePoolSize = Math.min(quotaCandidates.length, Math.max(topK * 4, 25));
-      const mmrPool = maximalMarginalRelevance(quotaCandidates, candidatePoolSize, 0.7);
+      const candidatePoolSize = Math.min(allFusedCandidates.length, Math.max(topK * 4, 25));
+      const mmrPool = maximalMarginalRelevance(allFusedCandidates, candidatePoolSize, 0.7);
       return await RerankerService.rerank(queryText, mmrPool, topK);
     }
 
-    // Standard path (reranker off / default): MMR selects topK diverse chunks from quota candidates
-    const mmrResults = maximalMarginalRelevance(quotaCandidates, topK, 0.85);
+    // Standard path (reranker off / default): MMR selects topK diverse chunks
+    const mmrResults = maximalMarginalRelevance(allFusedCandidates, topK, 0.85);
     return mmrResults.slice(0, topK);
   }
 }
