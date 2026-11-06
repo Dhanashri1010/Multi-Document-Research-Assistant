@@ -11,6 +11,8 @@ export const researchService = {
     answer: string;
     citations: ICitation[];
     hasInsufficientEvidence: boolean;
+    degraded?: boolean;
+    degradedReason?: string;
   }> {
     const response = await apiClient.post<{
       success: boolean;
@@ -18,6 +20,8 @@ export const researchService = {
       answer: string;
       citations: ICitation[];
       hasInsufficientEvidence: boolean;
+      degraded?: boolean;
+      degradedReason?: string;
     }>('/chat/ask', params);
     return response.data;
   },

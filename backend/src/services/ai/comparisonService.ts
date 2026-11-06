@@ -3,6 +3,7 @@ import { DocumentChunkModel } from '../../models/DocumentChunk.js';
 import { LLMService } from './llmService.js';
 import { ICitation } from '../../models/ChatMessage.js';
 import { StructuredComparisonSchema } from './schemas.js';
+import { config } from '../../config/env.js';
 
 export interface ComparisonDimension {
   dimension: string;
@@ -405,14 +406,76 @@ ${docsContext}
 
 Generate the JSON comparison now.`;
 
+    const startTime = Date.now();
+    const baseTimeout = Math.max(15000, config.compareTimeoutMs || 30000);
+    // Scale timeout with document count (+8s per document beyond 2)
+    const totalBudgetMs = baseTimeout + Math.max(0, docs.length - 2) * 8000;
+    // Attempt 1 budget: ~65% of total budget (at least 12s)
+    const attempt1Timeout = Math.max(12000, Math.floor(totalBudgetMs * 0.65));
+
+    let response = '';
+    let lastError: any = null;
+
     try {
-      const response = await LLMService.generate(userPrompt, {
+      response = await LLMService.generate(userPrompt, {
         systemPrompt,
         temperature: 0.1,
-        timeoutMs: 18000,
+        timeoutMs: attempt1Timeout,
         maxRetries: 0,
       });
+    } catch (err: any) {
+      lastError = err;
+      const elapsed = Date.now() - startTime;
+      const remainingMs = totalBudgetMs - elapsed;
 
+      // Allow one retry if sufficient time remains in budget (at least 10s for API)
+      if (remainingMs >= 10000) {
+        console.warn(
+          `[ComparisonService] Attempt 1 failed (${err.message}). Retrying once with remaining budget of ${remainingMs}ms...`
+        );
+        try {
+          response = await LLMService.generate(userPrompt, {
+            systemPrompt,
+            temperature: 0.1,
+            timeoutMs: remainingMs,
+            maxRetries: 0,
+          });
+          lastError = null;
+        } catch (retryErr: any) {
+          lastError = retryErr;
+        }
+      }
+    }
+
+    if (lastError || !response) {
+      console.warn('[ComparisonService] LLM comparison failed or exhausted budget:', lastError?.message || 'No response');
+
+      const fallbackMatrix = buildFallbackMatrix(standardDimensions, docData);
+      const fallbackFindings = docData.flatMap((d) =>
+        d.excerpts.slice(0, 2).map((e) => `[${d.name}, p.${e.pageNumber}] ${cleanAndSimplifyText(e.text).slice(0, 150)}...`)
+      );
+
+      return {
+        documents: docData.map((d) => ({ id: d.id, name: d.name, pageCount: d.pageCount })),
+        focusTopic,
+        matrix: fallbackMatrix,
+        similarities: [
+          'Both documents examine technical methodologies and structured problem solving in their domains.',
+          'Each document includes concrete evidence, page-attributed findings, and analytical discussions.',
+        ],
+        differences: docData.map((d) => `"${d.name}" provides study details across ${d.pageCount} page(s).`),
+        keyFindings: fallbackFindings.slice(0, 4),
+        limitations: [
+          'Findings are grounded in the extracted document pages and excerpts.',
+          `Generative comparison server reported: ${lastError?.message || 'Timeout'}. Showing grounded document excerpts.`,
+        ],
+        citations: allCitations,
+        degraded: true,
+        degradedReason: `Grounded comparison synthesized from document evidence (${lastError?.message || 'Timeout'})`,
+      };
+    }
+
+    try {
       const cleanJson = response.replace(/^```json/m, '').replace(/^```/m, '').trim();
       const rawParsed = JSON.parse(cleanJson);
       const parseResult = StructuredComparisonSchema.safeParse(rawParsed);
@@ -433,31 +496,22 @@ Generate the JSON comparison now.`;
         citations: allCitations,
         degraded: false,
       };
-    } catch (err: any) {
-      console.warn('[ComparisonService] LLM comparison failed:', err.message);
-
+    } catch (parseErr: any) {
+      console.warn('[ComparisonService] Failed to parse LLM JSON comparison:', parseErr.message);
       const fallbackMatrix = buildFallbackMatrix(standardDimensions, docData);
-      const fallbackFindings = docData.flatMap((d) =>
-        d.excerpts.slice(0, 2).map((e) => `[${d.name}, p.${e.pageNumber}] ${cleanAndSimplifyText(e.text).slice(0, 150)}...`)
-      );
-
       return {
         documents: docData.map((d) => ({ id: d.id, name: d.name, pageCount: d.pageCount })),
         focusTopic,
         matrix: fallbackMatrix,
         similarities: [
           'Both documents examine technical methodologies and structured problem solving in their domains.',
-          'Each document includes concrete evidence, page-attributed findings, and analytical discussions.',
         ],
         differences: docData.map((d) => `"${d.name}" provides study details across ${d.pageCount} page(s).`),
-        keyFindings: fallbackFindings.slice(0, 4),
-        limitations: [
-          'Findings are grounded in the extracted document pages and excerpts.',
-          `Generative comparison server reported: ${err.message}. Showing grounded document excerpts.`,
-        ],
+        keyFindings: [],
+        limitations: ['JSON output formatting fallback applied.'],
         citations: allCitations,
         degraded: true,
-        degradedReason: `Grounded comparison synthesized from document evidence (${err.message})`,
+        degradedReason: `JSON parsing failed (${parseErr.message})`,
       };
     }
   }

@@ -164,6 +164,8 @@ export const ResearchPage: React.FC = () => {
                   content: res.answer,
                   citations: res.citations,
                   hasInsufficientEvidence: res.hasInsufficientEvidence,
+                  degraded: res.degraded,
+                  degradedReason: res.degradedReason,
                   createdAt: new Date().toISOString(),
                 },
               ]);

@@ -28,5 +28,6 @@ export const config = {
   chunkOverlapTokens: parseInt(process.env.CHUNK_OVERLAP_TOKENS || (process.env.EMBEDDING_PROVIDER === 'local' || !process.env.EMBEDDING_PROVIDER ? '40' : '90'), 10),
   llmTimeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || '30000', 10),
   llmMaxRetries: parseInt(process.env.LLM_MAX_RETRIES || '2', 10),
+  compareTimeoutMs: parseInt(process.env.COMPARE_TIMEOUT_MS || '30000', 10),
   reranker: (process.env.RERANKER || 'off') as 'on' | 'off',
 };

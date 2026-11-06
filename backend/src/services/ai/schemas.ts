@@ -52,3 +52,4 @@ export const StructuredComparisonSchema = z.object({
 });
 
 export type StructuredComparison = z.infer<typeof StructuredComparisonSchema>;
+
