@@ -7,6 +7,7 @@ import { VectorStore } from './vectorStore.js';
 import { LLMService } from './llmService.js';
 import { StructuredRAGAnswerSchema } from './schemas.js';
 import { CitationVerifier } from './citationVerifier.js';
+import { config } from '../../config/env.js';
 
 export interface RAGQueryOptions {
   question: string;
@@ -222,11 +223,17 @@ Generate your JSON response now.`;
       scoredChunks,
     } = await this.prepareContext(options);
 
-    // Immediate refusal if zero chunks retrieved
-    if (scoredChunks.length === 0) {
+    // Pre-LLM refusal gate: check both chunk presence and best chunk raw cosine similarity
+    const bestDenseSimilarity = scoredChunks.length > 0
+      ? Math.max(...scoredChunks.map((c) => c.denseScore ?? 0))
+      : 0;
+    const threshold = config.preLlmCosineThreshold ?? 0.28;
+
+    if (scoredChunks.length === 0 || bestDenseSimilarity < threshold) {
       const insufficientAnswer =
-        'The selected research documents do not contain sufficient evidence to answer this question. ' +
-        'Please verify that the uploaded documents cover this topic, or try rephrasing your research query.';
+        `The selected research documents do not contain sufficient evidence to answer this question ` +
+        `(highest semantic relevance: ${Math.round(bestDenseSimilarity * 100)}%, threshold: ${Math.round(threshold * 100)}%). ` +
+        `Please verify that the uploaded documents cover this topic, or try rephrasing your research query.`;
 
       await ChatMessageModel.create({
         sessionId: session._id,
@@ -346,10 +353,16 @@ Generate your JSON response now.`;
       },
     });
 
-    if (scoredChunks.length === 0) {
+    const bestDenseSimilarity = scoredChunks.length > 0
+      ? Math.max(...scoredChunks.map((c) => c.denseScore ?? 0))
+      : 0;
+    const threshold = config.preLlmCosineThreshold ?? 0.28;
+
+    if (scoredChunks.length === 0 || bestDenseSimilarity < threshold) {
       const insufficientAnswer =
-        'The selected research documents do not contain sufficient evidence to answer this question. ' +
-        'Please verify that the uploaded documents cover this topic, or try rephrasing your research query.';
+        `The selected research documents do not contain sufficient evidence to answer this question ` +
+        `(highest semantic relevance: ${Math.round(bestDenseSimilarity * 100)}%, threshold: ${Math.round(threshold * 100)}%). ` +
+        `Please verify that the uploaded documents cover this topic, or try rephrasing your research query.`;
 
       onEvent({
         type: 'token',

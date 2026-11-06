@@ -81,6 +81,7 @@ const BENCHMARK_PAPERS = [
   { sampleFile: 'resnet_deep_residual_learning.pdf', name: 'Deep Residual Learning for Image Recognition', filename: 'eval_resnet.pdf' },
   { sampleFile: 'gpt3_language_models_few_shot.pdf', name: 'Language Models are Few-Shot Learners', filename: 'eval_gpt3.pdf' },
   { sampleFile: 'adam_stochastic_optimization.pdf', name: 'Adam: A Method for Stochastic Optimization', filename: 'eval_adam.pdf' },
+  { sampleFile: 'Paper_21-Unmasking_AI_Generated_Texts.pdf', name: 'Unmasking AI-Generated Texts Using Linguistic and Stylistic Features', filename: 'eval_paper21_unmasking.pdf' },
 ];
 
 async function ensureSampleDocuments(): Promise<{ docIds: string[]; docMap: Map<string, string> }> {

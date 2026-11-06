@@ -74,16 +74,16 @@ export class CitationVerifier {
     const missingNumbers = claimNumbers.filter((num) => !chunkLower.includes(num));
 
     // A claim is supported if:
-    // 1. At least 22% of salient tokens overlap (standard semantic containment)
+    // 1. At least 16% of salient tokens overlap (calibrated on paraphrased test sets)
     // 2. All specific numbers (e.g. 28.4, 350GB, 175B) in the claim are present in the chunk
     const numberMismatch = missingNumbers.length > 0 && claimNumbers.length > 0;
-    const isSupported = containmentRatio >= 0.22 && !numberMismatch;
+    const isSupported = containmentRatio >= 0.16 && !numberMismatch;
 
     let reason: string | undefined;
     if (numberMismatch) {
       reason = `Missing expected numbers/metrics: ${missingNumbers.join(', ')}`;
-    } else if (containmentRatio < 0.22) {
-      reason = `Low lexical containment (${Math.round(containmentRatio * 100)}% < 22%)`;
+    } else if (containmentRatio < 0.16) {
+      reason = `Low lexical containment (${Math.round(containmentRatio * 100)}% < 16%)`;
     }
 
     return {

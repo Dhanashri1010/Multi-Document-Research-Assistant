@@ -4,324 +4,568 @@
     "category": "single-doc",
     "split": "tuning",
     "query": "What BLEU score did the big Transformer achieve on the WMT 2014 English-to-German translation benchmark?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["28.4", "English-to-German", "BLEU"]
+    "keyPhrases": [
+      "28.4",
+      "English-to-German",
+      "BLEU"
+    ]
   },
   {
     "id": "q02",
     "category": "single-doc",
     "split": "tuning",
     "query": "What was the BLEU score achieved by the Transformer model on the English-to-French translation task?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["41.8", "English-to-French"]
+    "keyPhrases": [
+      "41.8",
+      "English-to-French"
+    ]
   },
   {
     "id": "q03",
     "category": "single-doc",
     "split": "held-out",
     "query": "How long did training the Transformer take on English-to-French and on what hardware?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["3.5 days", "eight GPUs"]
+    "keyPhrases": [
+      "3.5 days",
+      "eight GPUs"
+    ]
   },
   {
     "id": "q04",
     "category": "single-doc",
     "split": "tuning",
     "query": "What is the primary computational complexity limitation of standard self-attention?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["O(n^2)", "quadratic", "sequence length"]
+    "keyPhrases": [
+      "O(n^2)",
+      "quadratic",
+      "sequence length"
+    ]
   },
   {
     "id": "q05",
     "category": "single-doc",
     "split": "tuning",
     "query": "Why do recurrent models preclude parallelization within training examples?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 1,
-    "keyPhrases": ["sequential nature", "parallelization", "recurrent"]
+    "keyPhrases": [
+      "sequential nature",
+      "parallelization",
+      "recurrent"
+    ]
   },
   {
     "id": "q06",
     "category": "single-doc",
     "split": "tuning",
     "query": "Who are the authors of the paper Attention Is All You Need and their affiliation?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 1,
-    "keyPhrases": ["Ashish Vaswani", "Google Brain", "Noam Shazeer"]
+    "keyPhrases": [
+      "Ashish Vaswani",
+      "Google Brain",
+      "Noam Shazeer"
+    ]
   },
   {
     "id": "q07",
     "category": "single-doc",
     "split": "held-out",
     "query": "How does LoRA decompose the weight update matrix Delta W?",
-    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetDocs": [
+      "LoRA: Low-Rank Adaptation"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["Delta W = B * A", "rank r", "low-rank decomposition"]
+    "keyPhrases": [
+      "Delta W = B * A",
+      "rank r",
+      "low-rank decomposition"
+    ]
   },
   {
     "id": "q08",
     "category": "single-doc",
     "split": "tuning",
     "query": "How are matrices A and B initialized in LoRA at the start of training?",
-    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetDocs": [
+      "LoRA: Low-Rank Adaptation"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["random Gaussian", "zero for B", "Delta W = B A is initially zero"]
+    "keyPhrases": [
+      "random Gaussian",
+      "zero for B",
+      "Delta W = B A is initially zero"
+    ]
   },
   {
     "id": "q09",
     "category": "single-doc",
     "split": "tuning",
     "query": "What scaling factor is applied to Delta W in LoRA?",
-    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetDocs": [
+      "LoRA: Low-Rank Adaptation"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["alpha / r", "scaling factor", "alpha"]
+    "keyPhrases": [
+      "alpha / r",
+      "scaling factor",
+      "alpha"
+    ]
   },
   {
     "id": "q10",
     "category": "single-doc",
     "split": "held-out",
     "query": "What is the primary operational limitation of LoRA regarding multi-task serving?",
-    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetDocs": [
+      "LoRA: Low-Rank Adaptation"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["inference latency", "switching", "batching"]
+    "keyPhrases": [
+      "inference latency",
+      "switching",
+      "batching"
+    ]
   },
   {
     "id": "q11",
     "category": "single-doc",
     "split": "tuning",
     "query": "What are the pre-training objectives used by BERT for bidirectional language understanding?",
-    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers"],
+    "targetDocs": [
+      "BERT: Pre-training of Deep Bidirectional Transformers"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["Masked LM", "MLM", "Next Sentence Prediction", "NSP"]
+    "keyPhrases": [
+      "Masked LM",
+      "MLM",
+      "Next Sentence Prediction",
+      "NSP"
+    ]
   },
   {
     "id": "q12",
     "category": "single-doc",
     "split": "held-out",
     "query": "What is the degradation problem in deep convolutional networks addressed by ResNet?",
-    "targetDocs": ["Deep Residual Learning for Image Recognition"],
+    "targetDocs": [
+      "Deep Residual Learning for Image Recognition"
+    ],
     "targetPage": 1,
-    "keyPhrases": ["degradation problem", "accuracy becomes saturated", "deeper"]
+    "keyPhrases": [
+      "degradation problem",
+      "accuracy becomes saturated",
+      "deeper"
+    ]
   },
   {
     "id": "q13",
     "category": "table",
     "split": "tuning",
     "query": "According to the translation benchmarks table, what is the training FLOPs comparison between Transformer base and ConvS2S?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["3.3e18", "9.6e18", "FLOPs"]
+    "keyPhrases": [
+      "3.3e18",
+      "9.6e18",
+      "FLOPs"
+    ]
   },
   {
     "id": "q14",
     "category": "table",
     "split": "held-out",
     "query": "In the parameter efficiency table, what is the checkpoint size comparison between full fine-tuning and LoRA on GPT-3 175B?",
-    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetDocs": [
+      "LoRA: Low-Rank Adaptation"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["350GB", "35MB", "Checkpoint Size"]
+    "keyPhrases": [
+      "350GB",
+      "35MB",
+      "Checkpoint Size"
+    ]
   },
   {
     "id": "q15",
     "category": "table",
     "split": "tuning",
     "query": "From the BERT architecture configurations table, how many layers and hidden dimensions does BERT-Large have compared to BERT-Base?",
-    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers"],
+    "targetDocs": [
+      "BERT: Pre-training of Deep Bidirectional Transformers"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["24", "1024", "16", "340M"]
+    "keyPhrases": [
+      "24",
+      "1024",
+      "16",
+      "340M"
+    ]
   },
   {
     "id": "q16",
     "category": "table",
     "split": "tuning",
     "query": "In the ImageNet benchmark table, what is the top-5 error rate of ResNet-152 compared to ResNet-34?",
-    "targetDocs": ["Deep Residual Learning for Image Recognition"],
+    "targetDocs": [
+      "Deep Residual Learning for Image Recognition"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["4.49%", "5.60%", "ResNet-152"]
+    "keyPhrases": [
+      "4.49%",
+      "5.60%",
+      "ResNet-152"
+    ]
   },
   {
     "id": "q17",
     "category": "table",
     "split": "held-out",
     "query": "According to the GPT-3 specifications table, how many layers, hidden dimensions, and attention heads does GPT-3 175B have?",
-    "targetDocs": ["Language Models are Few-Shot Learners"],
+    "targetDocs": [
+      "Language Models are Few-Shot Learners"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["96", "12288", "96", "175B"]
+    "keyPhrases": [
+      "96",
+      "12288",
+      "96",
+      "175B"
+    ]
   },
   {
     "id": "q18",
     "category": "table",
     "split": "tuning",
     "query": "In the default hyperparameters table for the Adam optimizer, what are the recommended values for alpha, beta1, beta2, and epsilon?",
-    "targetDocs": ["Adam: A Method for Stochastic Optimization"],
+    "targetDocs": [
+      "Adam: A Method for Stochastic Optimization"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["0.001", "0.9", "0.999", "1e-8"]
+    "keyPhrases": [
+      "0.001",
+      "0.9",
+      "0.999",
+      "1e-8"
+    ]
   },
   {
     "id": "q19",
     "category": "equation",
     "split": "tuning",
     "query": "What exact mathematical formula defines Scaled Dot-Product Attention in the Transformer paper?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V", "sqrt(d_k)", "softmax"]
+    "keyPhrases": [
+      "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V",
+      "sqrt(d_k)",
+      "softmax"
+    ]
   },
   {
     "id": "q20",
     "category": "equation",
     "split": "held-out",
     "query": "What formula defines the modified forward pass activation when applying LoRA with scaling factor alpha?",
-    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetDocs": [
+      "LoRA: Low-Rank Adaptation"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["h = W_0 x + (alpha / r) B A x", "W_0 x + Delta W x"]
+    "keyPhrases": [
+      "h = W_0 x + (alpha / r) B A x",
+      "W_0 x + Delta W x"
+    ]
   },
   {
     "id": "q21",
     "category": "equation",
     "split": "tuning",
     "query": "How is the residual mapping building block mathematically formulated in ResNet?",
-    "targetDocs": ["Deep Residual Learning for Image Recognition"],
+    "targetDocs": [
+      "Deep Residual Learning for Image Recognition"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["y = F(x, {W_i}) + x", "residual mapping"]
+    "keyPhrases": [
+      "y = F(x, {W_i}) + x",
+      "residual mapping"
+    ]
   },
   {
     "id": "q22",
     "category": "equation",
     "split": "tuning",
     "query": "What is the update equation for the exponential moving average of the squared gradient v_t in Adam?",
-    "targetDocs": ["Adam: A Method for Stochastic Optimization"],
+    "targetDocs": [
+      "Adam: A Method for Stochastic Optimization"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["v_t = beta_2 v_{t-1} + (1 - beta_2) g_t^2", "second raw moment"]
+    "keyPhrases": [
+      "v_t = beta_2 v_{t-1} + (1 - beta_2) g_t^2",
+      "second raw moment"
+    ]
   },
   {
     "id": "q23",
     "category": "equation",
     "split": "held-out",
     "query": "How are the bias-corrected moment estimates hat{m}_t and hat{v}_t calculated in the Adam algorithm?",
-    "targetDocs": ["Adam: A Method for Stochastic Optimization"],
+    "targetDocs": [
+      "Adam: A Method for Stochastic Optimization"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["hat{m}_t = m_t / (1 - beta_1^t)", "hat{v}_t = v_t / (1 - beta_2^t)"]
+    "keyPhrases": [
+      "hat{m}_t = m_t / (1 - beta_1^t)",
+      "hat{v}_t = v_t / (1 - beta_2^t)"
+    ]
   },
   {
     "id": "q24",
     "category": "equation",
     "split": "tuning",
     "query": "What is the mathematical loss formulation minimized for Masked Language Modeling in BERT?",
-    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers"],
+    "targetDocs": [
+      "BERT: Pre-training of Deep Bidirectional Transformers"
+    ],
     "targetPage": 2,
-    "keyPhrases": ["L_{MLM} = - sum_{i in M} log P(x_i | tilde{x})", "cross-entropy loss"]
+    "keyPhrases": [
+      "L_{MLM} = - sum_{i in M} log P(x_i | tilde{x})",
+      "cross-entropy loss"
+    ]
   },
   {
     "id": "q25",
     "category": "paraphrased",
     "split": "tuning",
     "query": "Why does processing long documents create a memory bottleneck for early transformer architectures?",
-    "targetDocs": ["Attention Is All You Need"],
+    "targetDocs": [
+      "Attention Is All You Need"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["O(n^2)", "quadratic", "computational complexity"]
+    "keyPhrases": [
+      "O(n^2)",
+      "quadratic",
+      "computational complexity"
+    ]
   },
   {
     "id": "q26",
     "category": "paraphrased",
     "split": "held-out",
     "query": "What technique avoids catastrophic checkpoint explosion when deploying dozens of task-adapted language models?",
-    "targetDocs": ["LoRA: Low-Rank Adaptation"],
+    "targetDocs": [
+      "LoRA: Low-Rank Adaptation"
+    ],
     "targetPage": 3,
-    "keyPhrases": ["35MB", "checkpoint size", "rank decomposition"]
+    "keyPhrases": [
+      "35MB",
+      "checkpoint size",
+      "rank decomposition"
+    ]
   },
   {
     "id": "q27",
     "category": "paraphrased",
     "split": "tuning",
     "query": "How does BERT overcome the left-to-right processing constraint of standard autoregressive language models?",
-    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers"],
+    "targetDocs": [
+      "BERT: Pre-training of Deep Bidirectional Transformers"
+    ],
     "targetPage": 1,
-    "keyPhrases": ["deep bidirectional", "masked language model", "unidirectional"]
+    "keyPhrases": [
+      "deep bidirectional",
+      "masked language model",
+      "unidirectional"
+    ]
   },
   {
     "id": "q28",
     "category": "paraphrased",
     "split": "tuning",
     "query": "Why do extremely deep feedforward visual networks suffer performance degradation even when vanishing gradients are absent?",
-    "targetDocs": ["Deep Residual Learning for Image Recognition"],
+    "targetDocs": [
+      "Deep Residual Learning for Image Recognition"
+    ],
     "targetPage": 1,
-    "keyPhrases": ["degradation problem", "optimization difficulty", "training accuracy"]
+    "keyPhrases": [
+      "degradation problem",
+      "optimization difficulty",
+      "training accuracy"
+    ]
   },
   {
     "id": "q29",
     "category": "paraphrased",
     "split": "held-out",
     "query": "What allows Adam to handle parameters with very sparse gradients better than standard SGD?",
-    "targetDocs": ["Adam: A Method for Stochastic Optimization"],
+    "targetDocs": [
+      "Adam: A Method for Stochastic Optimization"
+    ],
     "targetPage": 1,
-    "keyPhrases": ["sparse gradients", "adaptive learning rates", "second moments"]
+    "keyPhrases": [
+      "sparse gradients",
+      "adaptive learning rates",
+      "second moments"
+    ]
   },
   {
     "id": "q30",
     "category": "paraphrased",
     "split": "tuning",
     "query": "How does few-shot learning in massive autoregressive models differ fundamentally from gradient-based fine-tuning?",
-    "targetDocs": ["Language Models are Few-Shot Learners"],
+    "targetDocs": [
+      "Language Models are Few-Shot Learners"
+    ],
     "targetPage": 1,
-    "keyPhrases": ["in-context learning", "no weight updates", "gradient updates"]
+    "keyPhrases": [
+      "in-context learning",
+      "no weight updates",
+      "gradient updates"
+    ]
   },
   {
     "id": "q31",
     "category": "multi-doc",
     "split": "tuning",
     "query": "Compare the parameter scaling approaches of LoRA versus full model pre-training in GPT-3.",
-    "targetDocs": ["LoRA: Low-Rank Adaptation", "Language Models are Few-Shot Learners"],
-    "targetPages": [1, 2, 3],
-    "keyPhrases": ["175B", "trainable parameters", "low-rank", "frozen"]
+    "targetDocs": [
+      "LoRA: Low-Rank Adaptation",
+      "Language Models are Few-Shot Learners"
+    ],
+    "targetPages": [
+      1,
+      2,
+      3
+    ],
+    "keyPhrases": [
+      "175B",
+      "trainable parameters",
+      "low-rank",
+      "frozen"
+    ]
   },
   {
     "id": "q32",
     "category": "multi-doc",
     "split": "held-out",
     "query": "How does the bidirectional attention in BERT differ from the encoder-decoder attention in the original Transformer?",
-    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers", "Attention Is All You Need"],
-    "targetPages": [1, 2],
-    "keyPhrases": ["bidirectional", "encoder-decoder", "masked", "self-attention"]
+    "targetDocs": [
+      "BERT: Pre-training of Deep Bidirectional Transformers",
+      "Attention Is All You Need"
+    ],
+    "targetPages": [
+      1,
+      2
+    ],
+    "keyPhrases": [
+      "bidirectional",
+      "encoder-decoder",
+      "masked",
+      "self-attention"
+    ]
   },
   {
     "id": "q33",
     "category": "multi-doc",
     "split": "tuning",
     "query": "How do the training durations and hardware footprints compare between the original Transformer and GPT-3 175B?",
-    "targetDocs": ["Attention Is All You Need", "Language Models are Few-Shot Learners"],
-    "targetPages": [2, 3],
-    "keyPhrases": ["3.5 days", "eight GPUs", "V100", "petaflop"]
+    "targetDocs": [
+      "Attention Is All You Need",
+      "Language Models are Few-Shot Learners"
+    ],
+    "targetPages": [
+      2,
+      3
+    ],
+    "keyPhrases": [
+      "3.5 days",
+      "eight GPUs",
+      "V100",
+      "petaflop"
+    ]
   },
   {
     "id": "q34",
     "category": "multi-doc",
     "split": "tuning",
     "query": "What optimization algorithm is typically used for training deep Transformer and ResNet models according to the papers?",
-    "targetDocs": ["Attention Is All You Need", "Adam: A Method for Stochastic Optimization", "Deep Residual Learning for Image Recognition"],
-    "targetPages": [1, 2, 3],
-    "keyPhrases": ["Adam", "SGD", "learning rate"]
+    "targetDocs": [
+      "Attention Is All You Need",
+      "Adam: A Method for Stochastic Optimization",
+      "Deep Residual Learning for Image Recognition"
+    ],
+    "targetPages": [
+      1,
+      2,
+      3
+    ],
+    "keyPhrases": [
+      "Adam",
+      "SGD",
+      "learning rate"
+    ]
   },
   {
     "id": "q35",
     "category": "multi-doc",
     "split": "held-out",
     "query": "How do ResNet shortcut identity connections relate conceptually to the residual connections used in the Transformer architecture?",
-    "targetDocs": ["Deep Residual Learning for Image Recognition", "Attention Is All You Need"],
-    "targetPages": [1, 2],
-    "keyPhrases": ["identity", "residual", "shortcut", "LayerNorm"]
+    "targetDocs": [
+      "Deep Residual Learning for Image Recognition",
+      "Attention Is All You Need"
+    ],
+    "targetPages": [
+      1,
+      2
+    ],
+    "keyPhrases": [
+      "identity",
+      "residual",
+      "shortcut",
+      "LayerNorm"
+    ]
   },
   {
     "id": "q36",
     "category": "multi-doc",
     "split": "tuning",
     "query": "What maximum sequence length limits are reported for BERT versus standard Transformer configurations?",
-    "targetDocs": ["BERT: Pre-training of Deep Bidirectional Transformers", "Attention Is All You Need"],
-    "targetPages": [2, 3],
-    "keyPhrases": ["512", "tokens", "sequence length"]
+    "targetDocs": [
+      "BERT: Pre-training of Deep Bidirectional Transformers",
+      "Attention Is All You Need"
+    ],
+    "targetPages": [
+      2,
+      3
+    ],
+    "keyPhrases": [
+      "512",
+      "tokens",
+      "sequence length"
+    ]
   },
   {
     "id": "q37",
@@ -457,5 +701,161 @@
     "isTrap": true,
     "query": "How does BERT utilize RoPE Rotary Position Embeddings to encode relative token distances across attention heads?",
     "keyPhrases": []
+  },
+  {
+    "id": "q52",
+    "category": "table",
+    "split": "tuning",
+    "query": "What machine learning classifier achieved the highest accuracy on the custom evaluation dataset in the AI-generated text study, and what was that accuracy?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 6,
+    "keyPhrases": [
+      "Random Forest",
+      "82.6%",
+      "0.826",
+      "Table VI"
+    ]
+  },
+  {
+    "id": "q53",
+    "category": "table",
+    "split": "tuning",
+    "query": "What was the mean Flesch Reading Ease score for human-written texts compared to AI-generated texts in the statistical analysis?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 5,
+    "keyPhrases": [
+      "69.69",
+      "53.6",
+      "Flesch Reading Ease",
+      "Table II",
+      "Table III"
+    ]
+  },
+  {
+    "id": "q54",
+    "category": "single-doc",
+    "split": "tuning",
+    "query": "What four linguistic and stylistic features are detailed in Table IV for classifying AI-generated versus human-written text?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 5,
+    "keyPhrases": [
+      "Sentiment Polarity",
+      "Gunning Fog Index",
+      "Flesch Reading Ease",
+      "Vocabulary Richness"
+    ]
+  },
+  {
+    "id": "q55",
+    "category": "single-doc",
+    "split": "tuning",
+    "query": "How many total records were in the custom evaluation dataset, and what sources were used for the human-written samples?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 6,
+    "keyPhrases": [
+      "20 records",
+      "10 AIGT",
+      "10 human",
+      "Wikipedia",
+      "The Guardian",
+      "ChatGPT"
+    ]
+  },
+  {
+    "id": "q56",
+    "category": "single-doc",
+    "split": "tuning",
+    "query": "How is the Gunning Fog Index defined and calculated according to the feature description in Table IV?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 5,
+    "keyPhrases": [
+      "years of education",
+      "average sentence length",
+      "complex words",
+      "three or more syllables"
+    ]
+  },
+  {
+    "id": "q57",
+    "category": "table",
+    "split": "held-out",
+    "query": "Which two machine learning models achieved 100% accuracy during the training phase in Table V?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 6,
+    "keyPhrases": [
+      "Random Forest",
+      "XGBoost",
+      "1.00",
+      "100%"
+    ]
+  },
+  {
+    "id": "q58",
+    "category": "table",
+    "split": "held-out",
+    "query": "What was the mean text length in words for human-written texts versus AI-generated texts in Tables II and III?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 5,
+    "keyPhrases": [
+      "422",
+      "345",
+      "Text Length",
+      "Mean Value"
+    ]
+  },
+  {
+    "id": "q59",
+    "category": "table",
+    "split": "held-out",
+    "query": "What evaluation accuracy and F1 score were obtained by Logistic Regression and SVM on the custom dataset in Table VI?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 6,
+    "keyPhrases": [
+      "0.609",
+      "0.46",
+      "Logistic Regression",
+      "SVM"
+    ]
+  },
+  {
+    "id": "q60",
+    "category": "paraphrased",
+    "split": "held-out",
+    "query": "In the stylistic comparison of generated versus natural prose, which text category exhibited a higher reading difficulty requiring more schooling?",
+    "targetDocs": [
+      "Unmasking AI-Generated Texts Using Linguistic and Stylistic Features",
+      "Paper_21-Unmasking_AI_Generated_Texts.pdf"
+    ],
+    "targetPage": 5,
+    "keyPhrases": [
+      "AI-generated",
+      "11.54",
+      "Gunning Fog",
+      "10.24"
+    ]
   }
 ]

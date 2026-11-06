@@ -384,21 +384,26 @@ export async function extractPdf(filePath: string): Promise<ExtractionResult> {
     });
   }
 
-  // 5. Scanned / Bitmap Detection
-  const totalChars = pages.reduce((sum, p) => sum + p.text.replace(/\s+/g, '').length, 0);
-  if (totalChars < 50 && (parsed.numpages || pages.length) > 0) {
+  // 5. Remove repeated headers and footers across pages first
+  const cleanedPages = removeRepeatedHeadersFooters(pages);
+
+  // 6. Scanned / Image-Only Bitmap Detection
+  // Check total non-header character volume and per-page text density
+  const totalChars = cleanedPages.reduce((sum, p) => sum + p.text.replace(/\s+/g, '').length, 0);
+  const totalPagesCount = parsed.numpages || cleanedPages.length || 1;
+  const avgCharsPerPage = totalChars / totalPagesCount;
+
+  if (totalChars < 60 || (totalPagesCount >= 3 && avgCharsPerPage < 120)) {
     throw new Error(
-      'Scanned Document: No machine-readable text found in the PDF. This document appears to be a scanned image or bitmap requiring OCR.'
+      `Scanned or Image-Heavy Document: Insufficient machine-readable text found in the PDF (averaging only ${Math.round(avgCharsPerPage)} characters per page across ${totalPagesCount} pages). The core content appears to be embedded inside scanned images or screenshots requiring OCR.`
     );
   }
 
-  // 6. Remove repeated headers and footers across pages
-  const cleanedPages = removeRepeatedHeadersFooters(pages);
   const fullText = cleanedPages.map((p) => `--- Page ${p.pageNumber} ---\n${p.text}`).join('\n\n');
   const metadata = extractPage1Metadata(cleanedPages[0]?.text || '');
 
   return {
-    totalPages: parsed.numpages || cleanedPages.length,
+    totalPages: totalPagesCount,
     pages: cleanedPages,
     fullText,
     metadata,

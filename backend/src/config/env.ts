@@ -29,5 +29,6 @@ export const config = {
   llmTimeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || '30000', 10),
   llmMaxRetries: parseInt(process.env.LLM_MAX_RETRIES || '2', 10),
   compareTimeoutMs: parseInt(process.env.COMPARE_TIMEOUT_MS || '30000', 10),
+  preLlmCosineThreshold: parseFloat(process.env.PRE_LLM_COSINE_THRESHOLD || '0.28'),
   reranker: (process.env.RERANKER || 'off') as 'on' | 'off',
 };
