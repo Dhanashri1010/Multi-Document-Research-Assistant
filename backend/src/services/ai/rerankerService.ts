@@ -1,17 +1,27 @@
 import { config } from '../../config/env.js';
 import { ScoredChunk } from './vectorStore.js';
 
-let xenovaClassifier: any = null;
+let tokenizer: any = null;
+let model: any = null;
 
 export class RerankerService {
-  private static async getClassifier() {
-    if (!xenovaClassifier) {
+  private static async getModel() {
+    if (!tokenizer || !model) {
       console.log('[RerankerService] Loading cross-encoder: Xenova/ms-marco-MiniLM-L-6-v2...');
-      const { pipeline } = await import('@xenova/transformers');
-      xenovaClassifier = await pipeline('text-classification', 'Xenova/ms-marco-MiniLM-L-6-v2');
+      const { AutoTokenizer, AutoModelForSequenceClassification } = await import('@xenova/transformers');
+      const modelId = 'Xenova/ms-marco-MiniLM-L-6-v2';
+      tokenizer = await AutoTokenizer.from_pretrained(modelId);
+      model = await AutoModelForSequenceClassification.from_pretrained(modelId);
       console.log('[RerankerService] Cross-encoder loaded successfully.');
     }
-    return xenovaClassifier;
+    return { tokenizer, model };
+  }
+
+  /**
+   * Computes sigmoid to normalize logits into [0, 1].
+   */
+  private static sigmoid(z: number): number {
+    return 1 / (1 + Math.exp(-z));
   }
 
   /**
@@ -28,28 +38,22 @@ export class RerankerService {
     }
 
     try {
-      const classifier = await this.getClassifier();
+      const { tokenizer: tok, model: mod } = await this.getModel();
       const scored: ScoredChunk[] = [];
 
       for (const candidate of candidates) {
-        // Truncate candidate text if necessary to fit model max length
-        const truncatedText = candidate.chunk.text.slice(0, 512);
-        const result = await classifier({
-          text: query,
-          text_pair: truncatedText,
-        });
+        // Use passage text (truncated to 512 chars for cross-encoder context limit)
+        const passageText = candidate.chunk.text.slice(0, 512);
+        const inputs = await tok(query, { text_pair: passageText });
+        const output = await mod(inputs);
 
-        // Xenova cross-encoder returns score directly or array of label scores
-        let relevanceScore = 0;
-        if (Array.isArray(result) && result.length > 0) {
-          relevanceScore = result[0].score ?? 0;
-        } else if (result?.score !== undefined) {
-          relevanceScore = result.score;
-        }
+        // Raw regression logit from cross-encoder
+        const rawLogit = output?.logits?.data?.[0] ?? 0;
+        const normalizedScore = this.sigmoid(rawLogit);
 
         scored.push({
           chunk: candidate.chunk,
-          score: relevanceScore,
+          score: normalizedScore,
           denseScore: candidate.denseScore,
         });
       }

@@ -22,7 +22,9 @@ async function main() {
   const docs = await DocumentModel.find({ status: 'ready' }).lean();
   const docIds = docs.map((d) => d._id.toString());
 
-  const datasetPath = path.resolve(process.cwd(), 'backend', 'eval', 'dataset.json');
+  const datasetPath = fs.existsSync(path.resolve(process.cwd(), 'eval', 'dataset.json'))
+    ? path.resolve(process.cwd(), 'eval', 'dataset.json')
+    : path.resolve(process.cwd(), 'backend', 'eval', 'dataset.json');
   const dataset = JSON.parse(fs.readFileSync(datasetPath, 'utf8'));
 
   const offTopicQueries = dataset.filter((q: any) => q.isOffTopic);

@@ -12,6 +12,7 @@ import { DocumentModel } from '../src/models/Document.js';
 import { IngestionService } from '../src/services/documents/ingestionService.js';
 import { VectorStore } from '../src/services/ai/vectorStore.js';
 import { getEmbeddingProvider } from '../src/services/ai/embeddingService.js';
+import { containsNormalized } from './textNormalizer.js';
 
 export interface BenchmarkItem {
   id: string;
@@ -301,10 +302,12 @@ export async function runEvaluation(): Promise<EvalMetrics> {
       // (or labeled answer span), from the target document. A page match alone does not count.
       const chunkTextLower = res.chunk.text.toLowerCase();
       const containsAnswerSpan = item.expectedAnswerSpan
-        ? chunkTextLower.includes(item.expectedAnswerSpan.toLowerCase())
+        ? chunkTextLower.includes(item.expectedAnswerSpan.toLowerCase()) ||
+          containsNormalized(res.chunk.text, item.expectedAnswerSpan)
         : false;
       const containsKeyPhrase = item.keyPhrases.some((phrase) =>
-        chunkTextLower.includes(phrase.toLowerCase())
+        chunkTextLower.includes(phrase.toLowerCase()) ||
+        containsNormalized(res.chunk.text, phrase)
       );
 
       const hasAnswerContent = containsAnswerSpan || containsKeyPhrase;

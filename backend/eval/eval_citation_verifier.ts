@@ -361,14 +361,14 @@ export interface CitationEvalMetrics {
   f1: number;
 }
 
-export function evaluateClaimSet(testCases: LabeledTestCase[]): CitationEvalMetrics {
+export async function evaluateClaimSet(testCases: LabeledTestCase[]): Promise<CitationEvalMetrics> {
   let tp = 0;
   let fp = 0;
   let tn = 0;
   let fn = 0;
 
   for (const tc of testCases) {
-    const result = CitationVerifier.verifyClaimAgainstChunk(tc.claim, tc.chunk);
+    const result = await CitationVerifier.verifyClaimAgainstChunk(tc.claim, tc.chunk);
     if (tc.expectedSupported && result.isSupported) tp++;
     if (!tc.expectedSupported && result.isSupported) fp++;
     if (!tc.expectedSupported && !result.isSupported) tn++;
@@ -393,10 +393,14 @@ export function evaluateClaimSet(testCases: LabeledTestCase[]): CitationEvalMetr
   };
 }
 
-export function runCitationVerifierEvaluation() {
-  const tuningMetrics = evaluateClaimSet(tuningTestCases);
-  const heldOutMetrics = evaluateClaimSet(heldOutTestCases);
-  const combinedMetrics = evaluateClaimSet([...tuningTestCases, ...heldOutTestCases]);
+export async function runCitationVerifierEvaluation(): Promise<{
+  tuningMetrics: CitationEvalMetrics;
+  heldOutMetrics: CitationEvalMetrics;
+  combinedMetrics: CitationEvalMetrics;
+}> {
+  const tuningMetrics = await evaluateClaimSet(tuningTestCases);
+  const heldOutMetrics = await evaluateClaimSet(heldOutTestCases);
+  const combinedMetrics = await evaluateClaimSet([...tuningTestCases, ...heldOutTestCases]);
 
   console.log('======================================================');
   console.log('       CITATION VERIFIER EVALUATION RESULTS           ');
@@ -419,5 +423,5 @@ export function runCitationVerifierEvaluation() {
 // Run standalone if executed directly
 const isDirectRun = process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('eval_citation_verifier.ts');
 if (isDirectRun) {
-  runCitationVerifierEvaluation();
+  runCitationVerifierEvaluation().catch(console.error);
 }

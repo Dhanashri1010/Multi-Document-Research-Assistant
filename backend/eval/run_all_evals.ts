@@ -33,9 +33,9 @@ export async function runAllEvaluations() {
 
   // Step 3: Citation Verifier Evaluation (Tuning n=20 + Held-Out n=20)
   console.log('\n>>> [3/3] Running Citation Verifier Benchmark (Tuning & Held-Out)...');
-  const tuningCitation = evaluateClaimSet(tuningTestCases);
-  const heldOutCitation = evaluateClaimSet(heldOutTestCases);
-  const combinedCitation = evaluateClaimSet([...tuningTestCases, ...heldOutTestCases]);
+  const tuningCitation = await evaluateClaimSet(tuningTestCases);
+  const heldOutCitation = await evaluateClaimSet(heldOutTestCases);
+  const combinedCitation = await evaluateClaimSet([...tuningTestCases, ...heldOutTestCases]);
 
   // Step 4: Database Corpus Audit
   const mongoUri = config.mongoUri || 'mongodb://127.0.0.1:27017/multi_doc_research';
@@ -109,6 +109,16 @@ function generateMarkdownReport(data: {
     })
     .join('\n');
 
+  const failedQueriesText = retrieval.failedQueries
+    .filter((f) => f.failureType === 'MISSED_GROUND_TRUTH')
+    .map((f) => {
+      const chunkSnippets = f.retrievedChunks
+        .map((ch) => `- **#${ch.rank}** [\`${ch.docName}\`, p.${ch.pageNumber}, score: ${ch.score}]: "${ch.snippet.replace(/"/g, "'")}"`)
+        .join('\n');
+      return `### Query [${f.id}] (\`${f.split}\`, \`${f.category}\`)\n**Question**: "${f.query}"\n\n**Top-5 Retrieved Chunks**:\n${chunkSnippets}`;
+    })
+    .join('\n\n');
+
   return `# Evaluation Results & Tracking
 
 This document tracks empirical retrieval accuracy, grounded generation answer rates, and citation verification across all phases of the **Multi-Document Research Assistant**.
@@ -139,7 +149,7 @@ ${docRows}
 | **Held-Out Set** | ${retrieval.heldOut.totalQueries} | ${retrieval.heldOut.relevantQueries} | **${retrieval.heldOut.hitAt1}%** | **${retrieval.heldOut.hitAt3}%** | **${retrieval.heldOut.hitAt5}%** | **${retrieval.heldOut.mrr.toFixed(3)}** | **${retrieval.heldOut.keywordMatchAt3}%** | **${retrieval.heldOut.offTopicRefusalAccuracy}%** |
 | **Overall** | ${retrieval.overall.totalQueries} | ${retrieval.overall.relevantQueries} | **${retrieval.overall.hitAt1}%** | **${retrieval.overall.hitAt3}%** | **${retrieval.overall.hitAt5}%** | **${retrieval.overall.mrr.toFixed(3)}** | **${retrieval.overall.keywordMatchAt3}%** | **${retrieval.overall.offTopicRefusalAccuracy}%** |
 
-### Category Breakdown (All 60 Queries):
+### Category Breakdown (All ${retrieval.totalQueries} Queries):
 
 | Category | Sample Size ($n$) | Hit@1 | Hit@3 | Hit@5 | MRR |
 | :--- | :---: | :---: | :---: | :---: | :---: |
@@ -192,6 +202,12 @@ Evaluated against 40 hand-labeled claims (10 directly supported, 10 paraphrased,
    - The document is **successfully ingested and set to \`ready\`**, but carries an amber warning flag:
      *\`Low text density detected (averaging X chars/page). Core content may be in embedded slide images; OCR recommended.\`*
    - Surfaces in the frontend UI as an informative badge.
+
+---
+
+## 7. Failed Grounded Retrieval Queries & Inspection (Retrieved Chunks)
+
+${failedQueriesText}
 `;
 }
 

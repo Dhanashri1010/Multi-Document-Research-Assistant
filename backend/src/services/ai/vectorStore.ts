@@ -293,7 +293,7 @@ export class LocalVectorStore implements IVectorStore {
     if (queryText.trim().length > 0) {
       const bm25Docs: BM25Document[] = validChunks.map((c) => ({
         id: c.chunk._id.toString(),
-        text: c.chunk.text,
+        text: c.chunk.embeddingText ? `${c.chunk.embeddingText} ${c.chunk.text}` : c.chunk.text,
       }));
       const bm25Index = new BM25Index(bm25Docs);
       const bm25Results = bm25Index.search(queryText);

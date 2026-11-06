@@ -11,13 +11,24 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
 
   if (!citations || citations.length === 0) return null;
 
+  const unverifiedCount = citations.filter((c) => c.verified === false).length;
+
   return (
     <div className="mt-4 pt-3 border-t border-slate-200/80">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
           <FileText className="w-3.5 h-3.5 text-brand-600" />
-          Retrieved Evidence & Verified Citations ({citations.length})
+          Retrieved Evidence & Citations ({citations.length})
         </span>
+        {unverifiedCount > 0 && (
+          <span
+            title="Some citations could not be verified with high semantic confidence"
+            className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold flex items-center gap-1 border border-amber-300/60"
+          >
+            <AlertCircle className="w-3 h-3 text-amber-600" />
+            {unverifiedCount} unverified citation{unverifiedCount > 1 ? 's' : ''} flagged
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

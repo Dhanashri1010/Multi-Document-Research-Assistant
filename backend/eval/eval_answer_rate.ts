@@ -176,7 +176,7 @@ export async function evaluateAnswerRate(): Promise<{
 
     let supportedCount = 0;
     for (const sent of sentences) {
-      const v = CitationVerifier.verifyClaimAgainstChunk(sent, contextText);
+      const v = await CitationVerifier.verifyClaimAgainstChunk(sent, contextText);
       if (v.isSupported) supportedCount++;
     }
 

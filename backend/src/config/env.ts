@@ -24,8 +24,8 @@ export const config = {
   llmApiKey: process.env.LLM_API_KEY || '',
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
 
-  chunkTargetTokens: parseInt(process.env.CHUNK_TARGET_TOKENS || (process.env.EMBEDDING_PROVIDER === 'local' || !process.env.EMBEDDING_PROVIDER ? '220' : '450'), 10),
-  chunkOverlapTokens: parseInt(process.env.CHUNK_OVERLAP_TOKENS || (process.env.EMBEDDING_PROVIDER === 'local' || !process.env.EMBEDDING_PROVIDER ? '40' : '90'), 10),
+  chunkTargetTokens: parseInt(process.env.CHUNK_TARGET_TOKENS || '380', 10),
+  chunkOverlapTokens: parseInt(process.env.CHUNK_OVERLAP_TOKENS || '60', 10),
   llmTimeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || '30000', 10),
   llmMaxRetries: parseInt(process.env.LLM_MAX_RETRIES || '2', 10),
   compareTimeoutMs: parseInt(process.env.COMPARE_TIMEOUT_MS || '30000', 10),

@@ -281,7 +281,7 @@ Generate your JSON response now.`;
 
       // Claim-Level Citation Verification
       if (Array.isArray(validated.claims) && validated.claims.length > 0) {
-        const verifiedClaims = CitationVerifier.verifyAllClaims(
+        const verifiedClaims = await CitationVerifier.verifyAllClaims(
           validated.claims,
           indexedPassages
         );
@@ -424,7 +424,7 @@ Generate your JSON response now.`;
         hasInsufficientEvidence = Boolean(validated.data.hasInsufficientEvidence);
 
         if (validated.data.claims && validated.data.claims.length > 0) {
-          const verifiedClaims = CitationVerifier.verifyAllClaims(
+          const verifiedClaims = await CitationVerifier.verifyAllClaims(
             validated.data.claims,
             indexedPassages
           );

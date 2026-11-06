@@ -45,6 +45,13 @@ export function cleanText(rawText: string): string {
     .filter((line) => !/^\s*(?:page\s+)?\d+\s*$/i.test(line))
     .join('\n');
 
+  // Fix split decimal numbers from PDF extraction: "3 . 3" -> "3.3", "0 . 999" -> "0.999"
+  text = text.replace(/(\b\d+)\s*\.\s*(\d+\b)/g, '$1.$2');
+
+  // Fix split math powers and scientific notation: "10 − 8" -> "10^-8", "10 - 3" -> "10^-3"
+  text = text.replace(/\b10\s*[−-]\s*(\d+)\b/g, '10^-$1');
+  text = text.replace(/([·•\*])\s*10\s+(\d+)/g, '$1 10^$2');
+
   return text
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')

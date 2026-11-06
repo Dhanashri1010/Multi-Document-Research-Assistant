@@ -66,6 +66,7 @@ async function withRetry<T>(
       lastError = err;
 
       if (attempt < maxRetries && isRetryableError(err)) {
+        const msg = (err?.message || '').toLowerCase();
         // Extract server-instructed retryDelay (e.g. from Google RPC RetryInfo)
         let serverDelayMs = 0;
         const retryInfo = err?.details?.find?.((d: any) => d['@type']?.includes('RetryInfo'));
