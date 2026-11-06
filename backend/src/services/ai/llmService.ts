@@ -107,7 +107,10 @@ export class LLMService {
       async () => {
         if (provider === 'gemini') {
           const { GoogleGenAI } = await import('@google/genai');
-          const ai = new GoogleGenAI({ apiKey });
+          const ai = new GoogleGenAI({
+            apiKey,
+            httpOptions: { timeout: Math.max(10000, timeoutMs) },
+          });
 
           const targetModel = (model || '').trim();
           if (!targetModel) {
@@ -230,7 +233,10 @@ export class LLMService {
 
     if (provider === 'gemini') {
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: { timeout: Math.max(10000, options.timeoutMs ?? config.llmTimeoutMs) },
+      });
       const targetModel = (model || '').trim();
 
       const responseStream = await ai.models.generateContentStream({

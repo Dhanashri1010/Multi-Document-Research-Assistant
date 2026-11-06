@@ -62,6 +62,8 @@ STANDALONE SEARCH QUERY:`;
       const rewritten = await LLMService.generate(rewritePrompt, {
         temperature: 0.0,
         systemPrompt: 'You are an expert search query reformer. Output only the standalone question.',
+        timeoutMs: 6000,
+        maxRetries: 0,
       });
 
       if (rewritten && rewritten.trim().length > 3) {

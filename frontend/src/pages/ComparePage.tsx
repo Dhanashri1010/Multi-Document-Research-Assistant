@@ -36,7 +36,12 @@ export const ComparePage: React.FC = () => {
 
       setComparisonResult(result);
     } catch (err: any) {
-      setError(err.message || 'Failed to generate cross-document comparison.');
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('timeout')) {
+        setError('Comparison request timed out. Please verify the backend is active, or click Retry to synthesize using document evidence.');
+      } else {
+        setError(msg || 'Failed to generate cross-document comparison.');
+      }
     } finally {
       setLoading(false);
     }

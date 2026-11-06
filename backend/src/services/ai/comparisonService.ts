@@ -409,8 +409,8 @@ Generate the JSON comparison now.`;
       const response = await LLMService.generate(userPrompt, {
         systemPrompt,
         temperature: 0.1,
-        timeoutMs: 30000,
-        maxRetries: 1,
+        timeoutMs: 18000,
+        maxRetries: 0,
       });
 
       const cleanJson = response.replace(/^```json/m, '').replace(/^```/m, '').trim();
