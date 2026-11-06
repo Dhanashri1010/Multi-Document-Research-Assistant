@@ -32,12 +32,17 @@ export interface DualSplitMetrics {
   relevantQueries: number;
   offTopicQueries: number;
   trapQueries: number;
-  // Strict matching
+  // Strict matching (exact substring of expectedAnswerSpan)
   strictHitAt1: number;
   strictHitAt3: number;
   strictHitAt5: number;
   strictMrr: number;
-  // Normalized matching
+  // Span-only normalized matching (normalized match on expectedAnswerSpan, no key-phrases)
+  spanOnlyHitAt1: number;
+  spanOnlyHitAt3: number;
+  spanOnlyHitAt5: number;
+  spanOnlyMrr: number;
+  // Full normalized matching (span or key-phrases)
   normHitAt1: number;
   normHitAt3: number;
   normHitAt5: number;
@@ -158,7 +163,12 @@ interface SplitAccumulator {
   strictH3: number;
   strictH5: number;
   strictMrrSum: number;
-  // Normalized matching
+  // Span-only normalized matching
+  spanH1: number;
+  spanH3: number;
+  spanH5: number;
+  spanMrrSum: number;
+  // Full normalized matching
   normH1: number;
   normH3: number;
   normH5: number;
@@ -178,6 +188,10 @@ function createAccumulator(): SplitAccumulator {
     strictH3: 0,
     strictH5: 0,
     strictMrrSum: 0,
+    spanH1: 0,
+    spanH3: 0,
+    spanH5: 0,
+    spanMrrSum: 0,
     normH1: 0,
     normH3: 0,
     normH5: 0,
@@ -198,6 +212,10 @@ function computeSplitMetrics(acc: SplitAccumulator): DualSplitMetrics {
     strictHitAt3: N > 0 ? Math.round((acc.strictH3 / N) * 1000) / 10 : 0,
     strictHitAt5: N > 0 ? Math.round((acc.strictH5 / N) * 1000) / 10 : 0,
     strictMrr: N > 0 ? Math.round((acc.strictMrrSum / N) * 1000) / 1000 : 0,
+    spanOnlyHitAt1: N > 0 ? Math.round((acc.spanH1 / N) * 1000) / 10 : 0,
+    spanOnlyHitAt3: N > 0 ? Math.round((acc.spanH3 / N) * 1000) / 10 : 0,
+    spanOnlyHitAt5: N > 0 ? Math.round((acc.spanH5 / N) * 1000) / 10 : 0,
+    spanOnlyMrr: N > 0 ? Math.round((acc.spanMrrSum / N) * 1000) / 1000 : 0,
     normHitAt1: N > 0 ? Math.round((acc.normH1 / N) * 1000) / 10 : 0,
     normHitAt3: N > 0 ? Math.round((acc.normH3 / N) * 1000) / 10 : 0,
     normHitAt5: N > 0 ? Math.round((acc.normH5 / N) * 1000) / 10 : 0,
@@ -331,6 +349,7 @@ export async function runEvaluation(): Promise<EvalMetrics> {
     });
 
     let strictFirstRank = 0;
+    let spanFirstRank = 0;
     let normFirstRank = 0;
     let hasKeywordMatchInTop3 = false;
 
@@ -353,8 +372,8 @@ export async function runEvaluation(): Promise<EvalMetrics> {
       // Strict matching: raw case-insensitive substring of chunk
       const strictHit = isTargetDoc && expectedSpan && chunkLower.includes(expectedSpan.toLowerCase());
 
-      // Normalized matching: math, Greek, LaTeX, subscript/superscript aware
-      const normHit = isTargetDoc && expectedSpan && containsNormalized(res.chunk.text, expectedSpan);
+      // Span-only normalized matching: normalized math/OCR/LaTeX/subscript aware on expectedAnswerSpan (no key-phrase fallback)
+      const spanOnlyHit = isTargetDoc && expectedSpan && containsNormalized(res.chunk.text, expectedSpan);
 
       const keyPhraseHit = item.keyPhrases.some(
         (phrase) =>
@@ -366,7 +385,11 @@ export async function runEvaluation(): Promise<EvalMetrics> {
         strictFirstRank = rank;
       }
 
-      if ((normHit || (isTargetDoc && keyPhraseHit)) && normFirstRank === 0) {
+      if (spanOnlyHit && spanFirstRank === 0) {
+        spanFirstRank = rank;
+      }
+
+      if ((spanOnlyHit || (isTargetDoc && keyPhraseHit)) && normFirstRank === 0) {
         normFirstRank = rank;
       }
 
@@ -393,6 +416,24 @@ export async function runEvaluation(): Promise<EvalMetrics> {
     if (strictFirstRank > 0) {
       overallAcc.strictMrrSum += 1.0 / strictFirstRank;
       splitAcc.strictMrrSum += 1.0 / strictFirstRank;
+    }
+
+    // Accumulate Span-Only Normalized Metrics
+    if (spanFirstRank === 1) {
+      overallAcc.spanH1++;
+      splitAcc.spanH1++;
+    }
+    if (spanFirstRank > 0 && spanFirstRank <= 3) {
+      overallAcc.spanH3++;
+      splitAcc.spanH3++;
+    }
+    if (spanFirstRank > 0 && spanFirstRank <= 5) {
+      overallAcc.spanH5++;
+      splitAcc.spanH5++;
+    }
+    if (spanFirstRank > 0) {
+      overallAcc.spanMrrSum += 1.0 / spanFirstRank;
+      splitAcc.spanMrrSum += 1.0 / spanFirstRank;
     }
 
     // Accumulate Normalized Metrics
@@ -489,22 +530,26 @@ if (isDirectRun) {
   runEvaluation()
     .then((metrics) => {
       console.log('\n======================================================');
-      console.log('   RETRIEVAL BENCHMARK: STRICT vs NORMALIZED');
+      console.log('   RETRIEVAL BENCHMARK: STRICT vs SPAN-ONLY vs NORMALIZED');
       console.log('======================================================');
       console.log('Tuning (n=29):');
       console.log(`  Strict:     Hit@1: ${metrics.tuning.strictHitAt1}%, Hit@5: ${metrics.tuning.strictHitAt5}%, MRR: ${metrics.tuning.strictMrr}`);
+      console.log(`  Span-Only:  Hit@1: ${metrics.tuning.spanOnlyHitAt1}%, Hit@5: ${metrics.tuning.spanOnlyHitAt5}%, MRR: ${metrics.tuning.spanOnlyMrr}`);
       console.log(`  Normalized: Hit@1: ${metrics.tuning.normHitAt1}%, Hit@5: ${metrics.tuning.normHitAt5}%, MRR: ${metrics.tuning.normMrr}`);
 
       console.log('\nSeen Held-Out (n=16):');
       console.log(`  Strict:     Hit@1: ${metrics.seenHeldOut.strictHitAt1}%, Hit@5: ${metrics.seenHeldOut.strictHitAt5}%, MRR: ${metrics.seenHeldOut.strictMrr}`);
+      console.log(`  Span-Only:  Hit@1: ${metrics.seenHeldOut.spanOnlyHitAt1}%, Hit@5: ${metrics.seenHeldOut.spanOnlyHitAt5}%, MRR: ${metrics.seenHeldOut.spanOnlyMrr}`);
       console.log(`  Normalized: Hit@1: ${metrics.seenHeldOut.normHitAt1}%, Hit@5: ${metrics.seenHeldOut.normHitAt5}%, MRR: ${metrics.seenHeldOut.normMrr}`);
 
-      console.log('\nBlind Set (q61-q75, n=15):');
+      console.log('\nMostly Blind Set (q61-q75, n=15):');
       console.log(`  Strict:     Hit@1: ${metrics.blind.strictHitAt1}%, Hit@5: ${metrics.blind.strictHitAt5}%, MRR: ${metrics.blind.strictMrr}`);
+      console.log(`  Span-Only:  Hit@1: ${metrics.blind.spanOnlyHitAt1}%, Hit@5: ${metrics.blind.spanOnlyHitAt5}%, MRR: ${metrics.blind.spanOnlyMrr}`);
       console.log(`  Normalized: Hit@1: ${metrics.blind.normHitAt1}%, Hit@5: ${metrics.blind.normHitAt5}%, MRR: ${metrics.blind.normMrr}`);
 
       console.log('\nOverall Grounded (n=60):');
       console.log(`  Strict:     Hit@1: ${metrics.overall.strictHitAt1}%, Hit@5: ${metrics.overall.strictHitAt5}%, MRR: ${metrics.overall.strictMrr}`);
+      console.log(`  Span-Only:  Hit@1: ${metrics.overall.spanOnlyHitAt1}%, Hit@5: ${metrics.overall.spanOnlyHitAt5}%, MRR: ${metrics.overall.spanOnlyMrr}`);
       console.log(`  Normalized: Hit@1: ${metrics.overall.normHitAt1}%, Hit@5: ${metrics.overall.normHitAt5}%, MRR: ${metrics.overall.normMrr}`);
       console.log('======================================================\n');
     })
