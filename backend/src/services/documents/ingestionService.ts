@@ -161,7 +161,13 @@ export class IngestionService {
       doc.chunkCount = chunks.length;
       doc.embeddingModel = modelName;
       doc.embeddingDim = dim;
+      doc.warning = extraction.warning;
+      doc.isLowTextDensity = extraction.isLowTextDensity;
       await doc.save();
+
+      if (extraction.warning) {
+        console.warn(`[Ingestion] Warning for "${doc.originalName}": ${extraction.warning}`);
+      }
 
       console.log(`[Ingestion] Successfully indexed "${doc.originalName}" with ${chunks.length} chunks (${modelName}, dim: ${dim}).`);
     } catch (err: any) {

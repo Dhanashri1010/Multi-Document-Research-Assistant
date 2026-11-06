@@ -4,6 +4,7 @@ import {
   Trash2,
   RefreshCw,
   AlertCircle,
+  AlertTriangle,
   Sparkles,
   FileSearch,
 } from 'lucide-react';
@@ -124,6 +125,17 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               <p className="text-xs text-slate-400 mt-0.5">Uploaded {formattedDate}</p>
             </div>
           </div>
+
+          {/* Low text density warning chip */}
+          {document.warning && (
+            <div
+              className="mb-3 p-2 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 flex items-start gap-1.5"
+              title={document.warning}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <span className="line-clamp-2">Low text density · OCR recommended</span>
+            </div>
+          )}
 
           {/* Metadata chips */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mb-4 bg-slate-50 p-2.5 rounded-lg border border-slate-100">

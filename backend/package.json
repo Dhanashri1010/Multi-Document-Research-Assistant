@@ -9,7 +9,11 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "reingest": "tsx scripts/reingest.ts",
-    "eval": "tsx eval/evaluate.ts",
+    "sync:corpus": "tsx scripts/sync_real_corpus.ts",
+    "eval": "tsx eval/run_all_evals.ts",
+    "eval:retrieval": "tsx eval/evaluate.ts",
+    "eval:citations": "tsx eval/eval_citation_verifier.ts",
+    "eval:pipeline": "tsx eval/eval_full_pipeline.ts",
     "test": "vitest run"
   },
   "dependencies": {

@@ -66,7 +66,18 @@ async function withRetry<T>(
       lastError = err;
 
       if (attempt < maxRetries && isRetryableError(err)) {
-        const delay = Math.min(300 * Math.pow(2, attempt), 1500) + Math.floor(Math.random() * 80);
+        // Extract server-instructed retryDelay (e.g. from Google RPC RetryInfo)
+        let serverDelayMs = 0;
+        const retryInfo = err?.details?.find?.((d: any) => d['@type']?.includes('RetryInfo'));
+        if (retryInfo?.retryDelay) {
+          const s = parseInt(String(retryInfo.retryDelay).replace('s', ''), 10);
+          if (!isNaN(s) && s > 0) serverDelayMs = (s + 1) * 1000;
+        }
+        if (!serverDelayMs && (msg.includes('429') || msg.includes('resource_exhausted') || msg.includes('rate limit'))) {
+          serverDelayMs = 15000;
+        }
+
+        const delay = serverDelayMs || (Math.min(300 * Math.pow(2, attempt), 2000) + Math.floor(Math.random() * 80));
         console.warn(`[LLMService] Retryable error encountered (attempt ${attempt + 1}/${maxRetries}): ${err.message}. Retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         attempt++;

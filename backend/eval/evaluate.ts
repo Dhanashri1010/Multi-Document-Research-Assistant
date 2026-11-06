@@ -22,6 +22,7 @@ export interface BenchmarkItem {
   targetPage?: number;
   targetPages?: number[];
   keyPhrases: string[];
+  expectedAnswerSpan?: string;
   isOffTopic?: boolean;
   isTrap?: boolean;
 }
@@ -85,7 +86,9 @@ const BENCHMARK_PAPERS = [
 ];
 
 async function ensureSampleDocuments(): Promise<{ docIds: string[]; docMap: Map<string, string> }> {
-  const uploadDir = path.resolve(process.cwd(), config.uploadDir);
+  const uploadDir = fs.existsSync(path.resolve(process.cwd(), 'uploads'))
+    ? path.resolve(process.cwd(), 'uploads')
+    : path.resolve(process.cwd(), 'backend', 'uploads');
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
   const docIds: string[] = [];
@@ -294,25 +297,24 @@ export async function runEvaluation(): Promise<EvalMetrics> {
           target.toLowerCase().includes(docName.toLowerCase())
       );
 
-      const targetPage = item.targetPage;
-      const targetPages = item.targetPages || (targetPage ? [targetPage] : []);
-      const pageMatches =
-        targetPages.includes(res.chunk.pageNumber) ||
-        (res.chunk.pageStart &&
-          res.chunk.pageEnd &&
-          targetPages.some((p) => p >= res.chunk.pageStart && p <= res.chunk.pageEnd));
-
-      const hasKeyPhrase = item.keyPhrases.some((phrase) =>
-        res.chunk.text.toLowerCase().includes(phrase.toLowerCase())
+      // A hit strictly requires that the retrieved chunk contains the expected answer text
+      // (or labeled answer span), from the target document. A page match alone does not count.
+      const chunkTextLower = res.chunk.text.toLowerCase();
+      const containsAnswerSpan = item.expectedAnswerSpan
+        ? chunkTextLower.includes(item.expectedAnswerSpan.toLowerCase())
+        : false;
+      const containsKeyPhrase = item.keyPhrases.some((phrase) =>
+        chunkTextLower.includes(phrase.toLowerCase())
       );
 
-      const isRelevant = isTargetDoc && (pageMatches || hasKeyPhrase);
+      const hasAnswerContent = containsAnswerSpan || containsKeyPhrase;
+      const isRelevant = isTargetDoc && hasAnswerContent;
 
       if (isRelevant && firstMatchRank === 0) {
         firstMatchRank = rank;
       }
 
-      if (rank <= 3 && hasKeyPhrase) {
+      if (rank <= 3 && containsKeyPhrase) {
         hasKeywordMatchInTop3 = true;
       }
     }

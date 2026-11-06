@@ -18,6 +18,8 @@ export interface IDocument extends MongooseDoc {
   year?: number;
   abstract?: string;
   status: DocumentStatus;
+  warning?: string;
+  isLowTextDensity?: boolean;
   errorDetails?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -39,6 +41,8 @@ const DocumentSchema = new Schema<IDocument>(
     authors: { type: [String], default: [] },
     year: { type: Number },
     abstract: { type: String },
+    warning: { type: String },
+    isLowTextDensity: { type: Boolean, default: false },
     status: {
       type: String,
       enum: ['uploaded', 'processing', 'ready', 'failed'],

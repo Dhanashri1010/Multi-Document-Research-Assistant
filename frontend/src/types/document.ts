@@ -12,6 +12,8 @@ export interface IDocument {
   embeddingModel?: string;
   embeddingDim?: number;
   status: DocumentStatus;
+  warning?: string;
+  isLowTextDensity?: boolean;
   errorDetails?: string;
   title?: string;
   authors?: string[];

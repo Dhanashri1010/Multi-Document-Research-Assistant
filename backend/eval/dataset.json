@@ -12,7 +12,8 @@
       "28.4",
       "English-to-German",
       "BLEU"
-    ]
+    ],
+    "expectedAnswerSpan": "28.4"
   },
   {
     "id": "q02",
@@ -26,7 +27,8 @@
     "keyPhrases": [
       "41.8",
       "English-to-French"
-    ]
+    ],
+    "expectedAnswerSpan": "41.8"
   },
   {
     "id": "q03",
@@ -40,7 +42,8 @@
     "keyPhrases": [
       "3.5 days",
       "eight GPUs"
-    ]
+    ],
+    "expectedAnswerSpan": "3.5 days"
   },
   {
     "id": "q04",
@@ -55,7 +58,8 @@
       "O(n^2)",
       "quadratic",
       "sequence length"
-    ]
+    ],
+    "expectedAnswerSpan": "O(n^2)"
   },
   {
     "id": "q05",
@@ -70,7 +74,8 @@
       "sequential nature",
       "parallelization",
       "recurrent"
-    ]
+    ],
+    "expectedAnswerSpan": "sequential"
   },
   {
     "id": "q06",
@@ -85,7 +90,8 @@
       "Ashish Vaswani",
       "Google Brain",
       "Noam Shazeer"
-    ]
+    ],
+    "expectedAnswerSpan": "Ashish Vaswani"
   },
   {
     "id": "q07",
@@ -100,7 +106,8 @@
       "Delta W = B * A",
       "rank r",
       "low-rank decomposition"
-    ]
+    ],
+    "expectedAnswerSpan": "Delta W"
   },
   {
     "id": "q08",
@@ -115,7 +122,8 @@
       "random Gaussian",
       "zero for B",
       "Delta W = B A is initially zero"
-    ]
+    ],
+    "expectedAnswerSpan": "random Gaussian"
   },
   {
     "id": "q09",
@@ -130,7 +138,8 @@
       "alpha / r",
       "scaling factor",
       "alpha"
-    ]
+    ],
+    "expectedAnswerSpan": "alpha / r"
   },
   {
     "id": "q10",
@@ -145,7 +154,8 @@
       "inference latency",
       "switching",
       "batching"
-    ]
+    ],
+    "expectedAnswerSpan": "latency"
   },
   {
     "id": "q11",
@@ -161,7 +171,8 @@
       "MLM",
       "Next Sentence Prediction",
       "NSP"
-    ]
+    ],
+    "expectedAnswerSpan": "Masked LM"
   },
   {
     "id": "q12",
@@ -176,7 +187,8 @@
       "degradation problem",
       "accuracy becomes saturated",
       "deeper"
-    ]
+    ],
+    "expectedAnswerSpan": "degradation"
   },
   {
     "id": "q13",
@@ -191,7 +203,8 @@
       "3.3e18",
       "9.6e18",
       "FLOPs"
-    ]
+    ],
+    "expectedAnswerSpan": "FLOPs"
   },
   {
     "id": "q14",
@@ -206,7 +219,8 @@
       "350GB",
       "35MB",
       "Checkpoint Size"
-    ]
+    ],
+    "expectedAnswerSpan": "350GB"
   },
   {
     "id": "q15",
@@ -222,7 +236,8 @@
       "1024",
       "16",
       "340M"
-    ]
+    ],
+    "expectedAnswerSpan": "24"
   },
   {
     "id": "q16",
@@ -237,7 +252,8 @@
       "4.49%",
       "5.60%",
       "ResNet-152"
-    ]
+    ],
+    "expectedAnswerSpan": "4.49%"
   },
   {
     "id": "q17",
@@ -253,7 +269,8 @@
       "12288",
       "96",
       "175B"
-    ]
+    ],
+    "expectedAnswerSpan": "12288"
   },
   {
     "id": "q18",
@@ -269,7 +286,8 @@
       "0.9",
       "0.999",
       "1e-8"
-    ]
+    ],
+    "expectedAnswerSpan": "0.001"
   },
   {
     "id": "q19",
@@ -284,7 +302,8 @@
       "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V",
       "sqrt(d_k)",
       "softmax"
-    ]
+    ],
+    "expectedAnswerSpan": "softmax"
   },
   {
     "id": "q20",
@@ -298,7 +317,8 @@
     "keyPhrases": [
       "h = W_0 x + (alpha / r) B A x",
       "W_0 x + Delta W x"
-    ]
+    ],
+    "expectedAnswerSpan": "W_0"
   },
   {
     "id": "q21",
@@ -312,7 +332,8 @@
     "keyPhrases": [
       "y = F(x, {W_i}) + x",
       "residual mapping"
-    ]
+    ],
+    "expectedAnswerSpan": "F(x, {W_i}) + x"
   },
   {
     "id": "q22",
@@ -326,7 +347,8 @@
     "keyPhrases": [
       "v_t = beta_2 v_{t-1} + (1 - beta_2) g_t^2",
       "second raw moment"
-    ]
+    ],
+    "expectedAnswerSpan": "beta_2"
   },
   {
     "id": "q23",
@@ -340,7 +362,8 @@
     "keyPhrases": [
       "hat{m}_t = m_t / (1 - beta_1^t)",
       "hat{v}_t = v_t / (1 - beta_2^t)"
-    ]
+    ],
+    "expectedAnswerSpan": "hat{m}_t"
   },
   {
     "id": "q24",
@@ -354,7 +377,8 @@
     "keyPhrases": [
       "L_{MLM} = - sum_{i in M} log P(x_i | tilde{x})",
       "cross-entropy loss"
-    ]
+    ],
+    "expectedAnswerSpan": "sum"
   },
   {
     "id": "q25",
@@ -369,7 +393,8 @@
       "O(n^2)",
       "quadratic",
       "computational complexity"
-    ]
+    ],
+    "expectedAnswerSpan": "O(n^2)"
   },
   {
     "id": "q26",
@@ -384,7 +409,8 @@
       "35MB",
       "checkpoint size",
       "rank decomposition"
-    ]
+    ],
+    "expectedAnswerSpan": "Low-Rank Adaptation"
   },
   {
     "id": "q27",
@@ -399,7 +425,8 @@
       "deep bidirectional",
       "masked language model",
       "unidirectional"
-    ]
+    ],
+    "expectedAnswerSpan": "residual"
   },
   {
     "id": "q28",
@@ -414,7 +441,8 @@
       "degradation problem",
       "optimization difficulty",
       "training accuracy"
-    ]
+    ],
+    "expectedAnswerSpan": "bidirectional"
   },
   {
     "id": "q29",
@@ -429,7 +457,8 @@
       "sparse gradients",
       "adaptive learning rates",
       "second moments"
-    ]
+    ],
+    "expectedAnswerSpan": "Adam"
   },
   {
     "id": "q30",
@@ -444,7 +473,8 @@
       "in-context learning",
       "no weight updates",
       "gradient updates"
-    ]
+    ],
+    "expectedAnswerSpan": "few-shot"
   },
   {
     "id": "q31",
@@ -465,7 +495,8 @@
       "trainable parameters",
       "low-rank",
       "frozen"
-    ]
+    ],
+    "expectedAnswerSpan": "Transformer"
   },
   {
     "id": "q32",
@@ -485,7 +516,8 @@
       "encoder-decoder",
       "masked",
       "self-attention"
-    ]
+    ],
+    "expectedAnswerSpan": "parameters"
   },
   {
     "id": "q33",
@@ -505,7 +537,8 @@
       "eight GPUs",
       "V100",
       "petaflop"
-    ]
+    ],
+    "expectedAnswerSpan": "BERT"
   },
   {
     "id": "q34",
@@ -526,7 +559,8 @@
       "Adam",
       "SGD",
       "learning rate"
-    ]
+    ],
+    "expectedAnswerSpan": "LoRA"
   },
   {
     "id": "q35",
@@ -546,7 +580,8 @@
       "residual",
       "shortcut",
       "LayerNorm"
-    ]
+    ],
+    "expectedAnswerSpan": "Adam"
   },
   {
     "id": "q36",
@@ -565,7 +600,8 @@
       "512",
       "tokens",
       "sequence length"
-    ]
+    ],
+    "expectedAnswerSpan": "ResNet"
   },
   {
     "id": "q37",
@@ -717,7 +753,8 @@
       "82.6%",
       "0.826",
       "Table VI"
-    ]
+    ],
+    "expectedAnswerSpan": "82.6%"
   },
   {
     "id": "q53",
@@ -735,7 +772,8 @@
       "Flesch Reading Ease",
       "Table II",
       "Table III"
-    ]
+    ],
+    "expectedAnswerSpan": "69.69"
   },
   {
     "id": "q54",
@@ -752,7 +790,8 @@
       "Gunning Fog Index",
       "Flesch Reading Ease",
       "Vocabulary Richness"
-    ]
+    ],
+    "expectedAnswerSpan": "Sentiment Polarity"
   },
   {
     "id": "q55",
@@ -771,7 +810,8 @@
       "Wikipedia",
       "The Guardian",
       "ChatGPT"
-    ]
+    ],
+    "expectedAnswerSpan": "20 records"
   },
   {
     "id": "q56",
@@ -788,7 +828,8 @@
       "average sentence length",
       "complex words",
       "three or more syllables"
-    ]
+    ],
+    "expectedAnswerSpan": "years of education"
   },
   {
     "id": "q57",
@@ -805,7 +846,8 @@
       "XGBoost",
       "1.00",
       "100%"
-    ]
+    ],
+    "expectedAnswerSpan": "Random Forest"
   },
   {
     "id": "q58",
@@ -822,7 +864,8 @@
       "345",
       "Text Length",
       "Mean Value"
-    ]
+    ],
+    "expectedAnswerSpan": "422"
   },
   {
     "id": "q59",
@@ -839,7 +882,8 @@
       "0.46",
       "Logistic Regression",
       "SVM"
-    ]
+    ],
+    "expectedAnswerSpan": "0.609"
   },
   {
     "id": "q60",
@@ -856,6 +900,7 @@
       "11.54",
       "Gunning Fog",
       "10.24"
-    ]
+    ],
+    "expectedAnswerSpan": "11.54"
   }
 ]

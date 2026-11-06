@@ -18,6 +18,8 @@ export interface ExtractionResult {
   pages: ExtractedPage[];
   fullText: string;
   metadata?: Page1Metadata;
+  warning?: string;
+  isLowTextDensity?: boolean;
 }
 
 /**
@@ -393,10 +395,19 @@ export async function extractPdf(filePath: string): Promise<ExtractionResult> {
   const totalPagesCount = parsed.numpages || cleanedPages.length || 1;
   const avgCharsPerPage = totalChars / totalPagesCount;
 
-  if (totalChars < 60 || (totalPagesCount >= 3 && avgCharsPerPage < 120)) {
+  // Truly image-only / empty PDFs: hard rejection
+  if (totalChars < 50 || avgCharsPerPage < 20) {
     throw new Error(
-      `Scanned or Image-Heavy Document: Insufficient machine-readable text found in the PDF (averaging only ${Math.round(avgCharsPerPage)} characters per page across ${totalPagesCount} pages). The core content appears to be embedded inside scanned images or screenshots requiring OCR.`
+      `Image-Only / Scanned Document: No machine-readable text found in the PDF (found only ${totalChars} characters across ${totalPagesCount} page(s)). OCR is required to extract content from this document.`
     );
+  }
+
+  // Borderline low text density (e.g. presentation slides with single-line titles): attach warning / OCR recommendation
+  let warning: string | undefined;
+  let isLowTextDensity = false;
+  if (totalPagesCount >= 3 && avgCharsPerPage < 120) {
+    isLowTextDensity = true;
+    warning = `Low text density detected (averaging only ${Math.round(avgCharsPerPage)} characters per page across ${totalPagesCount} pages). The core content appears to be embedded inside slide images, diagrams, or screenshots. OCR is recommended for full textual fidelity.`;
   }
 
   const fullText = cleanedPages.map((p) => `--- Page ${p.pageNumber} ---\n${p.text}`).join('\n\n');
@@ -407,6 +418,8 @@ export async function extractPdf(filePath: string): Promise<ExtractionResult> {
     pages: cleanedPages,
     fullText,
     metadata,
+    warning,
+    isLowTextDensity,
   };
 }
 
