@@ -3,7 +3,7 @@ import { ResearchSessionModel } from '../../models/ResearchSession.js';
 import { ChatMessageModel, ICitation } from '../../models/ChatMessage.js';
 import { getEmbeddingProvider } from './embeddingService.js';
 import { VectorStore } from './vectorStore.js';
-import { LLMService } from './llmService.js';
+import { LLMService, formatSafeErrorMessage } from './llmService.js';
 import { StructuredRAGAnswerSchema } from './schemas.js';
 import { CitationVerifier } from './citationVerifier.js';
 import { config } from '../../config/env.js';
@@ -248,7 +248,10 @@ STANDALONE SEARCH QUERY:`;
         : '';
 
     let session = options.sessionId ? await ResearchSessionModel.findById(options.sessionId) : null;
-    if (!session) {
+    if (session) {
+      session.selectedDocumentIds = validDocs.map((d) => d._id);
+      await session.save();
+    } else {
       const title = question.slice(0, 40) + (question.length > 40 ? '...' : '');
       session = await ResearchSessionModel.create({
         title,
@@ -256,11 +259,31 @@ STANDALONE SEARCH QUERY:`;
       });
     }
 
+    // 1. Fetch prior messages BEFORE persisting the current question for reformulation
     const priorMessages = await ChatMessageModel.find({ sessionId: session._id })
       .sort({ createdAt: -1 })
       .limit(6)
       .lean();
     priorMessages.reverse();
+
+    // 2. Prevent duplicate user messages on retry or streaming fallback
+    const lastMessage = await ChatMessageModel.findOne({ sessionId: session._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const isDuplicateUserMessage =
+      lastMessage &&
+      lastMessage.role === 'user' &&
+      lastMessage.content.trim().toLowerCase() === question.trim().toLowerCase();
+
+    if (!isDuplicateUserMessage) {
+      await ChatMessageModel.create({
+        sessionId: session._id,
+        role: 'user',
+        content: question.trim(),
+        citations: [],
+      });
+    }
 
     // Question Reformulation
     let retrievalQuery = question;
@@ -485,12 +508,12 @@ Generate your JSON response now.`;
         });
       }
     } catch (llmErr: any) {
-      console.warn('[RAGService] LLM Generation error, providing grounded fallback:', llmErr.message);
+      console.error('[RAGService] LLM Generation error (full details logged):', llmErr);
       isDegraded = true;
-      degradedReason = llmErr.message || 'LLM generation failed';
+      degradedReason = formatSafeErrorMessage(llmErr);
       finalAnswer =
         `**Evidence Retrieved (${citations.length} passages found):**\n\n` +
-        `*Note: LLM generative synthesis is currently unavailable (${degradedReason}).*\n\n` +
+        `*Note: ${degradedReason}*\n\n` +
         `Below are the most relevant excerpts found directly in your research documents:\n\n` +
         citations.map((c) => `- **${c.documentName}** (Page ${c.pageNumber}): "${c.excerpt}"`).join('\n\n');
     }
@@ -605,13 +628,13 @@ Generate your JSON response now.`;
         onEvent({ type: 'token', data: { token } });
       });
     } catch (streamErr: any) {
-      console.warn('[RAGService] Streaming failed, falling back to grounded synthesis:', streamErr.message);
+      console.error('[RAGService] Streaming failed, falling back to grounded synthesis (full details logged):', streamErr);
       isDegraded = true;
-      degradedReason = streamErr.message || 'Streaming failed';
+      degradedReason = formatSafeErrorMessage(streamErr);
 
       accumulatedText =
         `**Evidence Retrieved (${citations.length} passages found):**\n\n` +
-        `*Note: LLM generative streaming is currently unavailable (${degradedReason}).*\n\n` +
+        `*Note: ${degradedReason}*\n\n` +
         citations.map((c) => `- **${c.documentName}** (Page ${c.pageNumber}): "${c.excerpt}"`).join('\n\n');
 
       onEvent({ type: 'token', data: { token: accumulatedText } });

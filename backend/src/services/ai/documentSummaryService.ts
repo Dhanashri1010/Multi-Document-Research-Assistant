@@ -1,6 +1,6 @@
 import { DocumentModel, IDocument } from '../../models/Document.js';
 import { DocumentChunkModel } from '../../models/DocumentChunk.js';
-import { LLMService } from './llmService.js';
+import { LLMService, formatSafeErrorMessage } from './llmService.js';
 import { ICitation } from '../../models/ChatMessage.js';
 
 export type DocumentCategory =
@@ -300,7 +300,7 @@ function buildExtractiveFallback(
     citations,
     generatedAt: new Date().toISOString(),
     degraded: true,
-    degradedReason: `Summary synthesized directly from document text (${errorMessage})`,
+    degradedReason: `Summary synthesized directly from document text (${errorMessage ? formatSafeErrorMessage(errorMessage) : 'service offline'})`,
     summary: overview,
     keyFindingsStrings: keyFindings.map((f) => f.finding),
   };

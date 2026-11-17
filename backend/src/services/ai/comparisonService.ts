@@ -1,6 +1,6 @@
 import { DocumentModel } from '../../models/Document.js';
 import { DocumentChunkModel } from '../../models/DocumentChunk.js';
-import { LLMService } from './llmService.js';
+import { LLMService, formatSafeErrorMessage } from './llmService.js';
 import { ICitation } from '../../models/ChatMessage.js';
 import { StructuredComparisonSchema } from './schemas.js';
 import { config } from '../../config/env.js';
@@ -62,7 +62,7 @@ function buildFallbackMatrix(
         finding:
           preview.length > 220
             ? preview.slice(0, 217) + '...'
-            : preview || 'Detail not explicitly stated in sampled passages.',
+            : preview || 'Not reported in the sampled passages.',
         pageNumber: chosen?.pageNumber,
       };
     }),
@@ -101,7 +101,7 @@ export class ComparisonService {
   }
 
   /**
-   * Compares 2 or more research papers across 8 structured academic dimensions.
+   * Compares 2 or more research papers across 10 structured academic dimensions.
    */
   static async compareDocuments(
     documentIds: string[],
@@ -121,14 +121,16 @@ export class ComparisonService {
     }
 
     const standardDimensions = [
-      'Research Objective',
-      'Methodology',
-      'Model or Technique',
-      'Dataset',
+      'Research Objectives',
+      'Methodologies',
+      'Models and Technologies',
+      'Datasets',
       'Evaluation Metrics',
       'Results',
+      'Advantages',
       'Limitations',
-      'Conclusion',
+      'Conclusions',
+      'Research Gaps',
     ];
 
     // Gather representative evidence per document
@@ -184,24 +186,26 @@ export class ComparisonService {
       .join('\n\n========================================\n\n');
 
     const systemPrompt = `You are a distinguished research scientist and meta-analyst.
-Compare the provided research papers across 8 academic dimensions:
-1. Research Objective
-2. Methodology
-3. Model or Technique
-4. Dataset
+Compare the provided research papers across 10 structured academic dimensions:
+1. Research Objectives
+2. Methodologies
+3. Models and Technologies
+4. Datasets
 5. Evaluation Metrics
 6. Results
-7. Limitations
-8. Conclusion
+7. Advantages
+8. Limitations
+9. Conclusions
+10. Research Gaps
 
 RULES:
 - Ground every claim strictly in the provided excerpts.
-- If a document does not report or state a particular detail, output "Not found in the provided document" for that document. Never invent or speculate!
+- If a document does not report, state, or contain evidence for a particular dimension, explicitly state "Not reported in the provided document" for that document. Never invent, extrapolate, or speculate!
 - Output MUST be valid JSON conforming to this schema:
 {
   "matrix": [
     {
-      "dimension": "Research Objective",
+      "dimension": "Research Objectives",
       "values": [
         { "documentId": "<id>", "documentName": "<name>", "finding": "...", "pageNumber": 1 }
       ]
@@ -274,6 +278,9 @@ Generate the JSON comparison now.`;
         d.excerpts.slice(0, 2).map((e) => `[${d.name}, p.${e.pageNumber}] ${cleanAndSimplifyText(e.text).slice(0, 150)}...`)
       );
 
+      console.error('[ComparisonService] LLM comparison failed or exhausted budget:', lastError);
+      const safeReason = formatSafeErrorMessage(lastError);
+
       return {
         documents: docData.map((d) => ({ id: d.id, name: d.name, pageCount: d.pageCount })),
         focusTopic,
@@ -286,11 +293,11 @@ Generate the JSON comparison now.`;
         keyFindings: fallbackFindings.slice(0, 4),
         limitations: [
           'Findings are grounded in the extracted document pages and excerpts.',
-          `Generative comparison server reported: ${lastError?.message || 'Timeout'}. Showing grounded document excerpts.`,
+          safeReason,
         ],
         citations: allCitations,
         degraded: true,
-        degradedReason: `Grounded comparison synthesized from document evidence (${lastError?.message || 'Timeout'})`,
+        degradedReason: safeReason,
       };
     }
 

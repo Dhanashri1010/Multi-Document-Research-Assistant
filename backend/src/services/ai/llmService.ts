@@ -91,6 +91,77 @@ async function withRetry<T>(
   throw lastError;
 }
 
+/**
+ * Converts internal and provider-specific LLM errors (Gemini 503, 429, auth, timeouts)
+ * into safe, human-understandable user-facing messages.
+ * Never exposes raw API keys, stack traces, or internal server file paths.
+ */
+export function formatSafeErrorMessage(err: any): string {
+  if (!err) {
+    return 'Generative AI service is temporarily unavailable. Showing direct grounded evidence.';
+  }
+
+  const rawMsg = String(err.message || err.toString() || '').toLowerCase();
+  const status = err.status || err.statusCode || err.response?.status;
+
+  // 1. Rate Limit / Quota Exceeded (429)
+  if (
+    status === 429 ||
+    rawMsg.includes('429') ||
+    rawMsg.includes('rate limit') ||
+    rawMsg.includes('resource_exhausted') ||
+    rawMsg.includes('quota exceeded')
+  ) {
+    return 'AI request rate limit reached. Displaying direct grounded evidence from your documents.';
+  }
+
+  // 2. Service Unavailable / High Traffic / Overloaded (503 / 500 / 502 / 504)
+  if (
+    status === 503 ||
+    rawMsg.includes('503') ||
+    rawMsg.includes('service unavailable') ||
+    rawMsg.includes('overloaded') ||
+    rawMsg.includes('model is overloaded')
+  ) {
+    return 'AI service is temporarily experiencing high traffic (503 Service Unavailable). Displaying direct grounded evidence from your documents.';
+  }
+
+  if (typeof status === 'number' && status >= 500 && status < 600) {
+    return `AI upstream service encountered a temporary error (${status}). Displaying direct grounded evidence from your documents.`;
+  }
+
+  // 3. Authentication / Invalid API Key / Permission Denied (401 / 403)
+  if (
+    status === 401 ||
+    status === 403 ||
+    rawMsg.includes('api_key_invalid') ||
+    rawMsg.includes('invalid api key') ||
+    rawMsg.includes('unauthenticated') ||
+    rawMsg.includes('permission denied') ||
+    rawMsg.includes('requires an api key')
+  ) {
+    return 'AI service authentication error. Please verify the API key configuration. Displaying direct grounded evidence from your documents.';
+  }
+
+  // 4. Timeout / Connection Reset
+  if (
+    rawMsg.includes('timed out') ||
+    rawMsg.includes('timeout') ||
+    rawMsg.includes('econnreset') ||
+    rawMsg.includes('etimedout')
+  ) {
+    return 'AI response timed out. Displaying direct grounded evidence from your documents.';
+  }
+
+  // 5. Model Deprecation / Not Found (404)
+  if (status === 404 || rawMsg.includes('not found') || rawMsg.includes('deprecated')) {
+    return 'The configured AI model is currently unavailable or deprecated. Displaying direct grounded evidence from your documents.';
+  }
+
+  // Default clean sanitized message without internal paths or stacks
+  return 'Generative AI synthesis is temporarily unavailable. Displaying direct grounded evidence from your documents.';
+}
+
 export class LLMService {
   /**
    * Generates a grounded completion using the configured LLM provider.

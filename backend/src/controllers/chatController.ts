@@ -84,13 +84,18 @@ export class ChatController {
   }
 
   /**
-   * Get messages for a given session.
+   * Get messages and session details for a given session.
    */
   static async getSessionMessages(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const sessionId = req.params.sessionId as string;
+      const session = await ResearchSessionModel.findById(sessionId);
+      if (!session) {
+        res.status(404).json({ success: false, error: 'Research session not found.' });
+        return;
+      }
       const messages = await ChatMessageModel.find({ sessionId }).sort({ createdAt: 1 });
-      res.json({ success: true, messages });
+      res.json({ success: true, session, messages });
     } catch (err) {
       next(err);
     }
