@@ -86,14 +86,92 @@ export class DocumentController {
   }
 
   /**
-   * List all documents.
+   * List all documents with optional filtering, search, sorting, and pagination.
    */
-  static async list(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const docs = await DocumentModel.find().sort({ createdAt: -1 });
+      const {
+        search,
+        status,
+        fileType,
+        category,
+        collection,
+        sortBy,
+        page,
+        limit,
+      } = req.query as Record<string, string | undefined>;
+
+      const filter: any = {};
+
+      if (status && status !== 'all') {
+        if (status === 'processing') {
+          filter.status = { $in: ['uploaded', 'processing'] };
+        } else {
+          filter.status = status;
+        }
+      }
+
+      if (category && category !== 'all') {
+        filter.category = category;
+      }
+
+      if (collection && collection !== 'all') {
+        filter.collectionName = collection;
+      }
+
+      if (fileType && fileType !== 'all') {
+        if (fileType.toLowerCase() === 'pdf') {
+          filter.mimeType = 'application/pdf';
+        } else if (fileType.toLowerCase() === 'txt') {
+          filter.mimeType = { $in: ['text/plain', 'text/txt'] };
+        }
+      }
+
+      if (search && typeof search === 'string' && search.trim()) {
+        const s = search.trim();
+        const searchRegex = new RegExp(s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i');
+        filter.$or = [
+          { originalName: searchRegex },
+          { title: searchRegex },
+          { abstract: searchRegex },
+          { authors: searchRegex },
+        ];
+      }
+
+      let sortOption: any = { createdAt: -1 };
+      if (sortBy === 'oldest') {
+        sortOption = { createdAt: 1 };
+      } else if (sortBy === 'name-asc') {
+        sortOption = { originalName: 1 };
+      } else if (sortBy === 'name-desc') {
+        sortOption = { originalName: -1 };
+      } else if (sortBy === 'pages-desc') {
+        sortOption = { pageCount: -1 };
+      } else if (sortBy === 'pages-asc') {
+        sortOption = { pageCount: 1 };
+      }
+
+      const total = await DocumentModel.countDocuments(filter);
+
+      let query = DocumentModel.find(filter).sort(sortOption);
+
+      const parsedLimit = limit ? parseInt(limit, 10) : 0;
+      const parsedPage = page ? parseInt(page, 10) : 1;
+
+      if (parsedLimit > 0) {
+        const skip = Math.max(0, (parsedPage - 1) * parsedLimit);
+        query = query.skip(skip).limit(parsedLimit);
+      }
+
+      const docs = await query.exec();
+
       res.json({
         success: true,
         documents: docs,
+        total,
+        page: parsedPage,
+        totalPages: parsedLimit > 0 ? Math.ceil(total / parsedLimit) : 1,
+        limit: parsedLimit,
       });
     } catch (err) {
       next(err);
@@ -179,6 +257,8 @@ export class DocumentController {
 
       doc.status = 'processing';
       doc.errorDetails = undefined;
+      doc.summaryData = undefined;
+      doc.summaryText = undefined;
       await doc.save();
 
       IngestionService.queueDocument(doc._id).catch((err) => {
@@ -229,12 +309,13 @@ export class DocumentController {
   }
 
   /**
-   * Summarize a single document.
+   * Summarize a single document (or retrieve cached summary if not regenerating).
    */
   static async summarize(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const docId = req.params.id as string;
-      const summaryResult = await ComparisonService.summarize(docId);
+      const regenerate = Boolean(req.body?.regenerate);
+      const summaryResult = await ComparisonService.summarize(docId, regenerate);
       res.json({
         success: true,
         ...summaryResult,
@@ -245,7 +326,7 @@ export class DocumentController {
   }
 
   /**
-   * Serve raw document PDF for in-app viewing.
+   * Serve raw document PDF for in-app viewing or inline rendering.
    */
   static async getFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -254,8 +335,30 @@ export class DocumentController {
         res.status(404).json({ success: false, error: 'Document file not found on disk.' });
         return;
       }
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.originalName)}"`);
+      const isDownload = req.query.download === 'true';
+      res.setHeader('Content-Type', doc.mimeType || 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(doc.originalName)}"`
+      );
+      fs.createReadStream(doc.filePath).pipe(res);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Download the exact original uploaded file.
+   */
+  static async downloadFile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const doc = await DocumentModel.findById(req.params.id as string);
+      if (!doc || !fs.existsSync(doc.filePath)) {
+        res.status(404).json({ success: false, error: 'Document file not found on disk.' });
+        return;
+      }
+      res.setHeader('Content-Type', doc.mimeType || 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.originalName)}"`);
       fs.createReadStream(doc.filePath).pipe(res);
     } catch (err) {
       next(err);

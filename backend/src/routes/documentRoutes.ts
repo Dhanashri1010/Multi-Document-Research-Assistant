@@ -28,6 +28,7 @@ router.get('/collections', DocumentController.listCollections);
 router.get('/:id', validateParams(idParamSchema), DocumentController.getById);
 router.get('/:id/status', validateParams(idParamSchema), DocumentController.getStatus);
 router.get('/:id/file', validateParams(idParamSchema), DocumentController.getFile);
+router.get('/:id/download', validateParams(idParamSchema), DocumentController.downloadFile);
 router.patch('/:id/collection', validateParams(idParamSchema), validateBody(collectionBodySchema), DocumentController.updateCollection);
 router.post('/:id/reprocess', validateParams(idParamSchema), DocumentController.reprocess);
 router.delete('/:id', validateParams(idParamSchema), DocumentController.delete);

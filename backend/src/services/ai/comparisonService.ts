@@ -4,6 +4,7 @@ import { LLMService } from './llmService.js';
 import { ICitation } from '../../models/ChatMessage.js';
 import { StructuredComparisonSchema } from './schemas.js';
 import { config } from '../../config/env.js';
+import { DocumentSummaryService } from './documentSummaryService.js';
 
 export interface ComparisonDimension {
   dimension: string;
@@ -45,103 +46,6 @@ function cleanAndSimplifyText(raw: string): string {
     .trim();
 }
 
-function extractSimpleOverview(rawText: string, docTitle: string, chunks: any[]): string {
-  const cleaned = cleanAndSimplifyText(rawText);
-  const sentences = cleaned
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter(
-      (s) =>
-        s.length > 25 &&
-        !s.toLowerCase().includes('organised as follows') &&
-        !s.toLowerCase().includes('organized as follows') &&
-        !s.toLowerCase().includes('ieee') &&
-        !s.toLowerCase().includes('copyright') &&
-        !s.toLowerCase().includes('all rights reserved')
-    );
-
-  if (sentences.length >= 2) {
-    const preview = sentences.slice(0, 3).join(' ');
-    return preview.length > 450 ? preview.slice(0, 447) + '...' : preview;
-  }
-
-  const introChunk = chunks.find((c) => c.text && c.text.length > 40) || chunks[0];
-  if (introChunk) {
-    const introCleaned = cleanAndSimplifyText(introChunk.text);
-    const introSentences = introCleaned
-      .split(/(?<=[.!?])\s+/)
-      .filter((s) => s.length > 25 && !s.toLowerCase().includes('organised as follows'));
-    if (introSentences.length > 0) {
-      return introSentences.slice(0, 2).join(' ');
-    }
-  }
-
-  return `This document provides a clear, structured overview of "${docTitle}". It outlines the key concepts, findings, and practical takeaways discussed across its pages.`;
-}
-
-function extractSimpleKeyTakeaways(chunks: any[]): string[] {
-  const takeaways: string[] = [];
-  for (const c of chunks) {
-    const cleaned = cleanAndSimplifyText(c.text);
-    const sentences = cleaned
-      .split(/(?<=[.!?])\s+/)
-      .map((s) => s.trim())
-      .filter(
-        (s) =>
-          s.length >= 35 &&
-          s.length <= 160 &&
-          !s.toLowerCase().includes('figure') &&
-          !s.toLowerCase().includes('table') &&
-          !s.toLowerCase().includes('organised as follows') &&
-          !s.toLowerCase().includes('et al')
-      );
-    for (const s of sentences) {
-      if (!takeaways.includes(s)) {
-        takeaways.push(s);
-        if (takeaways.length >= 3) break;
-      }
-    }
-    if (takeaways.length >= 3) break;
-  }
-
-  return takeaways.length > 0
-    ? takeaways
-    : [
-        'Explains the central problem and why it is important to understand.',
-        'Presents key observations and practical techniques from the study.',
-        'Provides insights to help readers understand and apply the conclusions.',
-      ];
-}
-
-function extractSimpleMethod(chunks: any[]): string {
-  const methodChunk =
-    chunks.find(
-      (c) =>
-        c.section === 'Methodology' ||
-        c.section === 'Methods' ||
-        c.section === 'Experiments'
-    ) || chunks[Math.min(1, chunks.length - 1)];
-
-  if (methodChunk) {
-    const cleaned = cleanAndSimplifyText(methodChunk.text);
-    const sentences = cleaned
-      .split(/(?<=[.!?])\s+/)
-      .map((s) => s.trim())
-      .filter(
-        (s) =>
-          s.length > 30 &&
-          !s.toLowerCase().includes('figure') &&
-          !s.toLowerCase().includes('table') &&
-          !s.toLowerCase().includes('organised as follows')
-      );
-    if (sentences.length > 0) {
-      return sentences.slice(0, 2).join(' ');
-    }
-  }
-
-  return 'The document examines the subject through structured analysis, evaluating key factors and data to draw reliable conclusions.';
-}
-
 function buildFallbackMatrix(
   dimensions: string[],
   docData: { id: string; name: string; excerpts: { text: string; pageNumber: number }[] }[]
@@ -168,8 +72,12 @@ function buildFallbackMatrix(
 export class ComparisonService {
   /**
    * Summarizes a single document or multiple documents based on extracted chunks.
+   * Delegates to DocumentSummaryService for intelligent, category-adaptive summarization.
    */
-  static async summarize(documentId: string): Promise<{
+  static async summarize(
+    documentId: string,
+    regenerate: boolean = false
+  ): Promise<{
     summary: string;
     keyFindings: string[];
     methodology: string;
@@ -177,108 +85,19 @@ export class ComparisonService {
     citations: ICitation[];
     degraded?: boolean;
     degradedReason?: string;
+    [key: string]: any;
   }> {
-    const doc = await DocumentModel.findById(documentId);
-    if (!doc) throw new Error('Document not found');
-    if (doc.status !== 'ready') throw new Error('Document is not ready for summarization.');
-
-    // Fetch key representative chunks (exclude References)
-    const chunks = await DocumentChunkModel.find({ documentId: doc._id })
-      .sort({ chunkIndex: 1 })
-      .lean();
-
-    if (chunks.length === 0) throw new Error('No chunks found for this document.');
-
-    const nonRefChunks = chunks.filter((c) => c.section !== 'References' && !c.text.trim().toLowerCase().startsWith('references'));
-    const candidateChunks = nonRefChunks.length > 0 ? nonRefChunks : chunks;
-
-    // Keep context concise (intro + methods + conclusion, max 3 chunks) for fast, responsive generation
-    const selectedChunks = candidateChunks.length <= 3
-      ? candidateChunks
-      : [candidateChunks[0], candidateChunks[Math.floor(candidateChunks.length / 2)], candidateChunks[candidateChunks.length - 1]];
-
-    const context = selectedChunks
-      .map((c) => `[Page ${c.pageNumber}]\n${cleanAndSimplifyText(c.text)}`)
-      .join('\n\n---\n\n');
-
-    const cleanTitle = cleanAndSimplifyText(doc.title || doc.originalName);
-
-    const systemPrompt = `You are a friendly, clear science communicator and document summarizer.
-Your goal is to explain this document in simple, everyday language so that ANYONE — even someone with zero technical or academic background — can easily understand it.
-
-CRITICAL WRITING RULES:
-1. Use simple, conversational English. Avoid or clearly explain any technical jargon, mathematical formulas, or obscure acronyms.
-2. Structure the summary so a normal reader quickly understands:
-   - What this document is about in simple terms.
-   - What problem it is trying to solve.
-   - Why it matters to everyday people or the field.
-3. Keep the tone engaging, helpful, and completely accessible.
-
-Output your response as strict JSON in the following format:
-{
-  "summary": "A 2-3 paragraph simple, plain-English overview of the document that anyone can easily read and understand.",
-  "keyFindings": [
-    "Simple takeaway 1 in everyday language",
-    "Simple takeaway 2 in everyday language",
-    "Simple takeaway 3 in everyday language"
-  ],
-  "methodology": "A simple explanation of how the work was done, explained in plain English without confusing technical terms",
-  "limitations": "Simple points about what this doesn't cover or things to keep in mind, explained simply"
-}`;
-
-    const userPrompt = `DOCUMENT TITLE: "${cleanTitle}"
-
-EXCERPTS FROM DOCUMENT:
-${context}
-
-Generate the plain-English JSON summary now.`;
-
-    const citations: ICitation[] = selectedChunks.map((c) => ({
-      documentId: doc._id,
-      documentName: doc.originalName,
-      pageNumber: c.pageNumber,
-      excerpt: c.text.length > 250 ? c.text.slice(0, 250) + '...' : c.text,
-    }));
-
-    try {
-      const response = await LLMService.generate(userPrompt, {
-        systemPrompt,
-        temperature: 0.2,
-        timeoutMs: 4500,
-        maxRetries: 0,
-      });
-
-      // Extract JSON if wrapped in markdown code blocks
-      const cleanJson = response.replace(/^```json/m, '').replace(/^```/m, '').trim();
-      const parsed = JSON.parse(cleanJson);
-
-      const parsedSummary = parsed.summary ? cleanAndSimplifyText(parsed.summary) : '';
-
-      return {
-        summary: parsedSummary || extractSimpleOverview(doc.abstract || '', cleanTitle, chunks),
-        keyFindings: Array.isArray(parsed.keyFindings) && parsed.keyFindings.length > 0
-          ? parsed.keyFindings.map((f: string) => cleanAndSimplifyText(f))
-          : extractSimpleKeyTakeaways(chunks),
-        methodology: parsed.methodology ? cleanAndSimplifyText(parsed.methodology) : extractSimpleMethod(chunks),
-        limitations: parsed.limitations
-          ? cleanAndSimplifyText(parsed.limitations)
-          : 'Findings and techniques may vary across different versions of tools or models.',
-        citations,
-        degraded: false,
-      };
-    } catch (err: any) {
-      console.warn('[ComparisonService] Fast fallback for summary generation:', err.message);
-
-      return {
-        summary: extractSimpleOverview(doc.abstract || '', cleanTitle, chunks),
-        keyFindings: extractSimpleKeyTakeaways(chunks),
-        methodology: extractSimpleMethod(chunks),
-        limitations: 'Findings and techniques may vary across different versions of tools or models.',
-        citations,
-        degraded: true,
-        degradedReason: `Quick readable summary provided from document text (${err.message})`,
-      };
-    }
+    const fullSummary = await DocumentSummaryService.getOrGenerateSummary(documentId, regenerate);
+    return {
+      ...fullSummary,
+      summary: fullSummary.overview || fullSummary.summary,
+      keyFindings: (fullSummary.keyFindings || []).map((f) => (typeof f === 'string' ? f : f.finding)),
+      methodology: fullSummary.methodology || 'Structured analysis based on document text.',
+      limitations: fullSummary.limitations || 'Findings and techniques may vary across different versions of tools or models.',
+      citations: fullSummary.citations || [],
+      degraded: fullSummary.degraded,
+      degradedReason: fullSummary.degradedReason,
+    };
   }
 
   /**

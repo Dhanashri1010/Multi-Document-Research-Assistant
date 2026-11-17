@@ -19,6 +19,9 @@ export interface IDocument extends MongooseDoc {
   abstract?: string;
   status: DocumentStatus;
   collectionName?: string;
+  category?: string;
+  summaryData?: any;
+  summaryText?: string;
   warning?: string;
   isLowTextDensity?: boolean;
   errorDetails?: string;
@@ -43,6 +46,23 @@ const DocumentSchema = new Schema<IDocument>(
     year: { type: Number },
     abstract: { type: String },
     collectionName: { type: String, default: 'General', index: true },
+    category: {
+      type: String,
+      default: 'General Document',
+      enum: [
+        'Research Paper',
+        'Academic Article',
+        'Technical Document',
+        'Business Report',
+        'Educational Material',
+        'Legal Document',
+        'User Manual',
+        'General Document',
+      ],
+      index: true,
+    },
+    summaryData: { type: Schema.Types.Mixed },
+    summaryText: { type: String },
     warning: { type: String },
     isLowTextDensity: { type: Boolean, default: false },
     status: {

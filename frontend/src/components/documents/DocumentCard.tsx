@@ -10,12 +10,18 @@ import {
   BookOpen,
   Folder,
   Check,
+  Download,
+  Scale,
+  FileCode,
+  Briefcase,
+  GraduationCap,
+  Wrench,
 } from 'lucide-react';
 import { IDocument } from '../../types/document.js';
 import { ProcessingStatusBadge } from './ProcessingStatus.js';
 import { Button } from '../common/Button.js';
 import { Modal } from '../common/Modal.js';
-import { PdfViewerModal } from '../common/PdfViewerModal.js';
+import { documentService } from '../../services/documentService.js';
 
 interface DocumentCardProps {
   document: IDocument;
@@ -24,6 +30,7 @@ interface DocumentCardProps {
   onDelete: (id: string) => Promise<void>;
   onReprocess: (id: string) => Promise<void>;
   onSummarize: (id: string) => void;
+  onOpenPdf?: (id: string) => void;
   onOpenResearch: (id: string) => void;
   onUpdateCollection?: (id: string, col: string) => Promise<void>;
 }
@@ -35,6 +42,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onDelete,
   onReprocess,
   onSummarize,
+  onOpenPdf,
   onOpenResearch,
   onUpdateCollection,
 }) => {
@@ -42,7 +50,6 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
-  const [showPdfModal, setShowPdfModal] = useState(false);
 
   // Inline collection editing
   const [isEditingCollection, setIsEditingCollection] = useState(false);
@@ -55,6 +62,28 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   });
 
   const formattedSize = (document.fileSize / (1024 * 1024)).toFixed(2) + ' MB';
+  const fileExt = document.originalName.split('.').pop()?.toUpperCase() || 'PDF';
+  const docTitle = document.title || document.originalName.replace(/\.pdf$/i, '');
+
+  const getCategoryIcon = (cat?: string) => {
+    switch (cat) {
+      case 'Research Paper':
+      case 'Academic Article':
+        return <BookOpen className="w-3.5 h-3.5" />;
+      case 'Legal Document':
+        return <Scale className="w-3.5 h-3.5" />;
+      case 'Technical Document':
+        return <FileCode className="w-3.5 h-3.5" />;
+      case 'Business Report':
+        return <Briefcase className="w-3.5 h-3.5" />;
+      case 'Educational Material':
+        return <GraduationCap className="w-3.5 h-3.5" />;
+      case 'User Manual':
+        return <Wrench className="w-3.5 h-3.5" />;
+      default:
+        return <FileText className="w-3.5 h-3.5" />;
+    }
+  };
 
   const handleDelete = async () => {
     try {
@@ -75,6 +104,10 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     }
   };
 
+  const handleDownload = () => {
+    documentService.downloadFile(document._id, document.originalName);
+  };
+
   const handleSaveCollection = async () => {
     if (onUpdateCollection) {
       await onUpdateCollection(document._id, collectionInput.trim() || 'General');
@@ -85,14 +118,14 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   return (
     <>
       <div
-        className={`p-4 rounded-xl border transition-all bg-white flex flex-col justify-between ${
+        className={`p-5 rounded-2xl border transition-all bg-white flex flex-col justify-between ${
           isSelected
-            ? 'border-brand-500 ring-2 ring-brand-100 shadow-sm'
+            ? 'border-brand-500 ring-2 ring-brand-100 shadow-md'
             : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
         }`}
       >
         <div>
-          {/* Card Top Row: Checkbox, Status & Delete */}
+          {/* Card Top Row: Checkbox, Category, Status & Delete */}
           <div className="flex items-center justify-between gap-2 mb-3">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
@@ -119,87 +152,107 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               )}
 
               <button
+                onClick={handleDownload}
+                title="Download original file"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+
+              <button
                 onClick={() => setShowDeleteModal(true)}
                 title="Delete document"
-                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
           {/* Document Title & Icon */}
-          <div className="flex items-start gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 shrink-0">
-              <FileText className="w-5 h-5" />
+          <div className="flex items-start gap-3 mb-2.5">
+            <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 shrink-0 mt-0.5">
+              {getCategoryIcon(document.category)}
             </div>
             <div className="min-w-0 flex-1">
               <h4
-                className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug cursor-pointer hover:text-brand-600"
-                title={document.originalName}
-                onClick={() => setShowPdfModal(true)}
+                className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug cursor-pointer hover:text-brand-600 transition-colors"
+                title={docTitle}
+                onClick={() => onSummarize(document._id)}
               >
-                {document.originalName}
+                {docTitle}
               </h4>
-              <p className="text-xs text-slate-400 mt-0.5">Uploaded {formattedDate}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5 truncate" title={document.originalName}>
+                {document.originalName}
+              </p>
             </div>
           </div>
 
-          {/* Collection Tag */}
-          <div className="mb-3 flex items-center gap-1.5">
-            <Folder className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            {isEditingCollection ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  value={collectionInput}
-                  onChange={(e) => setCollectionInput(e.target.value)}
-                  className="px-2 py-0.5 text-xs border border-brand-300 rounded focus:outline-none"
-                  autoFocus
-                />
-                <button
-                  onClick={handleSaveCollection}
-                  className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                  title="Save collection"
+          {/* Badges: Category & Collection */}
+          <div className="mb-3 flex items-center gap-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+              {document.category || 'General Document'}
+            </span>
+
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-slate-50 text-slate-600 border border-slate-200">
+              {fileExt}
+            </span>
+
+            <div className="flex items-center gap-1">
+              <Folder className="w-3 h-3 text-slate-400 shrink-0" />
+              {isEditingCollection ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={collectionInput}
+                    onChange={(e) => setCollectionInput(e.target.value)}
+                    className="px-1.5 py-0.5 text-xs border border-brand-300 rounded focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveCollection}
+                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                    title="Save collection"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <span
+                  onClick={() => setIsEditingCollection(true)}
+                  title="Click to edit collection"
+                  className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 hover:bg-slate-100 text-[11px] font-medium cursor-pointer border border-slate-200"
                 >
-                  <Check className="w-3 h-3" />
-                </button>
-              </div>
-            ) : (
-              <span
-                onClick={() => setIsEditingCollection(true)}
-                title="Click to edit collection"
-                className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 text-[11px] font-medium cursor-pointer border border-slate-200"
-              >
-                {document.collectionName || 'General'}
-              </span>
-            )}
+                  {document.collectionName || 'General'}
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Short description / abstract snippet if available */}
+          {document.abstract && (
+            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-3">
+              {document.abstract}
+            </p>
+          )}
 
           {/* Low text density warning chip */}
           {(document.warning || document.isLowTextDensity) && (
             <div
               className="mb-3 p-2 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 flex items-start gap-1.5"
-              title={document.warning || 'Low text density detected. OCR is recommended for scanned / slide PDFs.'}
+              title={document.warning || 'Low text density detected. OCR is recommended.'}
             >
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
               <span className="line-clamp-2">Low text density · OCR recommended</span>
             </div>
           )}
 
-          {/* Metadata chips */}
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mb-4 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+          {/* User-friendly metadata chips (No chunk IDs, vector IDs, or internal dims!) */}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mb-4 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
             <div>
               <span className="text-slate-400">Pages: </span>
               <span className="font-semibold text-slate-700">
-                {document.pageCount > 0 ? document.pageCount : '—'}
-              </span>
-            </div>
-            <span className="text-slate-300">•</span>
-            <div>
-              <span className="text-slate-400">Chunks: </span>
-              <span className="font-semibold text-slate-700">
-                {document.chunkCount > 0 ? document.chunkCount : '—'}
+                {document.pageCount > 0 ? document.pageCount : '1'}
               </span>
             </div>
             <span className="text-slate-300">•</span>
@@ -207,20 +260,25 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               <span className="text-slate-400">Size: </span>
               <span className="font-semibold text-slate-700">{formattedSize}</span>
             </div>
+            <span className="text-slate-300">•</span>
+            <div>
+              <span className="text-slate-400">Uploaded: </span>
+              <span className="font-semibold text-slate-700">{formattedDate}</span>
+            </div>
           </div>
         </div>
 
         {/* Card Action Buttons */}
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+        <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
           <Button
             size="sm"
             variant="outline"
-            className="px-2"
+            className="px-2.5"
             icon={<BookOpen className="w-3.5 h-3.5" />}
-            onClick={() => setShowPdfModal(true)}
-            title="View PDF document"
+            onClick={() => (onOpenPdf ? onOpenPdf(document._id) : onSummarize(document._id))}
+            title="Read original PDF document"
           >
-            PDF
+            Read
           </Button>
 
           {document.status === 'ready' && (
@@ -231,8 +289,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                 className="flex-1"
                 icon={<FileSearch className="w-3.5 h-3.5" />}
                 onClick={() => onSummarize(document._id)}
+                title="View document summary and key findings"
               >
-                Summarize
+                Summary
               </Button>
               <Button
                 size="sm"
@@ -240,6 +299,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                 className="flex-1"
                 icon={<Sparkles className="w-3.5 h-3.5" />}
                 onClick={() => onOpenResearch(document._id)}
+                title="Open Research Workspace with this document"
               >
                 Research
               </Button>
@@ -260,8 +320,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           )}
 
           {document.status === 'processing' && (
-            <div className="flex-1 text-center py-1.5 text-xs text-slate-400 font-medium">
-              Indexing chunks...
+            <div className="flex-1 py-1 px-3 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 border border-amber-200">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              <span>Indexing...</span>
             </div>
           )}
         </div>
@@ -271,18 +332,25 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       <Modal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        title="Delete Research Document"
-        maxWidth="sm"
+        title="Delete Document Confirmation"
+        maxWidth="md"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
-            Are you sure you want to delete <strong className="text-slate-900">{document.originalName}</strong>?
-            All parsed sections, vectors, and embeddings will be permanently removed.
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Are you sure you want to permanently delete{' '}
+            <strong className="text-slate-900 font-semibold">{document.originalName}</strong>?
           </p>
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs space-y-1">
+            <p className="font-bold">This operation will permanently remove:</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>The document metadata and database record</li>
+              <li>All extracted chunks and vector embeddings</li>
+              <li>Stored physical PDF file on disk</li>
+            </ul>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-2">
             <Button
-              variant="secondary"
+              variant="outline"
               size="sm"
               onClick={() => setShowDeleteModal(false)}
               disabled={isDeleting}
@@ -292,10 +360,11 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             <Button
               variant="danger"
               size="sm"
-              isLoading={isDeleting}
               onClick={handleDelete}
+              isLoading={isDeleting}
+              icon={<Trash2 className="w-3.5 h-3.5" />}
             >
-              Delete Document
+              Confirm Delete
             </Button>
           </div>
         </div>
@@ -305,49 +374,44 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       <Modal
         isOpen={showErrorModal}
         onClose={() => setShowErrorModal(false)}
-        title="Processing Failure Details"
+        title="Processing Error Details"
         maxWidth="md"
       >
         <div className="space-y-4">
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">
-            <p className="font-semibold mb-1">Error Information:</p>
-            <p className="font-mono whitespace-pre-wrap">
-              {document.errorDetails || 'An unspecified error occurred during extraction or embedding generation.'}
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+            <h4 className="text-xs font-bold text-rose-900 uppercase tracking-wider mb-1">
+              Error Message
+            </h4>
+            <p className="text-xs text-rose-800 leading-relaxed font-mono whitespace-pre-wrap">
+              {document.errorDetails || 'An unexpected error occurred during document ingestion.'}
             </p>
           </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <p className="text-xs text-slate-500">
+            You can attempt to reprocess this document. If it is password-protected or image-only,
+            please upload an unencrypted or OCR-processed version.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
             <Button
-              variant="secondary"
+              variant="outline"
               size="sm"
               onClick={() => setShowErrorModal(false)}
             >
-              Close
+              Dismiss
             </Button>
             <Button
               variant="primary"
               size="sm"
-              icon={<RefreshCw className="w-3.5 h-3.5" />}
-              isLoading={isRetrying}
-              onClick={async () => {
+              onClick={() => {
                 setShowErrorModal(false);
-                await handleReprocess();
+                handleReprocess();
               }}
+              icon={<RefreshCw className="w-3.5 h-3.5" />}
             >
-              Retry Processing
+              Retry Ingestion
             </Button>
           </div>
         </div>
       </Modal>
-
-      {/* In-app PDF Viewer Modal */}
-      <PdfViewerModal
-        isOpen={showPdfModal}
-        onClose={() => setShowPdfModal(false)}
-        documentId={document._id}
-        documentName={document.originalName}
-        pageNumber={1}
-      />
     </>
   );
 };

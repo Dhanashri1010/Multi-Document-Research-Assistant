@@ -162,7 +162,7 @@ describe('Frontend Component Tests: DocumentCard', () => {
     expect(screen.getByText('Scanned_Paper_Analysis.pdf')).toBeInTheDocument();
     expect(screen.getByText('Transformers')).toBeInTheDocument();
     expect(screen.getByText('15')).toBeInTheDocument();
-    expect(screen.getByText('22')).toBeInTheDocument();
+    expect(screen.getByText('4.00 MB')).toBeInTheDocument();
     expect(screen.getByText(/Low text density · OCR recommended/i)).toBeInTheDocument();
   });
 });

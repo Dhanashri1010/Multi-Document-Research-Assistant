@@ -22,8 +22,10 @@ export const documentService = {
     return response.data.documents;
   },
 
-  async list(): Promise<IDocument[]> {
-    const response = await apiClient.get<{ success: boolean; documents: IDocument[] }>('/documents');
+  async list(params?: Record<string, string | number | undefined>): Promise<IDocument[]> {
+    const response = await apiClient.get<{ success: boolean; documents: IDocument[] }>('/documents', {
+      params,
+    });
     return response.data.documents;
   },
 
@@ -71,13 +73,22 @@ export const documentService = {
     await apiClient.delete(`/documents/${id}`);
   },
 
-  async summarize(id: string): Promise<DocumentSummary> {
+  async summarize(id: string, regenerate: boolean = false): Promise<DocumentSummary> {
     const response = await apiClient.post<DocumentSummary & { success: boolean }>(
       `/documents/${id}/summarize`,
-      {},
-      { timeout: 15000 }
+      { regenerate },
+      { timeout: 30000 }
     );
     return response.data;
+  },
+
+  downloadFile(id: string, originalName: string): void {
+    const link = document.createElement('a');
+    link.href = `/api/documents/${id}/download`;
+    link.download = originalName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   },
 
   async reindexAll(): Promise<{ total: number; succeeded: number; failed: number }> {

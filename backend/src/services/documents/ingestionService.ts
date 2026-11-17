@@ -7,6 +7,7 @@ import { extractPdf, extractTxt } from './extractor.js';
 import { chunkPages, estimateTokenCount } from './chunker.js';
 import { getEmbeddingProvider } from '../ai/embeddingService.js';
 import { invalidateVectorCache } from '../ai/vectorStore.js';
+import { detectDocumentCategory } from '../ai/documentSummaryService.js';
 import { config } from '../../config/env.js';
 
 /**
@@ -110,6 +111,18 @@ export class IngestionService {
       if (extraction.metadata?.abstract) {
         doc.abstract = extraction.metadata.abstract;
       }
+
+      // Detect document category
+      const detectedCategory = detectDocumentCategory(
+        extraction.pages.slice(0, 3).map((p) => p.text).join(' '),
+        doc.title || doc.originalName,
+        doc.abstract
+      );
+      doc.category = detectedCategory;
+
+      // Invalidate existing summary on reprocessing
+      doc.summaryData = undefined;
+      doc.summaryText = undefined;
 
       // 2. Cross-page Chunking with section detection
       const embeddingProvider = getEmbeddingProvider();
