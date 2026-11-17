@@ -257,8 +257,7 @@ export class DocumentController {
 
       doc.status = 'processing';
       doc.errorDetails = undefined;
-      doc.summaryData = undefined;
-      doc.summaryText = undefined;
+      // Do not wipe summaryData or summaryText here; IngestionService safely preserves them if reprocessing fails
       await doc.save();
 
       IngestionService.queueDocument(doc._id).catch((err) => {
@@ -331,17 +330,25 @@ export class DocumentController {
   static async getFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const doc = await DocumentModel.findById(req.params.id as string);
-      if (!doc || !fs.existsSync(doc.filePath)) {
-        res.status(404).json({ success: false, error: 'Document file not found on disk.' });
+      if (!doc || !doc.filePath) {
+        res.status(404).json({ success: false, error: 'Document not found.' });
         return;
       }
+
+      const uploadDir = path.resolve(process.cwd(), config.uploadDir);
+      const resolvedPath = path.resolve(doc.filePath);
+      if (!resolvedPath.startsWith(uploadDir) || !fs.existsSync(resolvedPath)) {
+        res.status(404).json({ success: false, error: 'Document file not found on disk or invalid path.' });
+        return;
+      }
+
       const isDownload = req.query.download === 'true';
       res.setHeader('Content-Type', doc.mimeType || 'application/pdf');
       res.setHeader(
         'Content-Disposition',
         `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(doc.originalName)}"`
       );
-      fs.createReadStream(doc.filePath).pipe(res);
+      fs.createReadStream(resolvedPath).pipe(res);
     } catch (err) {
       next(err);
     }
@@ -353,13 +360,21 @@ export class DocumentController {
   static async downloadFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const doc = await DocumentModel.findById(req.params.id as string);
-      if (!doc || !fs.existsSync(doc.filePath)) {
-        res.status(404).json({ success: false, error: 'Document file not found on disk.' });
+      if (!doc || !doc.filePath) {
+        res.status(404).json({ success: false, error: 'Document not found.' });
         return;
       }
+
+      const uploadDir = path.resolve(process.cwd(), config.uploadDir);
+      const resolvedPath = path.resolve(doc.filePath);
+      if (!resolvedPath.startsWith(uploadDir) || !fs.existsSync(resolvedPath)) {
+        res.status(404).json({ success: false, error: 'Document file not found on disk or invalid path.' });
+        return;
+      }
+
       res.setHeader('Content-Type', doc.mimeType || 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.originalName)}"`);
-      fs.createReadStream(doc.filePath).pipe(res);
+      fs.createReadStream(resolvedPath).pipe(res);
     } catch (err) {
       next(err);
     }

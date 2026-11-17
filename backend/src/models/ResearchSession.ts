@@ -10,11 +10,13 @@ export interface IResearchSession extends MongooseDoc {
 const ResearchSessionSchema = new Schema<IResearchSession>(
   {
     title: { type: String, required: true, default: 'New Research Session' },
-    selectedDocumentIds: [{ type: Schema.Types.ObjectId, ref: 'Document' }],
+    selectedDocumentIds: [{ type: Schema.Types.ObjectId, ref: 'Document', index: true }],
   },
   {
     timestamps: true,
   }
 );
+
+ResearchSessionSchema.index({ createdAt: -1 });
 
 export const ResearchSessionModel = mongoose.model<IResearchSession>('ResearchSession', ResearchSessionSchema);

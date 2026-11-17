@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { DocumentController } from '../controllers/documentController.js';
 import { uploadMiddleware } from '../middleware/upload.js';
 import { validateParams, validateBody } from '../middleware/validateRequest.js';
+import { uploadRateLimiter, aiRateLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -19,8 +20,8 @@ const arxivBodySchema = z.object({
   collectionName: z.string().trim().optional(),
 });
 
-router.post('/upload', uploadMiddleware.array('files', 10), DocumentController.upload);
-router.post('/import-arxiv', validateBody(arxivBodySchema), DocumentController.importArxiv);
+router.post('/upload', uploadRateLimiter, uploadMiddleware.array('files', 10), DocumentController.upload);
+router.post('/import-arxiv', uploadRateLimiter, validateBody(arxivBodySchema), DocumentController.importArxiv);
 router.post('/reindex-all', DocumentController.reindexAll);
 router.get('/', DocumentController.list);
 router.get('/stats', DocumentController.getStats);
@@ -32,6 +33,6 @@ router.get('/:id/download', validateParams(idParamSchema), DocumentController.do
 router.patch('/:id/collection', validateParams(idParamSchema), validateBody(collectionBodySchema), DocumentController.updateCollection);
 router.post('/:id/reprocess', validateParams(idParamSchema), DocumentController.reprocess);
 router.delete('/:id', validateParams(idParamSchema), DocumentController.delete);
-router.post('/:id/summarize', validateParams(idParamSchema), DocumentController.summarize);
+router.post('/:id/summarize', aiRateLimiter, validateParams(idParamSchema), DocumentController.summarize);
 
 export default router;

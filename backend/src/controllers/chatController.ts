@@ -107,6 +107,11 @@ export class ChatController {
   static async deleteSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const sessionId = req.params.sessionId as string;
+      const session = await ResearchSessionModel.findById(sessionId);
+      if (!session) {
+        res.status(404).json({ success: false, error: 'Research session not found or already deleted.' });
+        return;
+      }
       await Promise.all([
         ChatMessageModel.deleteMany({ sessionId }),
         ResearchSessionModel.findByIdAndDelete(sessionId),
