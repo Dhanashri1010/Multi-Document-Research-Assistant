@@ -36,6 +36,140 @@ function cleanJsonText(raw: string): string {
     .trim();
 }
 
+/**
+ * Detects broad document-level queries (e.g. summaries, overviews, main concepts, key findings)
+ * that require whole-document or multi-chunk synthesis rather than single-fact retrieval.
+ */
+export function isBroadDocumentQuery(query: string): boolean {
+  const clean = query.trim().toLowerCase();
+  if (clean.length === 0) return false;
+
+  const broadPatterns: RegExp[] = [
+    /\b(summar(y|ize|ization)|overview|abstract)\b/i,
+    /\bmain (concepts?|points?|topics?|ideas?|findings?|themes?|takeaways?|contributions?)\b/i,
+    /\bkey (concepts?|points?|topics?|ideas?|findings?|themes?|takeaways?|contributions?)\b/i,
+    /\bcore (concepts?|ideas?|themes?|findings?)\b/i,
+    /\bwhat (is|are) this (document|paper|article|note|file|text) about\b/i,
+    /\bwhat does this (document|paper|article|note|file|text) (discuss|describe|talk about|cover|explain)\b/i,
+    /\bexplain this (document|paper|article|note|file|text)\b/i,
+    /\bdescribe this (document|paper|article|note|file|text)\b/i,
+    /\b(central|overall) (theme|topic|concept|message)\b/i,
+    /\bhigh[- ]level (overview|summary|understanding)\b/i,
+    /\bwhat is discussed in this (document|paper|note|article)\b/i,
+    /\bdocument (summary|overview)\b/i,
+    /\bpaper (summary|overview)\b/i,
+  ];
+
+  return broadPatterns.some((pattern) => pattern.test(clean));
+}
+
+/**
+ * Detects cross-document comparative queries (e.g., comparing methods across papers).
+ */
+export function isComparativeQuery(query: string): boolean {
+  const clean = query.trim().toLowerCase();
+  if (clean.length === 0) return false;
+
+  const comparativePatterns: RegExp[] = [
+    /\b(compare|comparison|contrast|differ(ence|ences)?|versus|vs\.?)\b/i,
+    /\bacross (both|all|these|the) (papers|documents|articles|files)\b/i,
+    /\bboth (papers|documents|articles|notes)\b/i,
+    /\bbetween (the|these) (two|papers|documents|articles)\b/i,
+  ];
+
+  return comparativePatterns.some((pattern) => pattern.test(clean));
+}
+
+/**
+ * Checks for lexical term/keyword matches between user query and retrieved passage texts.
+ */
+export function checkLexicalOverlap(query: string, chunks: { text: string }[]): boolean {
+  const stopWords = new Set([
+    'the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'in', 'for', 'of',
+    'to', 'with', 'by', 'this', 'that', 'these', 'those', 'what', 'how', 'why',
+    'when', 'where', 'who', 'does', 'do', 'are', 'was', 'were', 'it', 'its',
+    'document', 'paper', 'article', 'can', 'you', 'tell', 'me', 'about', 'from',
+    'some', 'any', 'could', 'would', 'should', 'have', 'has', 'had', 'been',
+    'than', 'then', 'into', 'such', 'their', 'there', 'them'
+  ]);
+
+  const queryTerms = query
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length > 2 && !stopWords.has(t));
+
+  if (queryTerms.length === 0) return false;
+
+  for (const chunk of chunks) {
+    const chunkLower = chunk.text.toLowerCase();
+    for (const term of queryTerms) {
+      if (chunkLower.includes(term)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Evaluates evidence sufficiency adaptively based on document corpus size,
+ * query intent (broad vs specific), and lexical signals.
+ */
+export function calculateAdaptiveThreshold(params: {
+  baseThreshold: number;
+  totalAvailableChunks: number;
+  isBroadQuery: boolean;
+  hasLexicalMatch: boolean;
+  bestDenseSimilarity: number;
+}): { threshold: number; isSufficient: boolean } {
+  const { baseThreshold, totalAvailableChunks, isBroadQuery, hasLexicalMatch, bestDenseSimilarity } = params;
+
+  // Small document collection (<= 5 total chunks across selected documents)
+  if (totalAvailableChunks <= 5 && totalAvailableChunks > 0) {
+    // 1. Broad query on small document: entire document context is relevant
+    if (isBroadQuery) {
+      const adaptiveThreshold = 0.15;
+      return {
+        threshold: adaptiveThreshold,
+        isSufficient: bestDenseSimilarity >= adaptiveThreshold,
+      };
+    }
+
+    // 2. Specific query with direct lexical keyword match on small document
+    if (hasLexicalMatch) {
+      const adaptiveThreshold = 0.18;
+      return {
+        threshold: adaptiveThreshold,
+        isSufficient: bestDenseSimilarity >= adaptiveThreshold,
+      };
+    }
+
+    // 3. Specific query without lexical keyword match on small document
+    const adaptiveThreshold = 0.22;
+    return {
+      threshold: adaptiveThreshold,
+      isSufficient: bestDenseSimilarity >= adaptiveThreshold,
+    };
+  }
+
+  // Standard/large document collection (> 5 chunks)
+  return {
+    threshold: baseThreshold,
+    isSufficient: bestDenseSimilarity >= baseThreshold,
+  };
+}
+
+/**
+ * Formats a clean, professional user-facing insufficient evidence message without exposing raw percentages.
+ */
+export function formatInsufficientEvidenceMessage(docCount: number, docName?: string): string {
+  if (docCount === 1 && docName) {
+    return `The selected document ("${docName}") does not contain enough information to answer this question confidently. Try asking about its main concepts or selecting additional relevant documents.`;
+  }
+  return `The selected research documents do not contain enough information to answer this question confidently. Try asking about their main concepts or selecting additional relevant documents.`;
+}
+
 export class RAGService {
   /**
    * Rewrites a follow-up user question into a standalone query resolving pronouns and conversational context.
@@ -104,6 +238,15 @@ STANDALONE SEARCH QUERY:`;
       docMap.set(d._id.toString(), d.originalName);
     }
 
+    const totalAvailableChunks = validDocs.reduce((sum, d) => sum + (d.chunkCount || 0), 0);
+    const isBroadQuery = isBroadDocumentQuery(question);
+    const isComparative = isComparativeQuery(question);
+    const singleDocName = validDocs.length === 1 ? validDocs[0].originalName : undefined;
+    const singleDocAdvisory =
+      validDocs.length === 1 && isComparative
+        ? `\n\n*(Note: Only one document ("${singleDocName}") is currently selected in your workspace. Select additional documents to compare across papers.)*`
+        : '';
+
     let session = options.sessionId ? await ResearchSessionModel.findById(options.sessionId) : null;
     if (!session) {
       const title = question.slice(0, 40) + (question.length > 40 ? '...' : '');
@@ -132,10 +275,12 @@ STANDALONE SEARCH QUERY:`;
     const queryEmbedding = await embeddingProvider.embedQuery(retrievalQuery);
 
     const scoredChunks = await VectorStore.search(queryEmbedding, Array.from(docMap.keys()), {
-      topK: 6,
-      minScore: 0.18,
+      topK: Math.max(6, validDocs.length * 3),
+      minScore: totalAvailableChunks <= 5 ? 0.12 : 0.18,
       queryText: retrievalQuery,
       hybridWeight: 0.85,
+      isBroadQuery,
+      totalDocChunks: totalAvailableChunks,
     });
 
     const citations: ICitation[] = [];
@@ -175,6 +320,7 @@ STRICT FACTUAL GROUNDING & REFUSAL DIRECTIVES:
 1. Ground every claim directly in the passages. Cite sources inline using bracketed format, e.g. [Document Name, p. X].
 2. GROUNDED QUESTIONS (ANSWERING POLICY):
    - When the user asks a question about topics actually evaluated or described in the papers (e.g. metrics from tables, architecture specs, mathematical equations, or qualitative discussions), you MUST answer using the available evidence, cite the passages, and state what secondary details are not covered. Set "hasInsufficientEvidence": false.
+   - For broad document-level queries (e.g. requests to summarize, provide an overview, or identify the main concepts, findings, or methodology of a document), synthesize the provided passages comprehensively into a clear, informative summary or conceptual overview, citing the relevant pages. Set "hasInsufficientEvidence": false.
    - Do not refuse simply because an unasked secondary detail, hyperparameter, or full derivation is absent if the primary fact is in the text.
 3. QUESTIONS WITH FALSE PRESUPPOSITIONS OR ABSENT CONSTRAINTS (STRICT REFUSAL DIRECTIVE):
    - If a question ASSUMES a premise, task, dataset, or mechanism that the provided documents do NOT state, support, or evaluate:
@@ -213,6 +359,11 @@ Generate your JSON response now.`;
       systemPrompt,
       userPrompt,
       scoredChunks,
+      totalAvailableChunks,
+      isBroadQuery,
+      validDocsCount: validDocs.length,
+      singleDocName,
+      singleDocAdvisory,
     };
   }
 
@@ -228,19 +379,36 @@ Generate your JSON response now.`;
       systemPrompt,
       userPrompt,
       scoredChunks,
+      totalAvailableChunks,
+      isBroadQuery,
+      validDocsCount,
+      singleDocName,
+      singleDocAdvisory,
     } = await this.prepareContext(options);
 
-    // Pre-LLM refusal gate: check both chunk presence and best chunk raw cosine similarity
+    // Pre-LLM refusal gate: check both chunk presence and adaptive threshold
     const bestDenseSimilarity = scoredChunks.length > 0
       ? Math.max(...scoredChunks.map((c) => c.denseScore ?? 0))
       : 0;
-    const threshold = config.preLlmCosineThreshold ?? 0.28;
 
-    if (scoredChunks.length === 0 || bestDenseSimilarity < threshold) {
-      const insufficientAnswer =
-        `The selected research documents do not contain sufficient evidence to answer this question ` +
-        `(highest semantic relevance: ${Math.round(bestDenseSimilarity * 100)}%, threshold: ${Math.round(threshold * 100)}%). ` +
-        `Please verify that the uploaded documents cover this topic, or try rephrasing your research query.`;
+    const hasLexicalMatch = checkLexicalOverlap(
+      options.question,
+      scoredChunks.map((c) => ({ text: c.chunk.text }))
+    );
+
+    const { isSufficient } = calculateAdaptiveThreshold({
+      baseThreshold: config.preLlmCosineThreshold ?? 0.28,
+      totalAvailableChunks,
+      isBroadQuery,
+      hasLexicalMatch,
+      bestDenseSimilarity,
+    });
+
+    if (scoredChunks.length === 0 || !isSufficient) {
+      let insufficientAnswer = formatInsufficientEvidenceMessage(validDocsCount, singleDocName);
+      if (singleDocAdvisory) {
+        insufficientAnswer += singleDocAdvisory;
+      }
 
       await ChatMessageModel.create({
         sessionId: session._id,
@@ -287,9 +455,13 @@ Generate your JSON response now.`;
       if (hasInsufficientEvidence && (!validated.answer || validated.answer.trim().length === 0)) {
         finalAnswer =
           validated.insufficientReason ||
-          'The provided research documents do not contain sufficient evidence to answer this question without speculation.';
+          formatInsufficientEvidenceMessage(validDocsCount, singleDocName);
       } else {
         finalAnswer = validated.answer || rawResponse;
+      }
+
+      if (singleDocAdvisory && !finalAnswer.includes('Only one document')) {
+        finalAnswer += singleDocAdvisory;
       }
 
       // Claim-Level Citation Verification
@@ -324,6 +496,10 @@ Generate your JSON response now.`;
     }
 
     // Persist assistant message
+    if (singleDocAdvisory && !finalAnswer.includes('Only one document')) {
+      finalAnswer += singleDocAdvisory;
+    }
+
     await ChatMessageModel.create({
       sessionId: session._id,
       role: 'assistant',
@@ -355,6 +531,11 @@ Generate your JSON response now.`;
       systemPrompt,
       userPrompt,
       scoredChunks,
+      totalAvailableChunks,
+      isBroadQuery,
+      validDocsCount,
+      singleDocName,
+      singleDocAdvisory,
     } = await this.prepareContext(options);
 
     // Initial event: metadata and citations
@@ -369,13 +550,25 @@ Generate your JSON response now.`;
     const bestDenseSimilarity = scoredChunks.length > 0
       ? Math.max(...scoredChunks.map((c) => c.denseScore ?? 0))
       : 0;
-    const threshold = config.preLlmCosineThreshold ?? 0.28;
 
-    if (scoredChunks.length === 0 || bestDenseSimilarity < threshold) {
-      const insufficientAnswer =
-        `The selected research documents do not contain sufficient evidence to answer this question ` +
-        `(highest semantic relevance: ${Math.round(bestDenseSimilarity * 100)}%, threshold: ${Math.round(threshold * 100)}%). ` +
-        `Please verify that the uploaded documents cover this topic, or try rephrasing your research query.`;
+    const hasLexicalMatch = checkLexicalOverlap(
+      options.question,
+      scoredChunks.map((c) => ({ text: c.chunk.text }))
+    );
+
+    const { isSufficient } = calculateAdaptiveThreshold({
+      baseThreshold: config.preLlmCosineThreshold ?? 0.28,
+      totalAvailableChunks,
+      isBroadQuery,
+      hasLexicalMatch,
+      bestDenseSimilarity,
+    });
+
+    if (scoredChunks.length === 0 || !isSufficient) {
+      let insufficientAnswer = formatInsufficientEvidenceMessage(validDocsCount, singleDocName);
+      if (singleDocAdvisory) {
+        insufficientAnswer += singleDocAdvisory;
+      }
 
       onEvent({
         type: 'token',
@@ -452,6 +645,14 @@ Generate your JSON response now.`;
       }
     } catch {
       // Plain text answer was streamed directly
+    }
+
+    if (singleDocAdvisory && !finalAnswer.includes('Only one document')) {
+      onEvent({
+        type: 'token',
+        data: { token: singleDocAdvisory },
+      });
+      finalAnswer += singleDocAdvisory;
     }
 
     await ChatMessageModel.create({

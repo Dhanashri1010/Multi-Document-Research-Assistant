@@ -21,6 +21,8 @@ export interface VectorSearchOptions {
   minScore?: number;
   queryText?: string;
   hybridWeight?: number;
+  isBroadQuery?: boolean;
+  totalDocChunks?: number;
 }
 
 /**
@@ -250,7 +252,7 @@ export class LocalVectorStore implements IVectorStore {
           }
         }
       }
-      return merged.slice(0, Math.max(topK, docIdStrings.length * 2));
+      return merged.slice(0, Math.max(topK, docIdStrings.length * 3));
     }
 
     return this.searchSingleDoc(queryEmbedding, docIdStrings[0], options);
@@ -264,6 +266,7 @@ export class LocalVectorStore implements IVectorStore {
     const topK = options.topK || 6;
     const minScore = options.minScore || 0.22;
     const queryText = options.queryText || '';
+    const isBroadQuery = Boolean(options.isBroadQuery);
 
     const queryVecTyped = new Float32Array(queryEmbedding);
     const queryMentionsReferences = /\b(references?|citations?|bibliography)\b/i.test(queryText);
@@ -306,6 +309,8 @@ export class LocalVectorStore implements IVectorStore {
       return [];
     }
 
+    const isSmallDoc = validChunks.length <= 5;
+
     // 2. Compute Dense Similarities
     const denseRankMap = new Map<string, { rank: number; sim: number }>();
     const denseScored = validChunks.map((item) => ({
@@ -340,6 +345,10 @@ export class LocalVectorStore implements IVectorStore {
       denseScore: number;
     }[] = [];
 
+    // Adaptive filtering thresholds for small vs standard documents
+    const effectiveMinDenseScore = isSmallDoc ? (isBroadQuery ? 0.05 : 0.12) : minScore;
+    const effectiveBm25MinScore = isSmallDoc ? 0.1 : 1.5;
+
     for (const item of validChunks) {
       const idStr = item.chunk._id.toString();
       const denseInfo = denseRankMap.get(idStr);
@@ -355,7 +364,18 @@ export class LocalVectorStore implements IVectorStore {
         (bm25Info ? 1.0 / (RRF_K + bm25Rank) : 0) +
         0.005 * denseInfo.sim;
 
-      if (denseInfo.sim >= minScore || (bm25Info && bm25Info.score > 1.5)) {
+      if (isSmallDoc && isBroadQuery) {
+        // For broad document queries on small documents, preserve all document chunks for full narrative context
+        allFusedCandidates.push({
+          chunk: item.chunk,
+          vector: item.embeddingVector,
+          score: rrfScore,
+          denseScore: denseInfo.sim,
+        });
+      } else if (
+        denseInfo.sim >= effectiveMinDenseScore ||
+        (bm25Info && bm25Info.score > effectiveBm25MinScore)
+      ) {
         allFusedCandidates.push({
           chunk: item.chunk,
           vector: item.embeddingVector,
@@ -367,6 +387,16 @@ export class LocalVectorStore implements IVectorStore {
 
     if (allFusedCandidates.length === 0) {
       return [];
+    }
+
+    // For broad queries on small documents, preserve original sequential chunk order (page/chunk order)
+    if (isSmallDoc && isBroadQuery) {
+      allFusedCandidates.sort((a, b) => a.chunk.chunkIndex - b.chunk.chunkIndex);
+      return allFusedCandidates.map((c) => ({
+        chunk: c.chunk,
+        score: c.score,
+        denseScore: c.denseScore,
+      }));
     }
 
     allFusedCandidates.sort((a, b) => b.score - a.score);
