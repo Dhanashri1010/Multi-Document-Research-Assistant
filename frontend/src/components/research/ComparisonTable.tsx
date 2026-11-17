@@ -110,7 +110,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
         <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-900 flex items-start gap-3 text-xs">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <span className="font-bold text-amber-900">Grounded Excerpt Mode</span>
+            <span className="font-bold text-amber-900">Degraded / Grounded Fallback Answer</span>
             <p className="mt-0.5 text-amber-800 leading-relaxed">
               {comparison.degradedReason ||
                 'Generative cross-document comparison was temporarily unavailable. Analysis was safely compiled directly from indexed passages.'}

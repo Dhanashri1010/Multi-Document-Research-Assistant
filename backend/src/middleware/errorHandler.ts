@@ -12,12 +12,12 @@ import { config } from '../config/env.js';
 export function sanitizeErrorMessage(raw: string): string {
   if (!raw || typeof raw !== 'string') return 'An unexpected internal error occurred.';
   return raw
-    // Strip Windows drive paths (e.g. C:\Users\..., E:\...) - stop at whitespace, quotes, or punctuation
-    .replace(/[a-zA-Z]:\\(?:[^\s"'<>|:;,\t\r\n]+\\)*[^\s"'<>|:;,\t\r\n]*/g, '[internal path]')
+    // Strip Windows paths (e.g. C:\Users\..., E:\Multi document..., C:\Program Files\...)
+    .replace(/[a-zA-Z]:\\(?:[\w\s.-]+\\)*[\w.-]+/g, '[internal path]')
     // Strip POSIX paths (e.g. /home/..., /var/..., /usr/...)
     .replace(/(?:\/[\w.-]+){2,}/g, '[internal path]')
     // Strip Google / Gemini / standard API keys (e.g. AIza...)
-    .replace(/AIza[0-9A-Za-z-_]{35}/g, '[redacted API key]')
+    .replace(/AIza[0-9A-Za-z-_]{16,}/g, '[redacted API key]')
     // Strip generic bearer tokens, credentials, and JWT fragments
     .replace(/Bearer(?:\s+token)?\s+[0-9a-zA-Z-_.]+/gi, '[redacted credential]')
     .replace(/\beyJ[a-zA-Z0-9_-]{8,}\b/g, '[redacted credential]')
