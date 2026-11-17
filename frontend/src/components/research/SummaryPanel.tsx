@@ -10,18 +10,24 @@ import {
   Check,
   Download,
   Database,
+  RefreshCw,
 } from 'lucide-react';
+import { Button } from '../common/Button.js';
 
 interface SummaryPanelProps {
   summaryData: DocumentSummary;
   documentTitle?: string;
   onNavigateToPage?: (pageNum: number) => void;
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
 }
 
 export const SummaryPanel: React.FC<SummaryPanelProps> = ({
   summaryData,
   documentTitle,
   onNavigateToPage,
+  onRegenerate,
+  isRegenerating = false,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -33,12 +39,48 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
   };
 
   const handleExport = () => {
-    const text = summaryData.overview || summaryData.summary || '';
-    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    let md = `# Executive Summary: ${documentTitle || 'Document'}\n\n`;
+    if (summaryData.category) {
+      md += `**Category**: ${summaryData.category}\n\n`;
+    }
+    md += `## 1. Overview\n${summaryData.overview || summaryData.summary || ''}\n\n`;
+
+    if (summaryData.keyFindings && summaryData.keyFindings.length > 0) {
+      md += `## 2. Key Findings & Insights\n`;
+      summaryData.keyFindings.forEach((f, idx) => {
+        const text = typeof f === 'string' ? f : f.finding;
+        const page = typeof f === 'object' && f.pageNumber ? ` (Page ${f.pageNumber})` : '';
+        md += `${idx + 1}. ${text}${page}\n`;
+      });
+      md += `\n`;
+    }
+
+    if (summaryData.importantData && summaryData.importantData.length > 0) {
+      md += `## 3. Quantitative Metrics\n`;
+      md += `| Metric | Value | Context | Page |\n| :--- | :--- | :--- | :--- |\n`;
+      summaryData.importantData.forEach((d) => {
+        md += `| ${d.metric} | ${d.value} | ${d.context || '—'} | ${d.pageNumber ? `P. ${d.pageNumber}` : '—'} |\n`;
+      });
+      md += `\n`;
+    }
+
+    if (summaryData.methodology) {
+      md += `## 4. Methodology\n${summaryData.methodology}\n\n`;
+    }
+
+    if (summaryData.limitations) {
+      md += `## 5. Limitations & Boundary Conditions\n${summaryData.limitations}\n\n`;
+    }
+
+    if (summaryData.conclusion) {
+      md += `## 6. Takeaway & Practical Significance\n${summaryData.conclusion}\n\n`;
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${documentTitle || 'document'}_summary.md`;
+    link.download = `${(documentTitle || 'document').replace(/[^a-zA-Z0-9_-]/g, '_')}_summary.md`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -47,61 +89,85 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
 
   return (
     <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2">
-      {/* Header bar */}
-      <div className="pb-3 border-b border-slate-200 flex items-start justify-between gap-4">
+      {/* Top Header & Actions Toolbar */}
+      <div className="pb-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           {summaryData.category && (
-            <span className="text-[11px] font-semibold text-brand-600 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-brand-600 uppercase tracking-wider block">
               {summaryData.category}
             </span>
           )}
           {documentTitle && (
-            <h3 className="text-base font-bold text-slate-900 mt-0.5">{documentTitle}</h3>
+            <h3 className="text-base font-bold text-slate-900 mt-0.5 leading-snug">{documentTitle}</h3>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {onRegenerate && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRegenerate}
+              isLoading={isRegenerating}
+              icon={<RefreshCw className="w-3.5 h-3.5" />}
+              title="Regenerate summary with latest AI synthesis"
+            >
+              Regenerate
+            </Button>
+          )}
+
           <button
             onClick={handleCopy}
-            className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center gap-1.5 transition-colors border border-slate-200"
-            title="Copy summary"
+            className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center gap-1.5 transition-colors border border-slate-200"
+            title="Copy summary to clipboard"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
+
           <button
             onClick={handleExport}
-            className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center gap-1.5 transition-colors border border-slate-200"
-            title="Export markdown"
+            className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center gap-1.5 transition-colors border border-slate-200"
+            title="Export markdown report"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export</span>
+            <span>Export MD</span>
           </button>
         </div>
       </div>
 
-      {/* Degraded notice */}
+      {/* Degraded Notice with Retry */}
       {summaryData.degraded && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>
-            {summaryData.degradedReason || 'Summary extracted directly from document passages.'}
-          </span>
+        <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              {summaryData.degradedReason || 'Summary generated directly from indexed document excerpts.'}
+            </span>
+          </div>
+          {onRegenerate && (
+            <button
+              onClick={onRegenerate}
+              className="text-xs font-bold text-amber-800 hover:text-amber-900 underline shrink-0"
+            >
+              Retry AI Synthesis
+            </button>
+          )}
         </div>
       )}
 
-      {/* Overview */}
+      {/* 1. Overview */}
       <div className="space-y-2">
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
           <BookOpen className="w-3.5 h-3.5 text-brand-600" />
-          Overview
+          Executive Overview
         </h4>
         <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-200/80">
           {summaryData.overview || summaryData.summary || 'Summary generated from document text.'}
         </p>
       </div>
 
-      {/* Key Findings */}
+      {/* 2. Key Findings & Insights */}
       {summaryData.keyFindings && summaryData.keyFindings.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -142,7 +208,7 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
         </div>
       )}
 
-      {/* Quantitative Data / Metrics Table */}
+      {/* 3. Quantitative Data / Metrics Table */}
       {summaryData.importantData && summaryData.importantData.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -155,14 +221,16 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
                 <tr className="border-b border-slate-200 text-slate-400 font-semibold">
                   <th className="py-1.5 pr-3">Metric</th>
                   <th className="py-1.5 px-3">Value</th>
+                  <th className="py-1.5 px-3">Context / Baseline</th>
                   <th className="py-1.5 pl-3 text-right">Page</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {summaryData.importantData.map((d, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/80">
-                    <td className="py-2 pr-3 font-medium text-slate-800">{d.metric}</td>
+                    <td className="py-2 pr-3 font-semibold text-slate-800">{d.metric}</td>
                     <td className="py-2 px-3 font-bold text-brand-700 font-mono">{d.value}</td>
+                    <td className="py-2 px-3 text-slate-600">{d.context || '—'}</td>
                     <td className="py-2 pl-3 text-right text-slate-500 font-mono text-[11px]">
                       {d.pageNumber ? `P. ${d.pageNumber}` : '—'}
                     </td>
@@ -174,7 +242,7 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
         </div>
       )}
 
-      {/* Adaptive Sections */}
+      {/* 4. Adaptive Domain Sections */}
       {summaryData.sections && summaryData.sections.length > 0 && (
         <div className="space-y-3">
           {summaryData.sections.map((section, idx) => (
@@ -197,7 +265,7 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
         </div>
       )}
 
-      {/* Methodology & Limitations */}
+      {/* 5. Methodology & Limitations */}
       {(summaryData.methodology || summaryData.limitations) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {summaryData.methodology && (
@@ -226,24 +294,26 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
         </div>
       )}
 
-      {/* Conclusion */}
+      {/* 6. Conclusion */}
       {summaryData.conclusion && (
         <div className="space-y-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Conclusion</h4>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Takeaway & Practical Significance
+          </h4>
           <p className="text-xs text-slate-700 bg-slate-50 p-3.5 rounded-lg border border-slate-200 leading-relaxed">
             {summaryData.conclusion}
           </p>
         </div>
       )}
 
-      {/* Legal Disclaimer */}
+      {/* 7. Legal Disclaimer */}
       {summaryData.legalDisclaimer && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs">
           {summaryData.legalDisclaimer}
         </div>
       )}
 
-      {/* Evidence Citations */}
+      {/* 8. Evidence Citations */}
       {summaryData.citations && summaryData.citations.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-slate-200">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -262,7 +332,7 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
                     Page {c.pageNumber}
                   </span>
                 </div>
-                <p className="text-slate-500 italic line-clamp-3">"{c.excerpt}"</p>
+                <p className="text-slate-500 italic line-clamp-3">&quot;{c.excerpt}&quot;</p>
               </div>
             ))}
           </div>

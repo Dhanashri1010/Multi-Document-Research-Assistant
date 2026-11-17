@@ -111,3 +111,4 @@ export const aiRateLimiter = createRateLimiter({
   max: 60,
   message: 'AI synthesis request limit reached. Please wait a moment before sending another query.',
 });
+

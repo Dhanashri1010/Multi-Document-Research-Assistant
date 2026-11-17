@@ -28,25 +28,27 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
     if (comparison.focusTopic) {
       md += `**Focus Topic**: ${comparison.focusTopic}\n\n`;
     }
-    md += `**Date**: ${new Date().toLocaleString()}\n`;
-    md += `**Papers Compared (${comparison.documents.length})**:\n`;
+    md += `**Generated**: ${new Date().toLocaleString()}\n`;
+    md += `**Documents Compared (${comparison.documents.length})**:\n`;
     comparison.documents.forEach((d) => {
       md += `- **${d.name}** (${d.pageCount} pages)\n`;
     });
     md += `\n---\n\n`;
 
     if (comparison.degraded) {
-      md += `> **Notice**: Synthesized in degraded fallback mode (${comparison.degradedReason || 'Extracted excerpts'})\n\n`;
+      md += `> **Notice**: Synthesized in grounded fallback mode (${comparison.degradedReason || 'Extracted excerpts'})\n\n`;
     }
 
-    md += `## 1. Comparison Matrix\n\n`;
+    md += `## 1. Structured Comparison Matrix (10 Dimensions)\n\n`;
     const docNames = comparison.documents.map((d) => d.name);
     md += `| Evaluation Dimension | ${docNames.join(' | ')} |\n`;
     md += `| :--- | ${docNames.map(() => ':---').join(' | ')} |\n`;
     comparison.matrix.forEach((dim) => {
       const row = comparison.documents.map((doc) => {
         const item = dim.values.find((v) => v.documentId === doc.id || v.documentName === doc.name);
-        return (item?.finding || 'Not mentioned').replace(/\|/g, '\\|');
+        const findingText = item?.finding || 'Not reported in the provided document';
+        const pageRef = item?.pageNumber ? ` *(p. ${item.pageNumber})*` : '';
+        return `${findingText.replace(/\|/g, '\\|')}${pageRef}`;
       });
       md += `| **${dim.dimension}** | ${row.join(' | ')} |\n`;
     });
@@ -93,7 +95,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
   };
 
   const tabs = [
-    { id: 'matrix', label: 'Comparison Matrix', icon: Table },
+    { id: 'matrix', label: 'Comparison Matrix', icon: Table, count: comparison.matrix.length },
     { id: 'similarities', label: 'Similarities', icon: CheckCircle, count: comparison.similarities.length },
     { id: 'differences', label: 'Differences', icon: GitCompare, count: comparison.differences.length },
     { id: 'findings', label: 'Key Findings', icon: Lightbulb, count: comparison.keyFindings.length },
@@ -102,32 +104,32 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
       {/* Degraded / Fallback Banner */}
       {comparison.degraded && (
         <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-900 flex items-start gap-3 text-xs">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <span className="font-semibold text-amber-900">Degraded / Grounded Fallback Answer</span>
-            <p className="mt-0.5 text-amber-800">
+            <span className="font-bold text-amber-900">Grounded Excerpt Mode</span>
+            <p className="mt-0.5 text-amber-800 leading-relaxed">
               {comparison.degradedReason ||
-                'Generative multi-document synthesis was temporarily unavailable or timed out. Cross-paper analysis was synthesized directly from grounded document excerpts.'}
+                'Generative cross-document comparison was temporarily unavailable. Analysis was safely compiled directly from indexed passages.'}
             </p>
           </div>
         </div>
       )}
 
-      {/* Header bar */}
-      <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-slate-50/60">
+      {/* Header Toolbar */}
+      <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50/70">
         <div>
-          <span className="text-xs font-bold text-brand-600 uppercase tracking-wider">
-            Comparative Synthesis
+          <span className="text-[11px] font-bold text-brand-600 uppercase tracking-wider">
+            Academic Meta-Analysis
           </span>
           <h3 className="text-base font-bold text-slate-900 mt-0.5">
-            {comparison.focusTopic ? `Focus: "${comparison.focusTopic}"` : 'Comprehensive Multi-Paper Cross-Analysis'}
+            {comparison.focusTopic ? `Focus: "${comparison.focusTopic}"` : 'Cross-Document Comparative Analysis'}
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Comparing {comparison.documents.length} research papers based on extracted grounded evidence.
+            Comparing {comparison.documents.length} research papers across 10 academic dimensions.
           </p>
         </div>
 
@@ -139,57 +141,57 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
             title="Export complete comparison to Markdown (.md)"
           >
             <Download className="w-3.5 h-3.5 text-brand-600" />
-            <span>Export .md</span>
+            <span>Export MD</span>
           </button>
 
-          {/* Tab pills */}
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-200/70 p-1 rounded-lg">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-                {tab.count !== undefined && tab.count > 0 && (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isActive ? 'bg-slate-100 text-slate-700' : 'bg-slate-300 text-slate-700'
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {/* Tab Navigation Pills */}
+          <div className="flex flex-wrap items-center gap-1 bg-slate-200/70 p-1 rounded-xl">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-white text-slate-900 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isActive ? 'bg-brand-100 text-brand-700' : 'bg-slate-300 text-slate-700'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
-      </div>
 
-      {/* Tab Content */}
+      {/* Tab Panels */}
       <div className="p-6">
         {/* 1. Comparison Matrix Table */}
         {activeTab === 'matrix' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse min-w-[760px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80">
-                  <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4">
-                    Dimension
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="py-3.5 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider w-1/4 sticky left-0 bg-slate-50 z-10 border-r border-slate-200">
+                    Evaluation Dimension
                   </th>
                   {comparison.documents.map((doc) => (
                     <th
                       key={doc.id}
-                      className="py-3 px-4 text-xs font-bold text-slate-800 uppercase tracking-wider"
+                      className="py-3.5 px-4 text-xs font-bold text-slate-800 uppercase tracking-wider"
                     >
                       <div className="truncate font-bold text-brand-700" title={doc.name}>
                         {doc.name}
@@ -201,7 +203,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-xs">
                 {comparison.matrix.length === 0 ? (
                   <tr>
                     <td
@@ -214,29 +216,34 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                 ) : (
                   comparison.matrix.map((row, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 px-4 text-xs font-bold text-slate-800 align-top bg-slate-50/30">
+                      <td className="py-3.5 px-4 text-xs font-bold text-slate-800 align-top bg-white sticky left-0 z-10 border-r border-slate-200">
                         {row.dimension}
                       </td>
                       {comparison.documents.map((doc) => {
                         const item = row.values.find(
                           (v) => v.documentId === doc.id || v.documentName === doc.name
                         );
+                        const rawFinding = (item?.finding || '').toLowerCase();
                         const isNotFound =
                           !item?.finding ||
-                          item.finding.toLowerCase().includes('not found') ||
-                          item.finding.toLowerCase().includes('not mentioned');
+                          rawFinding.includes('not reported') ||
+                          rawFinding.includes('not found') ||
+                          rawFinding.includes('not mentioned') ||
+                          rawFinding.includes('not stated') ||
+                          rawFinding.includes('not available');
 
                         return (
                           <td key={doc.id} className="py-3.5 px-4 text-xs align-top">
                             {isNotFound ? (
-                              <span className="inline-block px-2 py-1 rounded bg-slate-100 text-slate-500 italic text-[11px] border border-slate-200">
-                                Not found in provided document
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 italic text-[11px] border border-slate-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                Not reported in document
                               </span>
                             ) : (
-                              <div className="space-y-1">
+                              <div className="space-y-1.5">
                                 <p className="text-slate-700 leading-relaxed">{item.finding}</p>
                                 {item.pageNumber && (
-                                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 font-medium">
+                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 font-semibold border border-brand-200">
                                     Page {item.pageNumber}
                                   </span>
                                 )}
@@ -266,7 +273,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                 {comparison.similarities.map((sim, i) => (
                   <div
                     key={i}
-                    className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-100 text-xs text-slate-800 flex items-start gap-3"
+                    className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-100 text-xs text-slate-800 flex items-start gap-3 shadow-2xs"
                   >
                     <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span className="leading-relaxed">{sim}</span>
@@ -290,7 +297,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                 {comparison.differences.map((diff, i) => (
                   <div
                     key={i}
-                    className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100 text-xs text-slate-800 flex items-start gap-3"
+                    className="p-4 rounded-xl bg-blue-50/60 border border-blue-100 text-xs text-slate-800 flex items-start gap-3 shadow-2xs"
                   >
                     <GitCompare className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                     <span className="leading-relaxed">{diff}</span>
@@ -307,11 +314,11 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               Primary Conclusions & Breakthrough Claims
             </h4>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {comparison.keyFindings.map((finding, i) => (
                 <div
                   key={i}
-                  className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 flex items-start gap-2.5"
+                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 flex items-start gap-3"
                 >
                   <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                   <span className="leading-relaxed">{finding}</span>
@@ -325,13 +332,13 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
         {activeTab === 'limitations' && (
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Authors' Stated Constraints & Future Research Directions
+              Authors&apos; Stated Constraints & Future Research Directions
             </h4>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {comparison.limitations.map((limit, i) => (
                 <div
                   key={i}
-                  className="p-3 rounded-lg bg-amber-50/50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5"
+                  className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 text-xs text-amber-900 flex items-start gap-3"
                 >
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span className="leading-relaxed">{limit}</span>
@@ -353,22 +360,22 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                 return (
                   <div
                     key={idx}
-                    className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-2 hover:border-slate-300 transition-all"
+                    className="p-3.5 rounded-xl bg-white border border-slate-200 text-xs space-y-2 hover:border-slate-300 transition-all shadow-2xs"
                   >
                     <div className="flex items-center justify-between text-[11px] font-semibold text-slate-800">
-                      <span className="truncate pr-2">{cite.documentName}</span>
+                      <span className="truncate pr-2 font-bold">{cite.documentName}</span>
                       <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-slate-600 shrink-0">
                         p. {cite.pageNumber}
                       </span>
                     </div>
 
-                    <p className={`text-slate-600 italic ${isExpanded ? '' : 'line-clamp-3'}`}>
-                      "{cite.excerpt}"
+                    <p className={`text-slate-600 italic leading-relaxed ${isExpanded ? '' : 'line-clamp-3'}`}>
+                      &quot;{cite.excerpt}&quot;
                     </p>
 
                     <button
                       onClick={() => setExpandedExcerpt(isExpanded ? null : idx)}
-                      className="text-[11px] text-brand-600 hover:text-brand-800 font-semibold inline-flex items-center gap-1"
+                      className="text-[11px] text-brand-600 hover:text-brand-800 font-semibold inline-flex items-center gap-1 cursor-pointer"
                     >
                       {isExpanded ? (
                         <>

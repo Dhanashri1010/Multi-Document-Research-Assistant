@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -9,13 +9,15 @@ import {
   AlertCircle,
   Loader2,
   FileText,
+  History,
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext.js';
 import { researchService } from '../services/researchService.js';
 import { documentService } from '../services/documentService.js';
-import { IChatMessage } from '../types/research.js';
+import { IChatMessage, IResearchSession } from '../types/research.js';
 import { DocumentSummary } from '../types/document.js';
 import { DocumentSelector } from '../components/chat/DocumentSelector.js';
+import { SessionHistoryDrawer } from '../components/chat/SessionHistoryDrawer.js';
 import { ChatMessage } from '../components/chat/ChatMessage.js';
 import { ChatInput } from '../components/chat/ChatInput.js';
 import { Button } from '../components/common/Button.js';
@@ -25,7 +27,7 @@ import { ErrorMessage } from '../components/common/ErrorMessage.js';
 import { LoadingState } from '../components/common/LoadingState.js';
 
 export const ResearchPage: React.FC = () => {
-  const { documents, selectedDocIds, toggleSelectDoc, selectAllDocs, clearSelectedDocs } =
+  const { documents, selectedDocIds, setSelectedDocIds, toggleSelectDoc, selectAllDocs, clearSelectedDocs } =
     useWorkspace();
   const navigate = useNavigate();
 
@@ -34,18 +36,43 @@ export const ResearchPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Clear session confirmation
+  // Research Sessions History Drawer state
+  const [sessions, setSessions] = useState<IResearchSession[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+
+  // Clear session confirmation modal
   const [showClearModal, setShowClearModal] = useState(false);
 
-  // Summary modal
+  // Summary modal state
   const [summaryData, setSummaryData] = useState<DocumentSummary | null>(null);
   const [summaryTitle, setSummaryTitle] = useState<string>('');
+  const [summaryDocId, setSummaryDocId] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [isRegeneratingSummary, setIsRegeneratingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasAutoSelectedRef = useRef(false);
 
-  // Auto-select all ready docs only once on first load
+  // Fetch all sessions on mount
+  const fetchSessions = useCallback(async () => {
+    try {
+      setLoadingSessions(true);
+      const list = await researchService.getSessions();
+      setSessions(list);
+    } catch (err) {
+      console.warn('[ResearchPage] Failed to fetch session history:', err);
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
+
+  // Auto-select all ready docs once on initial mount if none selected
   useEffect(() => {
     if (!hasAutoSelectedRef.current && documents.length > 0) {
       if (selectedDocIds.length === 0) {
@@ -58,11 +85,56 @@ export const ResearchPage: React.FC = () => {
     }
   }, [documents, selectedDocIds.length, selectAllDocs]);
 
-  // Scroll to bottom on new message
+  // Auto-scroll chat to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  // One-click Session Switching
+  const handleSelectSession = async (targetSessionId: string) => {
+    if (targetSessionId === sessionId) return;
+
+    try {
+      setIsLoading(true);
+      setApiError(null);
+      const { session, messages: loadedMessages } = await researchService.getSession(targetSessionId);
+
+      setSessionId(session._id);
+      setMessages(loadedMessages || []);
+
+      // Restore session's selected documents
+      if (session.selectedDocumentIds && session.selectedDocumentIds.length > 0) {
+        setSelectedDocIds(session.selectedDocumentIds);
+      }
+    } catch (err: any) {
+      setApiError(err.message || 'Failed to load research session.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Start fresh research session
+  const handleNewSession = () => {
+    setSessionId(undefined);
+    setMessages([]);
+    setApiError(null);
+  };
+
+  // Delete session handler
+  const handleDeleteSession = async (targetSessionId: string) => {
+    try {
+      await researchService.clearSession(targetSessionId);
+      await fetchSessions();
+      if (sessionId === targetSessionId) {
+        setSessionId(undefined);
+        setMessages([]);
+      }
+    } catch (err: any) {
+      setApiError(err.message || 'Failed to delete research session.');
+    }
+  };
+
+  // Send question via RAG streaming
   const handleAsk = async (question: string) => {
     if (!question.trim() || selectedDocIds.length === 0) return;
 
@@ -146,9 +218,11 @@ export const ResearchPage: React.FC = () => {
                 },
               ];
             });
+            // Refresh session list to include newly created or updated session
+            fetchSessions();
           },
           onError: async (streamErr) => {
-            console.warn('Streaming error, fallback to standard ask:', streamErr);
+            console.warn('Streaming error, falling back to standard ask:', streamErr);
             if (!streamStarted) {
               const res = await researchService.ask({
                 question,
@@ -169,6 +243,7 @@ export const ResearchPage: React.FC = () => {
                   createdAt: new Date().toISOString(),
                 },
               ]);
+              fetchSessions();
             } else {
               setApiError(streamErr.message || 'Stream error');
             }
@@ -182,16 +257,11 @@ export const ResearchPage: React.FC = () => {
     }
   };
 
-  const handleNewConversation = () => {
-    setSessionId(undefined);
-    setMessages([]);
-    setApiError(null);
-  };
-
   const handleClearConversation = async () => {
     if (sessionId) {
       try {
         await researchService.clearSession(sessionId);
+        await fetchSessions();
       } catch (err) {
         console.warn('Could not clear remote session:', err);
       }
@@ -201,31 +271,34 @@ export const ResearchPage: React.FC = () => {
     setShowClearModal(false);
   };
 
-  const handleQuickSummarize = async (docId: string) => {
+  // Summarize action without fabricated generic fallbacks
+  const handleQuickSummarize = async (docId: string, regenerate: boolean = false) => {
     const doc = documents.find((d) => d._id === docId);
     if (!doc) return;
+
     setSummaryTitle(doc.originalName);
-    setSummaryData(null);
-    setLoadingSummary(true);
+    setSummaryDocId(docId);
+    setSummaryError(null);
+
+    if (regenerate) {
+      setIsRegeneratingSummary(true);
+    } else {
+      setSummaryData(null);
+      setLoadingSummary(true);
+    }
 
     try {
-      const res = await documentService.summarize(docId);
+      const res = await documentService.summarize(docId, regenerate);
       setSummaryData(res);
     } catch (err: any) {
-      console.warn('Backend summary request fallback:', err);
-      setSummaryData({
-        summary: doc.abstract || `This document "${doc.originalName}" contains ${doc.pageCount} pages and ${doc.chunkCount} indexed passages covering core research concepts.`,
-        keyFindings: [
-          `Covers foundational principles and practical findings from ${doc.originalName}.`,
-          `Analyzes core patterns and data presented across ${doc.pageCount} pages.`,
-          `Provides actionable insights and conclusions for readers.`
-        ],
-        methodology: `Structured analysis of the document content across ${doc.pageCount} pages.`,
-        limitations: 'Full detailed breakdown is based on the indexed document text.',
-        citations: []
-      });
+      console.error('Summary synthesis failed:', err);
+      // DO NOT fabricate fake generic text. Present honest error and retry action.
+      setSummaryError(
+        err.message || 'Failed to synthesize summary. Please try again or re-index the document.'
+      );
     } finally {
       setLoadingSummary(false);
+      setIsRegeneratingSummary(false);
     }
   };
 
@@ -245,7 +318,19 @@ export const ResearchPage: React.FC = () => {
 
   return (
     <div className="flex h-full w-full overflow-hidden">
-      {/* Left Column: Target Document Selection Panel */}
+      {/* Column 1: Collapsible Session History Drawer */}
+      <SessionHistoryDrawer
+        sessions={sessions}
+        activeSessionId={sessionId}
+        isOpen={isHistoryOpen}
+        onToggle={() => setIsHistoryOpen((prev) => !prev)}
+        onSelectSession={handleSelectSession}
+        onNewSession={handleNewSession}
+        onDeleteSession={handleDeleteSession}
+        isLoading={loadingSessions}
+      />
+
+      {/* Column 2: Document Context Selector */}
       <div className="w-80 shrink-0 h-full">
         <DocumentSelector
           documents={documents}
@@ -253,22 +338,36 @@ export const ResearchPage: React.FC = () => {
           onToggleSelect={toggleSelectDoc}
           onSelectAll={() => selectAllDocs()}
           onClearAll={clearSelectedDocs}
-          onSummarize={handleQuickSummarize}
+          onSummarize={(id) => handleQuickSummarize(id)}
         />
       </div>
 
-      {/* Main Conversation & Research Panel */}
+      {/* Column 3: Central Research Conversation Panel */}
       <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
         {/* Workspace Action Toolbar */}
-        <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-brand-500" />
-            <h3 className="text-sm font-bold text-slate-800">
-              Active Session {sessionId ? `(#${sessionId.slice(-5)})` : ''}
-            </h3>
-            <span className="text-xs text-slate-400 font-mono">
-              ({selectedDocIds.length} paper{selectedDocIds.length > 1 ? 's' : ''} in context)
-            </span>
+        <div className="px-6 py-3.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsHistoryOpen((prev) => !prev)}
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+              title={isHistoryOpen ? 'Collapse sessions' : 'Open sessions history'}
+            >
+              <History className="w-4 h-4 text-brand-600" />
+            </button>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <h3 className="text-sm font-bold text-slate-900 leading-none">
+                  {sessionId
+                    ? sessions.find((s) => s._id === sessionId)?.title || `Session #${sessionId.slice(-5)}`
+                    : 'New Research Session'}
+                </h3>
+              </div>
+              <span className="text-[11px] text-slate-400 font-mono mt-0.5 block">
+                {selectedDocIds.length} paper{selectedDocIds.length === 1 ? '' : 's'} in active context
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -278,6 +377,7 @@ export const ResearchPage: React.FC = () => {
                 size="sm"
                 icon={<GitCompare className="w-3.5 h-3.5 text-blue-600" />}
                 onClick={handleOpenComparison}
+                title="Open structured cross-document comparison"
               >
                 Compare ({selectedDocIds.length})
               </Button>
@@ -289,6 +389,7 @@ export const ResearchPage: React.FC = () => {
                 size="sm"
                 icon={<FileSearch className="w-3.5 h-3.5 text-brand-600" />}
                 onClick={handleSummarizeSelected}
+                title="Summarize first selected document"
               >
                 Summarize
               </Button>
@@ -297,8 +398,9 @@ export const ResearchPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              icon={<PlusCircle className="w-3.5 h-3.5" />}
-              onClick={handleNewConversation}
+              icon={<PlusCircle className="w-3.5 h-3.5 text-brand-600" />}
+              onClick={handleNewSession}
+              title="Start a fresh question session"
             >
               New Chat
             </Button>
@@ -310,6 +412,7 @@ export const ResearchPage: React.FC = () => {
                 className="text-slate-400 hover:text-rose-600"
                 icon={<Trash2 className="w-3.5 h-3.5" />}
                 onClick={() => setShowClearModal(true)}
+                title="Clear current dialogue"
               >
                 Clear
               </Button>
@@ -352,7 +455,7 @@ export const ResearchPage: React.FC = () => {
                 <Sparkles className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-800 tracking-tight">
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight">
                   Multi-Document RAG Query
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
@@ -378,7 +481,7 @@ export const ResearchPage: React.FC = () => {
           {/* Error alert */}
           {apiError && (
             <div className="max-w-2xl mx-auto">
-              <ErrorMessage message={apiError} />
+              <ErrorMessage message={apiError} onRetry={() => setApiError(null)} />
             </div>
           )}
 
@@ -404,10 +507,10 @@ export const ResearchPage: React.FC = () => {
         maxWidth="sm"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-xs text-slate-600 leading-relaxed">
             Are you sure you want to clear this conversation history?
           </p>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setShowClearModal(false)}>
               Cancel
             </Button>
@@ -421,12 +524,40 @@ export const ResearchPage: React.FC = () => {
       {/* Document Summary Modal */}
       <Modal
         isOpen={!!summaryTitle}
-        onClose={() => setSummaryTitle('')}
-        title={summaryTitle}
+        onClose={() => {
+          setSummaryTitle('');
+          setSummaryDocId(null);
+          setSummaryError(null);
+        }}
+        title={`Summary: ${summaryTitle}`}
         maxWidth="xl"
       >
-        {loadingSummary && <LoadingState message="Extracting and synthesizing document..." />}
-        {summaryData && <SummaryPanel summaryData={summaryData} documentTitle={summaryTitle} />}
+        {loadingSummary && <LoadingState message="Synthesizing structured document summary..." />}
+
+        {summaryError && (
+          <div className="p-4 space-y-3">
+            <ErrorMessage message={summaryError} />
+            <div className="flex justify-end">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => summaryDocId && handleQuickSummarize(summaryDocId, true)}
+                isLoading={isRegeneratingSummary}
+              >
+                Retry Synthesis
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {summaryData && !loadingSummary && (
+          <SummaryPanel
+            summaryData={summaryData}
+            documentTitle={summaryTitle}
+            onRegenerate={() => summaryDocId && handleQuickSummarize(summaryDocId, true)}
+            isRegenerating={isRegeneratingSummary}
+          />
+        )}
       </Modal>
     </div>
   );

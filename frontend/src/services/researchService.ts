@@ -106,14 +106,28 @@ export const researchService = {
     const response = await apiClient.get<{ success: boolean; sessions: IResearchSession[] }>(
       '/chat/sessions'
     );
-    return response.data.sessions;
+    return response.data.sessions || [];
+  },
+
+  async getSession(sessionId: string): Promise<{ session: IResearchSession; messages: IChatMessage[] }> {
+    const response = await apiClient.get<{
+      success: boolean;
+      session: IResearchSession;
+      messages: IChatMessage[];
+    }>(`/chat/sessions/${sessionId}`);
+    return {
+      session: response.data.session,
+      messages: response.data.messages || [],
+    };
   },
 
   async getSessionMessages(sessionId: string): Promise<IChatMessage[]> {
-    const response = await apiClient.get<{ success: boolean; messages: IChatMessage[] }>(
-      `/chat/sessions/${sessionId}`
-    );
-    return response.data.messages;
+    const response = await apiClient.get<{
+      success: boolean;
+      session?: IResearchSession;
+      messages: IChatMessage[];
+    }>(`/chat/sessions/${sessionId}`);
+    return response.data.messages || [];
   },
 
   async clearSession(sessionId: string): Promise<void> {

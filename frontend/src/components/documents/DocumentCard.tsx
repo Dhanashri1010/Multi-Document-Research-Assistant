@@ -47,6 +47,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onUpdateCollection,
 }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showReprocessModal, setShowReprocessModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -150,6 +151,14 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                   <AlertCircle className="w-4 h-4" />
                 </button>
               )}
+
+              <button
+                onClick={() => setShowReprocessModal(true)}
+                title="Reprocess & re-index document"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
+              </button>
 
               <button
                 onClick={handleDownload}
@@ -365,6 +374,51 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               icon={<Trash2 className="w-3.5 h-3.5" />}
             >
               Confirm Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Reprocess Confirmation Modal */}
+      <Modal
+        isOpen={showReprocessModal}
+        onClose={() => setShowReprocessModal(false)}
+        title="Reprocess & Re-Index Confirmation"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Are you sure you want to re-index{' '}
+            <strong className="text-slate-900 font-semibold">{document.originalName}</strong>?
+          </p>
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs space-y-1">
+            <p className="font-bold">What will happen:</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>Document text will be extracted and re-chunked with latest settings</li>
+              <li>Dense vector embeddings will be refreshed</li>
+              <li>Existing working chunks and summary are safely preserved if reprocessing fails</li>
+            </ul>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowReprocessModal(false)}
+              disabled={isRetrying}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={async () => {
+                setShowReprocessModal(false);
+                await handleReprocess();
+              }}
+              isLoading={isRetrying}
+              icon={<RefreshCw className="w-3.5 h-3.5" />}
+            >
+              Confirm Reprocess
             </Button>
           </div>
         </div>
