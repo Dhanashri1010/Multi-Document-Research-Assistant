@@ -60,6 +60,15 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Word document chunks preview state
+  const [documentChunks, setDocumentChunks] = useState<any[]>([]);
+  const [loadingChunks, setLoadingChunks] = useState(false);
+
+  const ext = doc ? (doc.originalName.toLowerCase().split('.').pop() || '').trim() : '';
+  const isWordDoc = Boolean(
+    doc && (doc.fileType === 'docx' || doc.fileType === 'doc' || ext === 'docx' || ext === 'doc')
+  );
+
   const loadSummary = useCallback(
     async (regenerate: boolean = false) => {
       if (!doc) return;
@@ -92,15 +101,28 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
 
       // Load summary
       loadSummary(false);
+
+      // If Word document, load chunks for in-app preview
+      if (isWordDoc) {
+        setLoadingChunks(true);
+        documentService
+          .getChunks(doc._id)
+          .then((chunks) => setDocumentChunks(chunks))
+          .catch((err) => console.warn('Failed to load document chunks for preview:', err))
+          .finally(() => setLoadingChunks(false));
+      } else {
+        setDocumentChunks([]);
+      }
     } else {
       setSummaryData(null);
       setSummaryError(null);
+      setDocumentChunks([]);
     }
-  }, [isOpen, doc, initialTab, initialPage, loadSummary]);
+  }, [isOpen, doc, initialTab, initialPage, isWordDoc, loadSummary]);
 
   if (!isOpen || !doc) return null;
 
-  const docTitle = doc.title || doc.originalName.replace(/\.pdf$/i, '');
+  const docTitle = doc.title || doc.originalName.replace(/\.(pdf|docx|doc|txt)$/i, '');
   const formattedSize = (doc.fileSize / (1024 * 1024)).toFixed(2) + ' MB';
   const formattedDate = new Date(doc.createdAt).toLocaleDateString(undefined, {
     year: 'numeric',
@@ -181,7 +203,9 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
               <ProcessingStatusBadge status={doc.status} />
 
               <span className="text-xs text-slate-500 font-medium">
-                {doc.pageCount > 0 ? `${doc.pageCount} pages` : '1 page'} · {formattedSize}
+                {isWordDoc
+                  ? `${documentChunks.length > 0 ? documentChunks.length : (doc.chunkCount || 1)} sections · ${formattedSize}`
+                  : `${doc.pageCount > 0 ? `${doc.pageCount} pages` : '1 page'} · ${formattedSize}`}
               </span>
             </div>
 
@@ -252,7 +276,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
               }`}
             >
               <BookOpen className="w-4 h-4" />
-              <span>Original Document Preview</span>
+              <span>{isWordDoc ? 'Word Document Sections' : 'Original PDF Preview'}</span>
             </button>
 
             <button
@@ -311,57 +335,68 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
           )}
 
           {activeTab === 'pdf' && (
-            <div className="flex items-center gap-2 py-2">
-              <div className="flex items-center bg-slate-100 rounded-lg p-0.5 text-xs border border-slate-200">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage <= 1}
-                  className="p-1 text-slate-600 hover:text-slate-900 disabled:opacity-30 rounded hover:bg-white"
-                  title="Previous page"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-                <span className="px-2 font-mono text-slate-700">
-                  Page {currentPage} / {doc.pageCount || 1}
+            isWordDoc ? (
+              <div className="flex items-center gap-2 py-2">
+                <span className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 uppercase">
+                  {ext} Document
                 </span>
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(doc.pageCount || 1000, p + 1))}
-                  disabled={doc.pageCount > 0 && currentPage >= doc.pageCount}
-                  className="p-1 text-slate-600 hover:text-slate-900 disabled:opacity-30 rounded hover:bg-white"
-                  title="Next page"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                <span className="text-xs text-slate-500 font-medium">
+                  {documentChunks.length > 0 ? `${documentChunks.length} sections indexed` : 'Structured view'}
+                </span>
               </div>
+            ) : (
+              <div className="flex items-center gap-2 py-2">
+                <div className="flex items-center bg-slate-100 rounded-lg p-0.5 text-xs border border-slate-200">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="p-1 text-slate-600 hover:text-slate-900 disabled:opacity-30 rounded hover:bg-white"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="px-2 font-mono text-slate-700">
+                    Page {currentPage} / {doc.pageCount || 1}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(doc.pageCount || 1000, p + 1))}
+                    disabled={doc.pageCount > 0 && currentPage >= doc.pageCount}
+                    className="p-1 text-slate-600 hover:text-slate-900 disabled:opacity-30 rounded hover:bg-white"
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-              <div className="hidden sm:flex items-center bg-slate-100 rounded-lg p-0.5 text-xs border border-slate-200">
-                <button
-                  onClick={() => setZoomLevel((z) => Math.max(50, z - 15))}
-                  className="p-1 text-slate-600 hover:text-slate-900 rounded hover:bg-white"
-                  title="Zoom out"
+                <div className="hidden sm:flex items-center bg-slate-100 rounded-lg p-0.5 text-xs border border-slate-200">
+                  <button
+                    onClick={() => setZoomLevel((z) => Math.max(50, z - 15))}
+                    className="p-1 text-slate-600 hover:text-slate-900 rounded hover:bg-white"
+                    title="Zoom out"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="px-2 font-mono text-slate-700">{zoomLevel}%</span>
+                  <button
+                    onClick={() => setZoomLevel((z) => Math.min(200, z + 15))}
+                    className="p-1 text-slate-600 hover:text-slate-900 rounded hover:bg-white"
+                    title="Zoom in"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <a
+                  href={pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
+                  title="Open PDF in new tab"
                 >
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </button>
-                <span className="px-2 font-mono text-slate-700">{zoomLevel}%</span>
-                <button
-                  onClick={() => setZoomLevel((z) => Math.min(200, z + 15))}
-                  className="p-1 text-slate-600 hover:text-slate-900 rounded hover:bg-white"
-                  title="Zoom in"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </button>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
-
-              <a
-                href={pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
-                title="Open PDF in new tab"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
+            )
           )}
         </div>
 
@@ -603,14 +638,22 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                         {summaryData.citations.map((c, idx) => (
                           <div
                             key={idx}
-                            onClick={() => handleJumpToPage(c.pageNumber)}
+                            onClick={() => {
+                              if (isWordDoc) {
+                                setActiveTab('pdf');
+                              } else if (c.pageNumber) {
+                                handleJumpToPage(c.pageNumber);
+                              }
+                            }}
                             className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-slate-700 space-y-1 cursor-pointer transition-colors"
-                            title={`Jump to Page ${c.pageNumber}`}
+                            title={c.pageNumber ? `Jump to Page ${c.pageNumber}` : 'View section in document'}
                           >
                             <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
                               <span className="truncate">{c.documentName}</span>
                               <span className="px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-mono text-[10px] border border-brand-200">
-                                Page {c.pageNumber}
+                                {c.pageNumber
+                                  ? `Page ${c.pageNumber}`
+                                  : c.heading || c.section || 'Passage'}
                               </span>
                             </div>
                             <p className="text-slate-500 italic line-clamp-2">"{c.excerpt}"</p>
@@ -626,23 +669,79 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
 
           {/* TAB 2: ORIGINAL DOCUMENT PREVIEW */}
           {activeTab === 'pdf' && (
-            <div className="h-full flex flex-col bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-              <div
-                className="flex-1 w-full relative"
-                style={{
-                  transform: `scale(${zoomLevel / 100})`,
-                  transformOrigin: 'top center',
-                  transition: 'transform 0.15s ease',
-                }}
-              >
-                <iframe
-                  src={pdfUrl}
-                  title={doc.originalName}
-                  className="w-full h-full border-0 min-h-[68vh]"
-                  allow="fullscreen"
-                />
+            isWordDoc ? (
+              <div className="h-full flex flex-col bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
+                <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 text-xs font-mono font-bold rounded bg-blue-100 text-blue-800 border border-blue-200 uppercase">
+                      {ext}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-800 truncate">
+                      {doc.originalName} — Formatted Content View
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadOriginal}
+                    icon={<Download className="w-3.5 h-3.5" />}
+                  >
+                    Download Original .{ext}
+                  </Button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {loadingChunks ? (
+                    <div className="py-12 flex justify-center">
+                      <LoadingState message="Loading document sections..." />
+                    </div>
+                  ) : documentChunks.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500 text-xs">
+                      No parsed sections available for preview.
+                    </div>
+                  ) : (
+                    documentChunks.map((chunk, cIdx) => (
+                      <div
+                        key={cIdx}
+                        id={`chunk-${chunk.chunkIndex}`}
+                        className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2 hover:border-slate-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-brand-700 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-brand-500"></span>
+                            {chunk.heading || chunk.section || 'Content'}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                            {chunk.paragraphNumber ? `Para ${chunk.paragraphNumber}` : `Section ${chunk.chunkIndex}`}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-sans">
+                          {chunk.text}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="h-full flex flex-col bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+                <div
+                  className="flex-1 w-full relative"
+                  style={{
+                    transform: `scale(${zoomLevel / 100})`,
+                    transformOrigin: 'top center',
+                    transition: 'transform 0.15s ease',
+                  }}
+                >
+                  <iframe
+                    src={pdfUrl}
+                    title={doc.originalName}
+                    className="w-full h-full border-0 min-h-[68vh]"
+                    allow="fullscreen"
+                  />
+                </div>
+              </div>
+            )
           )}
 
           {/* TAB 3: DOCUMENT METADATA */}
@@ -682,9 +781,13 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   </div>
 
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block mb-0.5">Page Count</span>
+                    <span className="text-slate-400 block mb-0.5">
+                      {isWordDoc ? 'Sections / Chunks' : 'Page Count'}
+                    </span>
                     <span className="font-semibold text-slate-800">
-                      {doc.pageCount > 0 ? `${doc.pageCount} pages` : '1 page'}
+                      {isWordDoc
+                        ? `${documentChunks.length > 0 ? documentChunks.length : (doc.chunkCount || 1)} sections`
+                        : (doc.pageCount > 0 ? `${doc.pageCount} pages` : '1 page')}
                     </span>
                   </div>
 

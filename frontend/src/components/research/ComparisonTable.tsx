@@ -31,7 +31,8 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
     md += `**Generated**: ${new Date().toLocaleString()}\n`;
     md += `**Documents Compared (${comparison.documents.length})**:\n`;
     comparison.documents.forEach((d) => {
-      md += `- **${d.name}** (${d.pageCount} pages)\n`;
+      const pageInfo = d.pageCount && d.pageCount > 0 ? `${d.pageCount} pages` : 'Word document';
+      md += `- **${d.name}** (${pageInfo})\n`;
     });
     md += `\n---\n\n`;
 
@@ -47,7 +48,11 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
       const row = comparison.documents.map((doc) => {
         const item = dim.values.find((v) => v.documentId === doc.id || v.documentName === doc.name);
         const findingText = item?.finding || 'Not reported in the provided document';
-        const pageRef = item?.pageNumber ? ` *(p. ${item.pageNumber})*` : '';
+        const pageRef = item?.pageNumber
+          ? ` *(p. ${item.pageNumber})*`
+          : item?.heading || item?.section
+          ? ` *(${item.heading || item.section})*`
+          : '';
         return `${findingText.replace(/\|/g, '\\|')}${pageRef}`;
       });
       md += `| **${dim.dimension}** | ${row.join(' | ')} |\n`;
@@ -81,7 +86,10 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
     if (comparison.citations && comparison.citations.length > 0) {
       md += `## 6. Citations & Grounded Evidence\n\n`;
       comparison.citations.forEach((c, idx) => {
-        md += `${idx + 1}. **${c.documentName}** (Page ${c.pageNumber}): "${c.excerpt}"\n`;
+        const loc = c.pageNumber
+          ? `Page ${c.pageNumber}`
+          : `Section: ${c.heading || c.section || 'Content'}${c.paragraphNumber ? `, Para ${c.paragraphNumber}` : ''}`;
+        md += `${idx + 1}. **${c.documentName}** (${loc}): "${c.excerpt}"\n`;
       });
     }
 
@@ -197,7 +205,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                         {doc.name}
                       </div>
                       <span className="text-[10px] text-slate-400 font-normal lowercase">
-                        {doc.pageCount} pages
+                        {doc.pageCount && doc.pageCount > 0 ? `${doc.pageCount} pages` : 'Word document'}
                       </span>
                     </th>
                   ))}
@@ -242,11 +250,15 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                             ) : (
                               <div className="space-y-1.5">
                                 <p className="text-slate-700 leading-relaxed">{item.finding}</p>
-                                {item.pageNumber && (
+                                {item.pageNumber ? (
                                   <span className="inline-block text-[10px] px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 font-semibold border border-brand-200">
                                     Page {item.pageNumber}
                                   </span>
-                                )}
+                                ) : (item?.heading || item?.section) ? (
+                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-200">
+                                    {item.heading || item.section}
+                                  </span>
+                                ) : null}
                               </div>
                             )}
                           </td>
@@ -365,7 +377,9 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
                     <div className="flex items-center justify-between text-[11px] font-semibold text-slate-800">
                       <span className="truncate pr-2 font-bold">{cite.documentName}</span>
                       <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-slate-600 shrink-0">
-                        p. {cite.pageNumber}
+                        {cite.pageNumber
+                          ? `p. ${cite.pageNumber}`
+                          : cite.heading || cite.section || 'section'}
                       </span>
                     </div>
 

@@ -65,7 +65,11 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[11px]">
-                      p. {cite.pageNumber}
+                      {cite.pageNumber
+                        ? `p. ${cite.pageNumber}`
+                        : cite.paragraphNumber
+                        ? `para ${cite.paragraphNumber}`
+                        : cite.heading || cite.section || 'section'}
                     </span>
                     {cite.verified !== false ? (
                       <span
@@ -98,21 +102,31 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
                       "{cite.excerpt}"
                     </div>
                     {cite.documentId && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActivePdf({
-                            docId: cite.documentId,
-                            docName: cite.documentName,
-                            page: cite.pageNumber,
-                          });
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium text-xs border border-brand-200/80 transition-colors"
-                      >
-                        <BookOpen className="w-3.5 h-3.5 text-brand-600" />
-                        <span>Open in PDF Viewer at Page {cite.pageNumber}</span>
-                      </button>
+                      cite.pageNumber ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActivePdf({
+                              docId: cite.documentId,
+                              docName: cite.documentName,
+                              page: cite.pageNumber || 1,
+                            });
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium text-xs border border-brand-200/80 transition-colors"
+                        >
+                          <BookOpen className="w-3.5 h-3.5 text-brand-600" />
+                          <span>Open in PDF Viewer at Page {cite.pageNumber}</span>
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-50 text-blue-700 font-medium text-xs border border-blue-200/80">
+                          <FileText className="w-3.5 h-3.5 text-blue-600" />
+                          <span>
+                            Word Document · {cite.heading || cite.section || 'Content'}
+                            {cite.paragraphNumber ? ` (Para ${cite.paragraphNumber})` : ''}
+                          </span>
+                        </span>
+                      )
                     )}
                   </div>
                 )}

@@ -1,9 +1,13 @@
 export interface ICitation {
   documentId: string;
   documentName: string;
-  pageNumber: number;
+  pageNumber?: number;
   pageStart?: number;
   pageEnd?: number;
+  heading?: string;
+  section?: string;
+  paragraphNumber?: number;
+  fileType?: string;
   excerpt: string;
   score?: number;
   verified?: boolean;
@@ -37,6 +41,9 @@ export interface ComparisonDimension {
     documentName: string;
     finding: string;
     pageNumber?: number;
+    heading?: string;
+    section?: string;
+    paragraphNumber?: number;
   }[];
 }
 

@@ -64,7 +64,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
   const formattedSize = (document.fileSize / (1024 * 1024)).toFixed(2) + ' MB';
   const fileExt = document.originalName.split('.').pop()?.toUpperCase() || 'PDF';
-  const docTitle = document.title || document.originalName.replace(/\.pdf$/i, '');
+  const isWord = document.fileType === 'docx' || document.fileType === 'doc' || fileExt === 'DOCX' || fileExt === 'DOC';
+  const docTitle = document.title || document.originalName.replace(/\.(pdf|docx|doc|txt)$/i, '');
 
   const getCategoryIcon = (cat?: string) => {
     switch (cat) {
@@ -203,7 +204,13 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               {document.category || 'General Document'}
             </span>
 
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-slate-50 text-slate-600 border border-slate-200">
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold border ${
+                isWord
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-red-50 text-red-700 border-red-200'
+              }`}
+            >
               {fileExt}
             </span>
 
@@ -258,12 +265,21 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
           {/* User-friendly metadata chips (No chunk IDs, vector IDs, or internal dims!) */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mb-4 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-            <div>
-              <span className="text-slate-400">Pages: </span>
-              <span className="font-semibold text-slate-700">
-                {document.pageCount > 0 ? document.pageCount : '1'}
-              </span>
-            </div>
+            {isWord ? (
+              <div>
+                <span className="text-slate-400">Sections: </span>
+                <span className="font-semibold text-slate-700">
+                  {document.chunkCount > 0 ? document.chunkCount : '—'}
+                </span>
+              </div>
+            ) : (
+              <div>
+                <span className="text-slate-400">Pages: </span>
+                <span className="font-semibold text-slate-700">
+                  {document.pageCount > 0 ? document.pageCount : '1'}
+                </span>
+              </div>
+            )}
             <span className="text-slate-300">•</span>
             <div>
               <span className="text-slate-400">Size: </span>

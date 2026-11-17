@@ -3,7 +3,11 @@ import mongoose, { Schema, Document as MongooseDoc, Types } from 'mongoose';
 export interface ICitation {
   documentId: Types.ObjectId;
   documentName: string;
-  pageNumber: number;
+  pageNumber?: number;
+  heading?: string;
+  section?: string;
+  paragraphNumber?: number;
+  fileType?: string;
   excerpt: string;
   score?: number;
   verified?: boolean;
@@ -25,7 +29,11 @@ const CitationSchema = new Schema<ICitation>(
   {
     documentId: { type: Schema.Types.ObjectId, ref: 'Document', required: true },
     documentName: { type: String, required: true },
-    pageNumber: { type: Number, required: true },
+    pageNumber: { type: Number, required: false },
+    heading: { type: String },
+    section: { type: String },
+    paragraphNumber: { type: Number },
+    fileType: { type: String },
     excerpt: { type: String, required: true },
     score: { type: Number },
     verified: { type: Boolean, default: true },

@@ -13,6 +13,9 @@ export interface ComparisonDimension {
     documentName: string;
     finding: string;
     pageNumber?: number;
+    heading?: string;
+    section?: string;
+    paragraphNumber?: number;
   }[];
 }
 
@@ -48,7 +51,17 @@ function cleanAndSimplifyText(raw: string): string {
 
 function buildFallbackMatrix(
   dimensions: string[],
-  docData: { id: string; name: string; excerpts: { text: string; pageNumber: number }[] }[]
+  docData: {
+    id: string;
+    name: string;
+    excerpts: {
+      text: string;
+      pageNumber?: number;
+      heading?: string;
+      section?: string;
+      paragraphNumber?: number;
+    }[];
+  }[]
 ): ComparisonDimension[] {
   return dimensions.map((dim, dimIdx) => ({
     dimension: dim,
@@ -64,6 +77,9 @@ function buildFallbackMatrix(
             ? preview.slice(0, 217) + '...'
             : preview || 'Not reported in the sampled passages.',
         pageNumber: chosen?.pageNumber,
+        heading: chosen?.heading,
+        section: chosen?.section,
+        paragraphNumber: chosen?.paragraphNumber,
       };
     }),
   }));
@@ -138,7 +154,13 @@ export class ComparisonService {
       id: string;
       name: string;
       pageCount: number;
-      excerpts: { text: string; pageNumber: number }[];
+      excerpts: {
+        text: string;
+        pageNumber?: number;
+        heading?: string;
+        section?: string;
+        paragraphNumber?: number;
+      }[];
     }[] = [];
 
     const allCitations: ICitation[] = [];
@@ -157,14 +179,24 @@ export class ComparisonService {
             ...chunks.slice(-2),
           ];
 
-      const excerpts = sample.map((s) => {
+      const excerpts = sample.map((s: any) => {
         allCitations.push({
           documentId: doc._id,
           documentName: doc.originalName,
           pageNumber: s.pageNumber,
+          heading: s.heading,
+          section: s.section,
+          paragraphNumber: s.paragraphNumber,
+          fileType: s.fileType,
           excerpt: s.text.length > 250 ? s.text.slice(0, 250) + '...' : s.text,
         });
-        return { text: s.text, pageNumber: s.pageNumber };
+        return {
+          text: s.text,
+          pageNumber: s.pageNumber,
+          heading: s.heading,
+          section: s.section,
+          paragraphNumber: s.paragraphNumber,
+        };
       });
 
       docData.push({
@@ -179,7 +211,12 @@ export class ComparisonService {
     const docsContext = docData
       .map((d) => {
         const textSample = d.excerpts
-          .map((e) => `[p. ${e.pageNumber}] ${e.text}`)
+          .map((e) => {
+            const loc = e.pageNumber
+              ? `p. ${e.pageNumber}`
+              : `Section: ${e.heading || e.section || 'Content'}${e.paragraphNumber ? `, Para ${e.paragraphNumber}` : ''}`;
+            return `[${loc}] ${e.text}`;
+          })
           .join('\n\n');
         return `=== DOCUMENT: "${d.name}" (ID: ${d.id}) ===\n${textSample}`;
       })
@@ -275,7 +312,12 @@ Generate the JSON comparison now.`;
 
       const fallbackMatrix = buildFallbackMatrix(standardDimensions, docData);
       const fallbackFindings = docData.flatMap((d) =>
-        d.excerpts.slice(0, 2).map((e) => `[${d.name}, p.${e.pageNumber}] ${cleanAndSimplifyText(e.text).slice(0, 150)}...`)
+        d.excerpts.slice(0, 2).map((e) => {
+          const loc = e.pageNumber
+            ? `p.${e.pageNumber}`
+            : `Section: ${e.heading || e.section || 'Content'}`;
+          return `[${d.name}, ${loc}] ${cleanAndSimplifyText(e.text).slice(0, 150)}...`;
+        })
       );
 
       console.error('[ComparisonService] LLM comparison failed or exhausted budget:', lastError);

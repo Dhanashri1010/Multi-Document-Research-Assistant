@@ -4,8 +4,8 @@ import mongoose, { Types } from 'mongoose';
 import { DocumentModel } from '../../models/Document.js';
 import { DocumentChunkModel } from '../../models/DocumentChunk.js';
 import { ResearchSessionModel } from '../../models/ResearchSession.js';
-import { extractPdf, extractTxt } from './extractor.js';
-import { chunkPages, estimateTokenCount } from './chunker.js';
+import { extractPdf, extractTxt, extractDocx, extractDoc } from './extractor.js';
+import { chunkPages, chunkWordDocument, estimateTokenCount } from './chunker.js';
 import { getEmbeddingProvider } from '../ai/embeddingService.js';
 import { invalidateVectorCache } from '../ai/vectorStore.js';
 import { detectDocumentCategory } from '../ai/documentSummaryService.js';
@@ -95,23 +95,34 @@ export class IngestionService {
 
       console.log(`[Ingestion] Starting ingestion for: "${doc.originalName}" (${doc._id}) [reprocessing=${isReprocessing}]`);
 
-      // 1. Text Extraction (Route by extension / mime type)
+      // 1. Text Extraction (Route by format: DOCX, DOC, TXT, PDF)
       const ext = path.extname(doc.filePath).toLowerCase();
+      const isDocx = ext === '.docx' || doc.fileType === 'docx';
+      const isDoc = ext === '.doc' || doc.fileType === 'doc';
+      const isWordDoc = isDocx || isDoc;
       const isTxt = ext === '.txt' || doc.mimeType === 'text/plain';
 
-      const extraction = isTxt
+      const extraction = isDocx
+        ? await extractDocx(doc.filePath)
+        : isDoc
+        ? await extractDoc(doc.filePath)
+        : isTxt
         ? await extractTxt(doc.filePath)
         : await extractPdf(doc.filePath);
 
-      if (!extraction.pages || extraction.pages.length === 0 || !extraction.fullText.trim()) {
+      const hasReadableText = isWordDoc
+        ? Boolean(extraction.blocks && extraction.blocks.length > 0 && extraction.fullText.trim().length > 0)
+        : Boolean(extraction.pages && extraction.pages.length > 0 && extraction.fullText.trim().length > 0);
+
+      if (!hasReadableText) {
         throw new Error(
-          'No readable text could be extracted from this document. It may be a scanned image or protected PDF.'
+          'No readable text could be extracted from this document. It may be a scanned image or protected file.'
         );
       }
 
-      console.log(`[Ingestion] Extracted ${extraction.totalPages} pages from "${doc.originalName}"`);
+      console.log(`[Ingestion] Extracted ${isWordDoc ? `${extraction.blocks?.length || 0} blocks` : `${extraction.totalPages} pages`} from "${doc.originalName}"`);
 
-      // Attach page 1 metadata if extracted
+      // Attach page 1 / front matter metadata if extracted
       if (extraction.metadata?.title) {
         doc.title = extraction.metadata.title;
       }
@@ -126,21 +137,33 @@ export class IngestionService {
       }
 
       // Detect document category
+      const sampleText = isWordDoc && extraction.blocks
+        ? extraction.blocks.slice(0, 3).map((b) => b.text).join(' ')
+        : (extraction.pages || []).slice(0, 3).map((p) => p.text).join(' ');
+
       const detectedCategory = detectDocumentCategory(
-        extraction.pages.slice(0, 3).map((p) => p.text).join(' '),
+        sampleText,
         doc.title || doc.originalName,
         doc.abstract
       );
       doc.category = detectedCategory;
 
-      // 2. Cross-page Chunking with section detection
+      // 2. Chunking with format adaptation
       const embeddingProvider = getEmbeddingProvider();
-      const rawChunks = chunkPages(extraction.pages, {
-        targetTokens: config.chunkTargetTokens,
-        overlapTokens: config.chunkOverlapTokens,
-        tokenCounter: estimateTokenCount,
-        docTitle: doc.title || doc.originalName,
-      });
+      const rawChunks = isWordDoc && extraction.blocks
+        ? chunkWordDocument(extraction.blocks, {
+            targetTokens: config.chunkTargetTokens,
+            overlapTokens: config.chunkOverlapTokens,
+            tokenCounter: estimateTokenCount,
+            docTitle: doc.title || doc.originalName,
+            format: isDocx ? 'docx' : 'doc',
+          })
+        : chunkPages(extraction.pages, {
+            targetTokens: config.chunkTargetTokens,
+            overlapTokens: config.chunkOverlapTokens,
+            tokenCounter: estimateTokenCount,
+            docTitle: doc.title || doc.originalName,
+          });
 
       if (rawChunks.length === 0) {
         throw new Error('Document contained text but generated zero chunks after filtering.');
@@ -148,7 +171,7 @@ export class IngestionService {
 
       // Add dedicated Front-Matter chunk (title, authors, affiliations, year, abstract) at chunkIndex 0
       const frontMatterParts: string[] = [];
-      const paperTitle = doc.title || extraction.metadata?.title || doc.originalName.replace(/\.pdf$/i, '');
+      const paperTitle = doc.title || extraction.metadata?.title || doc.originalName.replace(/\.(pdf|docx|doc|txt)$/i, '');
       frontMatterParts.push(`Paper Title: ${paperTitle}`);
       if (doc.authors && doc.authors.length > 0) {
         frontMatterParts.push(`Authors: ${doc.authors.join(', ')}`);
@@ -167,13 +190,21 @@ export class IngestionService {
       }
 
       const frontMatterText = frontMatterParts.join('\n\n').trim();
+      const detectedFileType = isWordDoc ? (isDocx ? 'docx' : 'doc') : (isTxt ? 'txt' : 'pdf');
+
       const frontMatterChunk = {
         chunkIndex: 0,
         text: frontMatterText,
-        embeddingText: `Document: ${paperTitle} | Section: Front Matter, Authors & Abstract\n${frontMatterText}`,
-        section: 'Front Matter, Authors & Abstract',
-        pageStart: 1,
-        pageEnd: 1,
+        embeddingText: `Document: ${paperTitle} | Section: Front Matter, Overview\n${frontMatterText}`,
+        section: 'Front Matter, Overview',
+        heading: 'Overview',
+        paragraphNumber: 1,
+        paragraphStart: 1,
+        paragraphEnd: 1,
+        fileType: detectedFileType,
+        pageNumber: isWordDoc ? undefined : 1,
+        pageStart: isWordDoc ? undefined : 1,
+        pageEnd: isWordDoc ? undefined : 1,
         tokenCount: estimateTokenCount(frontMatterText),
       };
 
@@ -212,15 +243,20 @@ export class IngestionService {
       }
 
       // 4. Batch Prepare Chunk Documents
-      const chunkDocs = chunks.map((c, index) => ({
+      const chunkDocs = chunks.map((c: any, index) => ({
         documentId: doc._id,
         chunkIndex: c.chunkIndex,
         text: c.text,
         embeddingText: c.embeddingText,
         section: c.section || 'Content',
-        pageNumber: c.pageStart,
-        pageStart: c.pageStart,
-        pageEnd: c.pageEnd,
+        heading: c.heading,
+        paragraphNumber: c.paragraphNumber,
+        paragraphStart: c.paragraphStart,
+        paragraphEnd: c.paragraphEnd,
+        fileType: c.fileType || detectedFileType,
+        pageNumber: isWordDoc ? undefined : (c.pageStart || c.pageNumber || 1),
+        pageStart: isWordDoc ? undefined : (c.pageStart || 1),
+        pageEnd: isWordDoc ? undefined : (c.pageEnd || 1),
         tokenCount: c.tokenCount,
         embedding: embeddings[index],
         embeddingModel: modelName,
@@ -252,7 +288,8 @@ export class IngestionService {
           stagedChunkIds = inserted.map((c) => c._id);
 
           doc.status = 'ready';
-          doc.pageCount = extraction.totalPages;
+          doc.fileType = detectedFileType;
+          doc.pageCount = isWordDoc ? 0 : extraction.totalPages;
           doc.chunkCount = chunks.length;
           doc.embeddingModel = modelName;
           doc.embeddingDim = dim;
@@ -285,7 +322,8 @@ export class IngestionService {
 
         // 3. Commit ready status and update metadata
         doc.status = 'ready';
-        doc.pageCount = extraction.totalPages;
+        doc.fileType = detectedFileType;
+        doc.pageCount = isWordDoc ? 0 : extraction.totalPages;
         doc.chunkCount = chunks.length;
         doc.embeddingModel = modelName;
         doc.embeddingDim = dim;

@@ -39,7 +39,7 @@ async function runBenchmark() {
   const t6 = performance.now();
   const _docEmbeddings = await embedder.embedDocuments(samplePassages);
   const t7 = performance.now();
-  console.log(`- Batch embed 3 passages: ${(t7 - t6).toFixed(2)} ms (avg ${( (t7 - t6) / 3 ).toFixed(2)} ms/passage)`);
+  console.log(`- Batch embed 3 passages: ${(t7 - t6).toFixed(2)} ms (avg ${((t7 - t6) / 3).toFixed(2)} ms/passage)`);
 
   // 3. Vector Retrieval & RRF Hybrid Search Latency
   console.log('\n[3] Retrieval Latency (Dense Vector + BM25 Lexical + RRF)');

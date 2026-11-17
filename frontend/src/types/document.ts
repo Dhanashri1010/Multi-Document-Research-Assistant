@@ -1,4 +1,5 @@
 export type DocumentStatus = 'uploaded' | 'processing' | 'ready' | 'failed';
+export type DocumentFileType = 'pdf' | 'docx' | 'doc' | 'txt';
 
 export type DocumentCategory =
   | 'Research Paper'
@@ -13,6 +14,8 @@ export type DocumentCategory =
 export interface FindingWithPage {
   finding: string;
   pageNumber?: number;
+  heading?: string;
+  paragraphNumber?: number;
 }
 
 export interface MetricWithPage {
@@ -20,6 +23,8 @@ export interface MetricWithPage {
   value: string;
   context?: string;
   pageNumber?: number;
+  heading?: string;
+  paragraphNumber?: number;
 }
 
 export interface SummarySection {
@@ -27,6 +32,8 @@ export interface SummarySection {
   content?: string;
   items?: string[];
   pageNumber?: number;
+  heading?: string;
+  paragraphNumber?: number;
 }
 
 export interface DocumentSummary {
@@ -46,7 +53,11 @@ export interface DocumentSummary {
   citations: {
     documentId: string;
     documentName: string;
-    pageNumber: number;
+    pageNumber?: number;
+    heading?: string;
+    section?: string;
+    paragraphNumber?: number;
+    fileType?: string;
     excerpt: string;
   }[];
 }
@@ -57,6 +68,7 @@ export interface IDocument {
   originalName: string;
   fileSize: number;
   mimeType: string;
+  fileType?: DocumentFileType;
   filePath: string;
   pageCount: number;
   chunkCount: number;

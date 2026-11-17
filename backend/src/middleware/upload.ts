@@ -25,13 +25,31 @@ const fileFilter = (
   file: Express.Multer.File,
   cb: multer.FileFilterCallback
 ) => {
-  const allowedMimes = ['application/pdf', 'text/plain'];
+  const allowedMimes = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'application/x-msword',
+    'application/x-cfb',
+    'application/octet-stream',
+    'text/plain',
+  ];
   const ext = path.extname(file.originalname).toLowerCase();
 
-  if (allowedMimes.includes(file.mimetype) || ext === '.pdf' || ext === '.txt') {
+  if (
+    allowedMimes.includes(file.mimetype) ||
+    ext === '.pdf' ||
+    ext === '.docx' ||
+    ext === '.doc' ||
+    ext === '.txt'
+  ) {
     cb(null, true);
   } else {
-    cb(new Error('Unsupported file type. Only PDF and TXT research documents are supported.'));
+    cb(
+      new Error(
+        'Unsupported file type. Only PDF (.pdf), Microsoft Word (.docx, .doc), and TXT research documents are supported.'
+      )
+    );
   }
 };
 

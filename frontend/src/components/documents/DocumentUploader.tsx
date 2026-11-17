@@ -35,8 +35,20 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-        setErrorMessage(`"${file.name}" is not a PDF. Only PDF research papers are supported.`);
+      const ext = (file.name.toLowerCase().split('.').pop() || '').trim();
+      const isPdf = file.type === 'application/pdf' || ext === 'pdf';
+      const isDocx =
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || ext === 'docx';
+      const isDoc =
+        file.type === 'application/msword' ||
+        file.type === 'application/x-msword' ||
+        file.type === 'application/x-cfb' ||
+        ext === 'doc';
+
+      if (!isPdf && !isDocx && !isDoc) {
+        setErrorMessage(
+          `"${file.name}" is not a supported format. Please upload PDF (.pdf), Word (.docx), or legacy Word (.doc) documents.`
+        );
         return [];
       }
       if (file.size > maxSizeBytes) {
@@ -148,7 +160,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
           }`}
         >
           <UploadCloud className="w-3.5 h-3.5" />
-          <span>Upload Local PDFs</span>
+          <span>Upload Documents (PDF, Word)</span>
         </button>
         <button
           type="button"
@@ -184,7 +196,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,application/pdf"
+              accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
               multiple
               className="hidden"
               onChange={handleFileChange}
@@ -195,10 +207,10 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
             </div>
 
             <p className="text-sm font-semibold text-slate-800">
-              Click to upload or drag & drop research PDFs
+              Click to upload or drag & drop research documents
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Supports multiple PDFs (max 25MB each). Academic papers, technical reports, and preprints.
+              Supports PDF (.pdf), Word (.docx), and legacy Word (.doc) up to 25MB each.
             </p>
           </div>
 
@@ -209,20 +221,32 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
                 Selected for Ingestion ({selectedFiles.length})
               </p>
               <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
-                {selectedFiles.map((f, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <File className="w-4 h-4 text-brand-500 shrink-0" />
-                      <span className="truncate font-medium">{f.name}</span>
+                {selectedFiles.map((f, i) => {
+                  const ext = (f.name.toLowerCase().split('.').pop() || '').trim();
+                  const isWord = ext === 'docx' || ext === 'doc';
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between p-2.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-mono uppercase shrink-0 ${
+                            isWord
+                              ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                              : 'bg-red-100 text-red-800 border border-red-200'
+                          }`}
+                        >
+                          {ext || 'FILE'}
+                        </span>
+                        <span className="truncate font-medium">{f.name}</span>
+                      </div>
+                      <span className="text-slate-400 shrink-0 font-mono">
+                        {(f.size / (1024 * 1024)).toFixed(2)} MB
+                      </span>
                     </div>
-                    <span className="text-slate-400 shrink-0 font-mono">
-                      {(f.size / (1024 * 1024)).toFixed(2)} MB
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Upload Action */}

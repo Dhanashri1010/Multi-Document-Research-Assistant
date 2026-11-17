@@ -91,6 +91,11 @@ export const documentService = {
     document.body.removeChild(link);
   },
 
+  async getChunks(id: string): Promise<any[]> {
+    const response = await apiClient.get<{ success: boolean; chunks: any[] }>(`/documents/${id}/chunks`);
+    return response.data.chunks;
+  },
+
   async reindexAll(): Promise<{ total: number; succeeded: number; failed: number }> {
     const response = await apiClient.post<{
       success: boolean;

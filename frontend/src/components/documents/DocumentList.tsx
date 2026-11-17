@@ -41,7 +41,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'processing' | 'failed'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'txt'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'word' | 'txt'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [selectedCollection, setSelectedCollection] = useState<string>('all');
   const [sortBy, setSortBy] = useState<
@@ -91,9 +91,12 @@ export const DocumentList: React.FC<DocumentListProps> = ({
 
       // File Type
       if (typeFilter !== 'all') {
-        const isPdf = doc.mimeType === 'application/pdf' || doc.originalName.toLowerCase().endsWith('.pdf');
+        const ext = (doc.originalName.toLowerCase().split('.').pop() || '').trim();
+        const isPdf = doc.fileType === 'pdf' || doc.mimeType === 'application/pdf' || ext === 'pdf';
+        const isWord = doc.fileType === 'docx' || doc.fileType === 'doc' || ext === 'docx' || ext === 'doc';
         if (typeFilter === 'pdf' && !isPdf) return false;
-        if (typeFilter === 'txt' && isPdf) return false;
+        if (typeFilter === 'word' && !isWord) return false;
+        if (typeFilter === 'txt' && (isPdf || isWord)) return false;
       }
 
       // Category
@@ -301,8 +304,9 @@ export const DocumentList: React.FC<DocumentListProps> = ({
               className="py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="all">All File Types</option>
-              <option value="pdf">PDF Documents</option>
-              <option value="txt">Text Files</option>
+              <option value="pdf">PDF Documents (.pdf)</option>
+              <option value="word">Word Documents (.docx, .doc)</option>
+              <option value="txt">Text Files (.txt)</option>
             </select>
 
             {/* Category Filter */}

@@ -3,9 +3,15 @@ import path from 'path';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { DocumentModel } from '../models/Document.js';
+import { DocumentChunkModel } from '../models/DocumentChunk.js';
 import { IngestionService } from '../services/documents/ingestionService.js';
 import { ComparisonService } from '../services/ai/comparisonService.js';
-import { validatePdfMagicBytes, validatePdfBuffer, sanitizeFilename } from '../utils/fileValidator.js';
+import {
+  validatePdfMagicBytes,
+  validatePdfBuffer,
+  validateDocumentMagicBytes,
+  sanitizeFilename,
+} from '../utils/fileValidator.js';
 import { config } from '../config/env.js';
 
 export class DocumentController {
@@ -25,12 +31,13 @@ export class DocumentController {
       const createdDocs = [];
 
       for (const file of files) {
-        // Magic-byte PDF verification
-        if (!validatePdfMagicBytes(file.path)) {
+        // Magic-byte verification for PDF, DOCX, DOC
+        const validation = await validateDocumentMagicBytes(file.path, file.originalname);
+        if (!validation.isValid) {
           await fs.promises.unlink(file.path).catch(() => {});
           res.status(400).json({
             success: false,
-            error: `Invalid file "${file.originalname}". Only valid PDF files containing the "%PDF-" header are permitted.`,
+            error: `Invalid file "${file.originalname}". ${validation.error || 'Only valid PDF, DOC, and DOCX files are permitted.'}`,
           });
           return;
         }
@@ -62,6 +69,7 @@ export class DocumentController {
           originalName: safeOriginalName,
           fileSize: file.size,
           mimeType: file.mimetype,
+          fileType: validation.format,
           filePath: file.path,
           fileHash,
           status: 'uploaded',
@@ -120,9 +128,19 @@ export class DocumentController {
       }
 
       if (fileType && fileType !== 'all') {
-        if (fileType.toLowerCase() === 'pdf') {
-          filter.mimeType = 'application/pdf';
-        } else if (fileType.toLowerCase() === 'txt') {
+        const ft = fileType.toLowerCase();
+        if (ft === 'pdf') {
+          filter.$or = [{ fileType: 'pdf' }, { mimeType: 'application/pdf' }];
+        } else if (ft === 'docx') {
+          filter.$or = [{ fileType: 'docx' }, { originalName: /\.docx$/i }];
+        } else if (ft === 'doc') {
+          filter.$or = [{ fileType: 'doc' }, { originalName: /\.doc$/i }];
+        } else if (ft === 'word') {
+          filter.$or = [
+            { fileType: { $in: ['docx', 'doc'] } },
+            { originalName: /\.(docx|doc)$/i },
+          ];
+        } else if (ft === 'txt') {
           filter.mimeType = { $in: ['text/plain', 'text/txt'] };
         }
       }
@@ -513,6 +531,23 @@ export class DocumentController {
         message: `Successfully fetched and queued arXiv paper ${arxivId} for ingestion.`,
         document: doc,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Get all text chunks and structured headings for a document (used for Word document in-app preview).
+   */
+  static async getChunks(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const docId = req.params.id as string;
+      const chunks = await DocumentChunkModel.find({ documentId: docId })
+        .select('chunkIndex text heading section paragraphNumber fileType pageNumber pageStart pageEnd')
+        .sort({ chunkIndex: 1 })
+        .lean();
+
+      res.json({ success: true, chunks });
     } catch (err) {
       next(err);
     }

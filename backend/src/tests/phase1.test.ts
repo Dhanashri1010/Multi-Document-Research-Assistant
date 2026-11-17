@@ -63,8 +63,8 @@ describe('Phase 1 Unit Tests: Cross-Page Chunking', () => {
     expect(chunks.length).toBeGreaterThan(0);
 
     for (const chunk of chunks) {
-      expect(chunk.pageStart).toBeGreaterThanOrEqual(1);
-      expect(chunk.pageEnd).toBeGreaterThanOrEqual(chunk.pageStart);
+      expect(chunk.pageStart!).toBeGreaterThanOrEqual(1);
+      expect(chunk.pageEnd!).toBeGreaterThanOrEqual(chunk.pageStart!);
       // Compatibility: pageNumber equals pageStart
       expect(chunk.pageNumber).toBe(chunk.pageStart);
       expect(chunk.tokenCount).toBeGreaterThan(0);
@@ -73,7 +73,7 @@ describe('Phase 1 Unit Tests: Cross-Page Chunking', () => {
     // Verify cross-boundary chunk existence
     const crossPageChunk = chunks.find((c) => c.pageStart !== c.pageEnd);
     if (crossPageChunk) {
-      expect(crossPageChunk.pageEnd).toBeGreaterThan(crossPageChunk.pageStart);
+      expect(crossPageChunk.pageEnd!).toBeGreaterThan(crossPageChunk.pageStart!);
     }
   });
 

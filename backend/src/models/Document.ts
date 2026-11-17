@@ -1,12 +1,14 @@
 import mongoose, { Schema, Document as MongooseDoc } from 'mongoose';
 
 export type DocumentStatus = 'uploaded' | 'processing' | 'ready' | 'failed';
+export type DocumentFileType = 'pdf' | 'docx' | 'doc' | 'txt';
 
 export interface IDocument extends MongooseDoc {
   filename: string;
   originalName: string;
   fileSize: number;
   mimeType: string;
+  fileType?: DocumentFileType;
   filePath: string;
   pageCount: number;
   chunkCount: number;
@@ -35,6 +37,12 @@ const DocumentSchema = new Schema<IDocument>(
     originalName: { type: String, required: true },
     fileSize: { type: Number, required: true },
     mimeType: { type: String, required: true, default: 'application/pdf' },
+    fileType: {
+      type: String,
+      enum: ['pdf', 'docx', 'doc', 'txt'],
+      default: 'pdf',
+      index: true,
+    },
     filePath: { type: String, required: true },
     pageCount: { type: Number, default: 0 },
     chunkCount: { type: Number, default: 0 },

@@ -1,16 +1,28 @@
 import fs from 'fs';
+import path from 'path';
 import pdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
+import WordExtractor from 'word-extractor';
 
 export interface ExtractedPage {
   pageNumber: number;
   text: string;
 }
 
+export interface WordBlock {
+  heading?: string;
+  section?: string;
+  paragraphNumber: number;
+  text: string;
+}
+
 export interface Page1Metadata {
   title?: string;
   authors?: string[];
+  affiliations?: string[];
   year?: number;
   abstract?: string;
+  frontMatterText?: string;
 }
 
 export interface ExtractionResult {
@@ -20,6 +32,8 @@ export interface ExtractionResult {
   metadata?: Page1Metadata;
   warning?: string;
   isLowTextDensity?: boolean;
+  format?: 'pdf' | 'docx' | 'doc' | 'txt';
+  blocks?: WordBlock[];
 }
 
 /**
@@ -146,7 +160,228 @@ export async function extractTxt(filePath: string): Promise<ExtractionResult> {
     pages,
     fullText,
     metadata,
+    format: 'txt',
   };
+}
+
+/**
+ * Extracts text, headings, sections, and tables from a .docx file using mammoth.
+ * Retains document order, headings, tables, and paragraph structure.
+ */
+export async function extractDocx(filePath: string): Promise<ExtractionResult> {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found at path: ${filePath}`);
+  }
+
+  const stats = await fs.promises.stat(filePath);
+  if (stats.size === 0) {
+    throw new Error('Corrupt DOCX: The uploaded file is empty (0 bytes).');
+  }
+
+  let result: { value: string; messages: any[] };
+  try {
+    result = await mammoth.convertToMarkdown({ path: filePath });
+  } catch (err: any) {
+    throw new Error(`Corrupted DOCX: Failed to parse Word document structure (${err.message}).`);
+  }
+
+  const rawMarkdown = result.value || '';
+  const cleaned = cleanText(rawMarkdown);
+
+  if (!cleaned.trim() || cleaned.replace(/\s+/g, '').length < 15) {
+    throw new Error('Empty DOCX: The uploaded document contains no readable text.');
+  }
+
+  // Segment markdown into paragraphs and track headings
+  const rawParagraphs = cleaned
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const blocks: WordBlock[] = [];
+  let currentHeading = 'Introduction';
+  let paragraphCounter = 1;
+
+  for (const para of rawParagraphs) {
+    // Check if the paragraph starts with a Markdown heading (# Heading)
+    const headingMatch = para.match(/^(#{1,6})\s+(.+)$/m);
+    if (headingMatch && para.startsWith(headingMatch[0])) {
+      const headingText = headingMatch[2].replace(/[#*_`]/g, '').trim();
+      if (headingText) {
+        currentHeading = headingText;
+      }
+      const remainingText = para.slice(headingMatch[0].length).trim();
+      if (!remainingText) {
+        continue;
+      }
+      blocks.push({
+        heading: currentHeading,
+        paragraphNumber: paragraphCounter++,
+        text: remainingText,
+      });
+      continue;
+    }
+
+    // Regular paragraph or table
+    blocks.push({
+      heading: currentHeading,
+      paragraphNumber: paragraphCounter++,
+      text: para,
+    });
+  }
+
+  if (blocks.length === 0) {
+    blocks.push({
+      heading: 'Content',
+      paragraphNumber: 1,
+      text: cleaned,
+    });
+  }
+
+  const metadata = extractPage1Metadata(cleaned.slice(0, 3000));
+  if (!metadata.title && blocks[0]?.heading && blocks[0].heading !== 'Introduction' && blocks[0].heading !== 'Content') {
+    metadata.title = blocks[0].heading;
+  }
+
+  return {
+    totalPages: 0,
+    pages: [],
+    blocks,
+    fullText: cleaned,
+    metadata,
+    format: 'docx',
+  };
+}
+
+/**
+ * Extracts text and paragraphs from legacy binary .doc files using word-extractor.
+ */
+export async function extractDoc(filePath: string): Promise<ExtractionResult> {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found at path: ${filePath}`);
+  }
+
+  const stats = await fs.promises.stat(filePath);
+  if (stats.size === 0) {
+    throw new Error('Corrupt DOC: The uploaded file is empty (0 bytes).');
+  }
+
+  // Validate OLE magic bytes (0xD0CF11E0A1B11AE1)
+  const headerBuf = Buffer.alloc(8);
+  const fd = await fs.promises.open(filePath, 'r');
+  await fd.read(headerBuf, 0, 8, 0);
+  await fd.close();
+
+  const isOle =
+    headerBuf[0] === 0xd0 &&
+    headerBuf[1] === 0xcf &&
+    headerBuf[2] === 0x11 &&
+    headerBuf[3] === 0xe0 &&
+    headerBuf[4] === 0xa1 &&
+    headerBuf[5] === 0xb1 &&
+    headerBuf[6] === 0x1a &&
+    headerBuf[7] === 0xe1;
+
+  if (!isOle) {
+    throw new Error('Invalid DOC format: File does not start with valid OLE Compound Document signature.');
+  }
+
+  let doc: any;
+  try {
+    const extractor = new WordExtractor();
+    doc = await extractor.extract(filePath);
+  } catch (err: any) {
+    throw new Error(`Corrupted DOC: Failed to parse legacy Word document structure (${err.message}).`);
+  }
+
+  const bodyText = doc.getBody ? doc.getBody() : '';
+  const textboxes = doc.getTextboxes ? doc.getTextboxes() : '';
+  const headers = doc.getHeaders ? doc.getHeaders() : '';
+  const combined = [headers, bodyText, textboxes].filter(Boolean).join('\n\n');
+  const cleaned = cleanText(combined);
+
+  if (!cleaned.trim() || cleaned.replace(/\s+/g, '').length < 15) {
+    throw new Error('Empty DOC: The uploaded legacy Word document contains no readable text.');
+  }
+
+  // Segment into paragraphs and detect headings
+  const rawParagraphs = cleaned
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const blocks: WordBlock[] = [];
+  let currentHeading = 'Introduction';
+  let paragraphCounter = 1;
+
+  for (const para of rawParagraphs) {
+    const lines = para.split('\n').map((l) => l.trim()).filter(Boolean);
+    const firstLine = lines[0] || '';
+
+    const isHeading =
+      firstLine.length < 80 &&
+      !firstLine.endsWith('.') &&
+      (/^(?:(?:section\s+\d+|[0-9]+(?:\.[0-9]+)*\.?|[A-Z\s]{4,}))/i.test(firstLine) ||
+        /^(?:introduction|background|methodology|methods|experiments|results|discussion|conclusion|abstract)/i.test(firstLine));
+
+    if (isHeading && lines.length === 1) {
+      currentHeading = firstLine;
+      continue;
+    } else if (isHeading && lines.length > 1) {
+      currentHeading = firstLine;
+      blocks.push({
+        heading: currentHeading,
+        paragraphNumber: paragraphCounter++,
+        text: lines.slice(1).join(' '),
+      });
+      continue;
+    }
+
+    blocks.push({
+      heading: currentHeading,
+      paragraphNumber: paragraphCounter++,
+      text: para,
+    });
+  }
+
+  if (blocks.length === 0) {
+    blocks.push({
+      heading: 'Content',
+      paragraphNumber: 1,
+      text: cleaned,
+    });
+  }
+
+  const metadata = extractPage1Metadata(cleaned.slice(0, 3000));
+  if (!metadata.title && blocks[0]?.heading && blocks[0].heading !== 'Introduction' && blocks[0].heading !== 'Content') {
+    metadata.title = blocks[0].heading;
+  }
+
+  return {
+    totalPages: 0,
+    pages: [],
+    blocks,
+    fullText: cleaned,
+    metadata,
+    format: 'doc',
+  };
+}
+
+/**
+ * Unified document extractor dispatching to PDF, DOCX, DOC, or TXT extractor.
+ */
+export async function extractDocument(filePath: string, originalName?: string): Promise<ExtractionResult> {
+  const ext = (path.extname(originalName || filePath) || '').toLowerCase();
+  if (ext === '.docx') {
+    return extractDocx(filePath);
+  }
+  if (ext === '.doc') {
+    return extractDoc(filePath);
+  }
+  if (ext === '.txt') {
+    return extractTxt(filePath);
+  }
+  return extractPdf(filePath);
 }
 
 interface RawTextItem {

@@ -252,7 +252,7 @@ function buildExtractiveFallback(
     doc.abstract ||
     (sentencesWithPages.length > 0
       ? sentencesWithPages.slice(0, 2).map((s) => s.text).join(' ')
-      : `This document contains ${doc.pageCount} pages and covers core topics related to ${doc.originalName}.`);
+      : `This document contains ${doc.pageCount && doc.pageCount > 0 ? `${doc.pageCount} pages` : `${doc.chunkCount || 1} sections`} and covers core topics related to ${doc.originalName}.`);
 
   const keyFindings: FindingWithPage[] = sentencesWithPages
     .slice(2, 6)
@@ -385,14 +385,23 @@ export class DocumentSummaryService {
       documentId: doc._id,
       documentName: doc.originalName,
       pageNumber: c.pageNumber,
+      heading: c.heading,
+      section: c.section,
+      paragraphNumber: c.paragraphNumber,
+      fileType: c.fileType,
       excerpt: c.text.length > 250 ? c.text.slice(0, 250) + '...' : c.text,
     }));
 
     const excerptsText = selectedChunks
-      .map((c) => `[Page ${c.pageNumber}]\n${c.text.trim()}`)
+      .map((c) => {
+        const marker = c.pageNumber
+          ? `[Page ${c.pageNumber}]`
+          : `[Section: ${c.heading || c.section || 'Content'}${c.paragraphNumber ? ` | Para ${c.paragraphNumber}` : ''}]`;
+        return `${marker}\n${c.text.trim()}`;
+      })
       .join('\n\n---\n\n');
 
-    const cleanTitle = doc.title || doc.originalName.replace(/\.pdf$/i, '');
+    const cleanTitle = doc.title || doc.originalName.replace(/\.(pdf|docx|doc|txt)$/i, '');
 
     const systemPrompt = `You are an expert document research assistant and science communicator.
 Your role is to produce a high-quality, professional, and accessible document summary for an audience of college students, professors, researchers, working professionals, and business users.

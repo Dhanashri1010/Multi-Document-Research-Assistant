@@ -1,4 +1,4 @@
-import { ExtractedPage } from './extractor.js';
+import { ExtractedPage, WordBlock } from './extractor.js';
 import { config } from '../../config/env.js';
 
 export interface TextChunk {
@@ -6,9 +6,14 @@ export interface TextChunk {
   text: string;
   embeddingText?: string;
   section?: string;
-  pageNumber: number; // Equal to pageStart for backward compatibility
-  pageStart: number;
-  pageEnd: number;
+  heading?: string;
+  paragraphNumber?: number;
+  paragraphStart?: number;
+  paragraphEnd?: number;
+  fileType?: string;
+  pageNumber?: number; // Equal to pageStart for backward compatibility (PDFs)
+  pageStart?: number;
+  pageEnd?: number;
   tokenCount: number;
 }
 
@@ -324,7 +329,7 @@ export function chunkPages(
       lastChunk.tokenCount += currentTokens;
       const tailEndOffset = currentItems[currentItems.length - 1].endOffset;
       const { pageEnd } = resolvePageSpan(currentItems[0].startOffset, tailEndOffset, pageMap);
-      lastChunk.pageEnd = Math.max(lastChunk.pageEnd, pageEnd);
+      lastChunk.pageEnd = Math.max(lastChunk.pageEnd || pageEnd, pageEnd);
     } else {
       const chunkText = currentItems.map((s) => s.text).join(' ');
       const startOffset = currentItems[0].startOffset;
@@ -340,6 +345,179 @@ export function chunkPages(
         pageNumber: pageStart,
         pageStart,
         pageEnd,
+        tokenCount: currentTokens,
+      });
+    }
+  }
+
+  return chunks;
+}
+
+export interface WordChunkOptions extends ChunkerOptions {
+  docTitle?: string;
+  format?: 'docx' | 'doc';
+}
+
+/**
+ * Chunks a Word document (DOCX/DOC) by headings, paragraphs, and tables.
+ * Retains document name, heading, and paragraph number references.
+ * Never invents page numbers for Word documents (pageNumber, pageStart, pageEnd are undefined).
+ */
+export function chunkWordDocument(
+  blocks: WordBlock[],
+  options: WordChunkOptions = {}
+): TextChunk[] {
+  const targetTokens = options.targetTokens ?? config.chunkTargetTokens ?? 220;
+  const overlapTokens = options.overlapTokens ?? config.chunkOverlapTokens ?? 40;
+  const tokenCounter = options.tokenCounter ?? estimateTokenCount;
+  const docTitle = options.docTitle?.trim();
+  const format = options.format || 'docx';
+
+  if (!blocks || blocks.length === 0) return [];
+
+  interface WordSentenceItem {
+    text: string;
+    heading: string;
+    section: string;
+    paragraphNumber: number;
+    tokenCount: number;
+  }
+
+  const sentenceItems: WordSentenceItem[] = [];
+
+  for (const block of blocks) {
+    const heading = block.heading || 'Content';
+    const section = detectSectionHeading(heading) || heading;
+    const paragraphNumber = block.paragraphNumber || 1;
+
+    // If block text includes table rows or is small, keep as a single item
+    if (block.text.includes('|') || tokenCounter(block.text) <= 50) {
+      sentenceItems.push({
+        text: block.text,
+        heading,
+        section,
+        paragraphNumber,
+        tokenCount: tokenCounter(block.text),
+      });
+      continue;
+    }
+
+    const sentences = splitIntoSentences(block.text);
+    if (sentences.length === 0) {
+      sentenceItems.push({
+        text: block.text,
+        heading,
+        section,
+        paragraphNumber,
+        tokenCount: tokenCounter(block.text),
+      });
+      continue;
+    }
+
+    for (const sent of sentences) {
+      const tokens = tokenCounter(sent);
+      if (tokens > targetTokens) {
+        const hardSplit = hardSplitSentence(sent, 0, targetTokens, tokenCounter, section);
+        for (const hs of hardSplit) {
+          sentenceItems.push({
+            text: hs.text,
+            heading,
+            section,
+            paragraphNumber,
+            tokenCount: hs.tokenCount,
+          });
+        }
+      } else {
+        sentenceItems.push({
+          text: sent,
+          heading,
+          section,
+          paragraphNumber,
+          tokenCount: tokens,
+        });
+      }
+    }
+  }
+
+  if (sentenceItems.length === 0) return [];
+
+  const chunks: TextChunk[] = [];
+  let chunkIndex = 0;
+  let currentItems: WordSentenceItem[] = [];
+  let currentTokens = 0;
+
+  for (let i = 0; i < sentenceItems.length; i++) {
+    const item = sentenceItems[i];
+    const currentHeading = currentItems[0]?.heading || item.heading;
+    const isNewHeading = currentItems.length > 0 && item.heading !== currentHeading && currentTokens >= 80;
+
+    if ((currentTokens + item.tokenCount > targetTokens || isNewHeading) && currentItems.length > 0) {
+      const chunkText = currentItems.map((s) => s.text).join(' ');
+      const firstItem = currentItems[0];
+      const lastItem = currentItems[currentItems.length - 1];
+      const heading = firstItem.heading;
+      const section = firstItem.section;
+
+      chunks.push({
+        chunkIndex: chunkIndex++,
+        text: chunkText,
+        embeddingText: buildEmbeddingText(chunkText, heading, docTitle),
+        section,
+        heading,
+        paragraphNumber: firstItem.paragraphNumber,
+        paragraphStart: firstItem.paragraphNumber,
+        paragraphEnd: lastItem.paragraphNumber,
+        fileType: format,
+        tokenCount: currentTokens,
+      });
+
+      let overlapAccum = 0;
+      const overlapItems: WordSentenceItem[] = [];
+      if (!isNewHeading) {
+        for (let j = currentItems.length - 1; j >= 0; j--) {
+          const prev = currentItems[j];
+          if (overlapAccum + prev.tokenCount <= overlapTokens) {
+            overlapItems.unshift(prev);
+            overlapAccum += prev.tokenCount;
+          } else {
+            break;
+          }
+        }
+      }
+
+      currentItems = [...overlapItems, item];
+      currentTokens = overlapAccum + item.tokenCount;
+    } else {
+      currentItems.push(item);
+      currentTokens += item.tokenCount;
+    }
+  }
+
+  if (currentItems.length > 0) {
+    const firstItem = currentItems[0];
+    const lastItem = currentItems[currentItems.length - 1];
+    const heading = firstItem.heading;
+    const section = firstItem.section;
+
+    if (chunks.length > 0 && currentTokens < 40 && chunks[chunks.length - 1].heading === heading) {
+      const lastChunk = chunks[chunks.length - 1];
+      const tailText = currentItems.map((s) => s.text).join(' ');
+      lastChunk.text = lastChunk.text + ' ' + tailText;
+      lastChunk.embeddingText = buildEmbeddingText(lastChunk.text, lastChunk.heading || lastChunk.section, docTitle);
+      lastChunk.tokenCount += currentTokens;
+      lastChunk.paragraphEnd = lastItem.paragraphNumber;
+    } else {
+      const chunkText = currentItems.map((s) => s.text).join(' ');
+      chunks.push({
+        chunkIndex: chunkIndex++,
+        text: chunkText,
+        embeddingText: buildEmbeddingText(chunkText, heading, docTitle),
+        section,
+        heading,
+        paragraphNumber: firstItem.paragraphNumber,
+        paragraphStart: firstItem.paragraphNumber,
+        paragraphEnd: lastItem.paragraphNumber,
+        fileType: format,
         tokenCount: currentTokens,
       });
     }

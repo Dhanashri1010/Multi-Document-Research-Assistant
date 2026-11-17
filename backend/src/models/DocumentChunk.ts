@@ -6,9 +6,14 @@ export interface IDocumentChunk extends MongooseDoc {
   text: string;
   embeddingText?: string;
   section?: string;
-  pageNumber: number; // Kept as pageStart for backward compatibility
-  pageStart: number;
-  pageEnd: number;
+  heading?: string;
+  paragraphNumber?: number;
+  paragraphStart?: number;
+  paragraphEnd?: number;
+  fileType?: string;
+  pageNumber?: number; // Kept as pageStart for backward compatibility
+  pageStart?: number;
+  pageEnd?: number;
   tokenCount: number;
   embedding: number[];
   embeddingModel?: string;
@@ -40,22 +45,34 @@ const DocumentChunkSchema = new Schema<IDocumentChunk>(
       default: 'Content',
       index: true,
     },
+    heading: {
+      type: String,
+    },
+    paragraphNumber: {
+      type: Number,
+    },
+    paragraphStart: {
+      type: Number,
+    },
+    paragraphEnd: {
+      type: Number,
+    },
+    fileType: {
+      type: String,
+    },
     pageNumber: {
       type: Number,
-      required: true,
-      default: 1,
+      required: false,
       index: true,
     },
     pageStart: {
       type: Number,
-      required: true,
-      default: 1,
+      required: false,
       index: true,
     },
     pageEnd: {
       type: Number,
-      required: true,
-      default: 1,
+      required: false,
       index: true,
     },
     tokenCount: {
