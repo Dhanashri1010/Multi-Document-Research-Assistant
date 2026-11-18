@@ -8,7 +8,8 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(5000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
   MONGODB_URI: z.string().default('mongodb://127.0.0.1:27017/multi_doc_research'),
   UPLOAD_DIR: z.string().default('./uploads'),
   MAX_FILE_SIZE_MB: z.coerce.number().positive().default(25),
@@ -77,6 +78,7 @@ export const config = {
   port: env.PORT,
   nodeEnv: env.NODE_ENV,
   frontendUrl: env.FRONTEND_URL,
+  corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS || '',
   mongoUri: env.MONGODB_URI,
   uploadDir: env.UPLOAD_DIR,
   maxFileSizeMB: env.MAX_FILE_SIZE_MB,

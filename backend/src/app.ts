@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { config } from './config/env.js';
+import { corsOptions } from './config/cors.js';
 import apiRouter from './routes/index.js';
 import { healthRouter } from './routes/healthRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -11,21 +12,9 @@ export function createApp(): express.Application {
   // Enable proxy trust for reverse proxies (Render, Vercel, Cloudflare)
   app.set('trust proxy', 1);
 
-  // CORS Configuration
-  app.use(
-    cors({
-      origin: [
-        config.frontendUrl,
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:5174',
-        'http://127.0.0.1:5174',
-      ],
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-    })
-  );
+  // CORS Configuration & explicit Preflight handling
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
 
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
