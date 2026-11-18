@@ -64,10 +64,57 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
   const [documentChunks, setDocumentChunks] = useState<any[]>([]);
   const [loadingChunks, setLoadingChunks] = useState(false);
 
+  // Authenticated PDF preview state
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [loadingPdfBlob, setLoadingPdfBlob] = useState(false);
+  const [pdfBlobError, setPdfBlobError] = useState<string | null>(null);
+  const pdfBlobUrlRef = useRef<string | null>(null);
+
   const ext = doc ? (doc.originalName.toLowerCase().split('.').pop() || '').trim() : '';
   const isWordDoc = Boolean(
     doc && (doc.fileType === 'docx' || doc.fileType === 'doc' || ext === 'docx' || ext === 'doc')
   );
+
+  useEffect(() => {
+    if (!isOpen || !doc?._id || isWordDoc) return;
+
+    let active = true;
+    setLoadingPdfBlob(true);
+    setPdfBlobError(null);
+
+    const loadBlob = async () => {
+      try {
+        const blob = await documentService.getFileBlob(doc._id);
+        if (!active) return;
+        if (pdfBlobUrlRef.current) {
+          URL.revokeObjectURL(pdfBlobUrlRef.current);
+        }
+        const url = URL.createObjectURL(blob);
+        pdfBlobUrlRef.current = url;
+        setPdfBlobUrl(url);
+      } catch (err: any) {
+        if (!active) return;
+        const msg =
+          err.response?.status === 401
+            ? 'Your session has expired. Please log in again.'
+            : err.message || 'Failed to securely load PDF preview.';
+        setPdfBlobError(msg);
+      } finally {
+        if (active) setLoadingPdfBlob(false);
+      }
+    };
+
+    loadBlob();
+
+    return () => {
+      active = false;
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current);
+        pdfBlobUrlRef.current = null;
+        setPdfBlobUrl(null);
+      }
+    };
+  }, [isOpen, doc?._id, isWordDoc]);
 
   const loadSummary = useCallback(
     async (regenerate: boolean = false) => {
@@ -185,52 +232,6 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
   const handleDownloadOriginal = () => {
     documentService.downloadFile(doc._id, doc.originalName);
   };
-
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  const [loadingPdfBlob, setLoadingPdfBlob] = useState(false);
-  const [pdfBlobError, setPdfBlobError] = useState<string | null>(null);
-  const pdfBlobUrlRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!doc?._id || isWordDoc) return;
-
-    let active = true;
-    setLoadingPdfBlob(true);
-    setPdfBlobError(null);
-
-    const loadBlob = async () => {
-      try {
-        const blob = await documentService.getFileBlob(doc._id);
-        if (!active) return;
-        if (pdfBlobUrlRef.current) {
-          URL.revokeObjectURL(pdfBlobUrlRef.current);
-        }
-        const url = URL.createObjectURL(blob);
-        pdfBlobUrlRef.current = url;
-        setPdfBlobUrl(url);
-      } catch (err: any) {
-        if (!active) return;
-        const msg =
-          err.response?.status === 401
-            ? 'Your session has expired. Please log in again.'
-            : err.message || 'Failed to securely load PDF preview.';
-        setPdfBlobError(msg);
-      } finally {
-        if (active) setLoadingPdfBlob(false);
-      }
-    };
-
-    loadBlob();
-
-    return () => {
-      active = false;
-      if (pdfBlobUrlRef.current) {
-        URL.revokeObjectURL(pdfBlobUrlRef.current);
-        pdfBlobUrlRef.current = null;
-        setPdfBlobUrl(null);
-      }
-    };
-  }, [doc?._id, isWordDoc]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
