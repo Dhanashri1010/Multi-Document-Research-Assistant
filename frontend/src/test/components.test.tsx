@@ -7,7 +7,7 @@ import { PdfViewerModal } from '../components/common/PdfViewerModal.js';
 import { SourceCitation } from '../components/chat/SourceCitation.js';
 import { ChatMessage } from '../components/chat/ChatMessage.js';
 import { DocumentCard } from '../components/documents/DocumentCard.js';
-import { ComparisonTable } from '../components/research/ComparisonTable.js';
+import { ComparisonTable, sanitizeDegradedReason } from '../components/research/ComparisonTable.js';
 import { IDocument } from '../types/document.js';
 import { IChatMessage, ICitation, ComparisonResult } from '../types/research.js';
 
@@ -229,10 +229,11 @@ describe('Frontend Component Tests: ComparisonTable', () => {
   };
 
   it('renders comparative matrix, degraded banner, and export button', () => {
-    render(<ComparisonTable comparison={sampleComparison} />);
+    const onRetry = vi.fn();
+    render(<ComparisonTable comparison={sampleComparison} onRetry={onRetry} />);
 
     expect(screen.getByText(/Focus: "Parameter Efficiency"/i)).toBeInTheDocument();
-    expect(screen.getByText(/Degraded \/ Grounded Fallback Answer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Passage-Grounded Fallback Analysis/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Comparison timeout exceeded; fallback extracted from citations./i)
     ).toBeInTheDocument();
@@ -242,5 +243,19 @@ describe('Frontend Component Tests: ComparisonTable', () => {
     expect(screen.getByText('Reduce trainable parameters in fine-tuning.')).toBeInTheDocument();
 
     expect(screen.getByTitle('Export complete comparison to Markdown (.md)')).toBeInTheDocument();
+    expect(screen.getByText(/Retry Comparison/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(/Retry Comparison/i));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('sanitizes raw JSON parsing errors into clean user-facing messages', () => {
+    const rawError = 'JSON parsing failed (Unterminated string in JSON at position 7203 (line 167 column 47))';
+    const cleaned = sanitizeDegradedReason(rawError);
+
+    expect(cleaned).not.toContain('JSON');
+    expect(cleaned).not.toContain('Unterminated');
+    expect(cleaned).not.toContain('position 7203');
+    expect(cleaned).toContain('The AI model response was interrupted');
   });
 });

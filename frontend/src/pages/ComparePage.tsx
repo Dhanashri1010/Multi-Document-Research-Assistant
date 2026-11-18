@@ -176,21 +176,13 @@ export const ComparePage: React.FC = () => {
       {/* Error state */}
       {error && <ErrorMessage message={error} onRetry={handleRunComparison} />}
 
-      {/* Degraded state notice */}
-      {comparisonResult?.degraded && !loading && (
-        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-orange-900 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-bold">Comparative Synthesis Degraded Mode</h4>
-            <p className="text-xs text-orange-700 mt-1 leading-relaxed">
-              {comparisonResult.degradedReason || 'LLM comparative synthesis was unavailable. Documents and retrieved citations remain indexed.'}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Comparison Results */}
-      {comparisonResult && !loading && <ComparisonTable comparison={comparisonResult} />}
+      {comparisonResult && !loading && (
+        <ComparisonTable
+          comparison={comparisonResult}
+          onRetry={handleRunComparison}
+        />
+      )}
 
       {/* Empty State before comparison runs */}
       {!comparisonResult && !loading && (

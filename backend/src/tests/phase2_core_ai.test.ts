@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { formatSafeErrorMessage, LLMService } from '../services/ai/llmService.js';
-import { ComparisonService } from '../services/ai/comparisonService.js';
+import { ComparisonService, repairAndParseComparisonJson } from '../services/ai/comparisonService.js';
 import { RAGService } from '../services/ai/ragService.js';
 import { DocumentModel } from '../models/Document.js';
 import { DocumentChunkModel } from '../models/DocumentChunk.js';
@@ -141,6 +141,65 @@ describe('Phase 2 Core AI: Cross-Document Comparison 10 Dimensions', () => {
       expect(row.values[1].documentName).toBe('Paper Beta.pdf');
       expect(row.values[0].finding.length).toBeGreaterThan(0);
     }
+
+    docFindSpy.mockRestore();
+    chunkFindSpy.mockRestore();
+    llmSpy.mockRestore();
+  });
+
+  it('resiliently repairs and parses truncated JSON with unterminated strings', () => {
+    // Exact failure pattern: model output cut off inside a string literal
+    const truncated = `{"matrix": [{"dimension": "Research Objectives", "values": [{"documentId": "1", "documentName": "Alpha.pdf", "finding": "The authors propose a novel model for seq2seq translation that`;
+
+    const parsed = repairAndParseComparisonJson(truncated);
+    expect(parsed).toBeDefined();
+    expect(parsed.matrix).toBeDefined();
+    expect(parsed.matrix.length).toBe(1);
+    expect(parsed.matrix[0].dimension).toBe('Research Objectives');
+    expect(parsed.matrix[0].values[0].finding).toContain('seq2seq translation that');
+  });
+
+  it('resiliently repairs and parses JSON with unclosed arrays and code block fences', () => {
+    const fencedTruncated = '```json\n{"matrix": [{"dimension": "Methodologies", "values": [{"documentId": "1", "documentName": "Beta.pdf", "finding": "Empirical analysis"}]}], "similarities": ["Both use transformers';
+
+    const parsed = repairAndParseComparisonJson(fencedTruncated);
+    expect(parsed).toBeDefined();
+    expect(parsed.matrix).toBeDefined();
+    expect(parsed.matrix[0].dimension).toBe('Methodologies');
+    expect(parsed.similarities).toContain('Both use transformers');
+  });
+
+  it('guarantees clean, non-technical degradedReason without exposing raw JSON parse errors', async () => {
+    const fakeDoc1 = {
+      _id: 'doc001001001001001001001001',
+      originalName: 'Paper Alpha.pdf',
+      pageCount: 8,
+      status: 'ready',
+    };
+    const fakeDoc2 = {
+      _id: 'doc002002002002002002002002',
+      originalName: 'Paper Beta.pdf',
+      pageCount: 12,
+      status: 'ready',
+    };
+
+    const docFindSpy = vi.spyOn(DocumentModel, 'find').mockResolvedValueOnce([fakeDoc1, fakeDoc2] as any);
+    const chunkFindSpy = vi.spyOn(DocumentChunkModel, 'find').mockReturnValue({
+      sort: () => ({
+        lean: () => Promise.resolve([]),
+      }),
+    } as any);
+
+    // Mock LLM returning completely corrupted non-JSON text
+    const llmSpy = vi.spyOn(LLMService, 'generate').mockResolvedValueOnce('<!DOCTYPE html><html><body>Error</body></html>');
+
+    const comparison = await ComparisonService.compareDocuments([fakeDoc1._id, fakeDoc2._id]);
+
+    expect(comparison.degraded).toBe(true);
+    expect(comparison.degradedReason).toBeDefined();
+    expect(comparison.degradedReason).not.toContain('JSON parsing failed');
+    expect(comparison.degradedReason).not.toContain('Unterminated string');
+    expect(comparison.degradedReason).not.toContain('position');
 
     docFindSpy.mockRestore();
     chunkFindSpy.mockRestore();

@@ -10,13 +10,29 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
+  RotateCcw,
 } from 'lucide-react';
+
+export function sanitizeDegradedReason(reason?: string): string {
+  if (!reason) {
+    return 'Generative cross-document comparison was temporarily unavailable. Analysis was safely compiled directly from indexed passages.';
+  }
+  if (
+    /json|syntaxerror|position \d+|unterminated|unexpected token|failed to parse|econnrefused|at line \d+/i.test(
+      reason
+    )
+  ) {
+    return 'The AI model response was interrupted during generation. Document excerpts and verified passages have been retrieved directly from your indexed papers.';
+  }
+  return reason;
+}
 
 interface ComparisonTableProps {
   comparison: ComparisonResult;
+  onRetry?: () => void;
 }
 
-export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) => {
+export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison, onRetry }) => {
   const [activeTab, setActiveTab] = useState<
     'matrix' | 'similarities' | 'differences' | 'findings' | 'limitations' | 'citations'
   >('matrix');
@@ -115,15 +131,26 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison }) 
     <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
       {/* Degraded / Fallback Banner */}
       {comparison.degraded && (
-        <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-900 flex items-start gap-3 text-xs">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <span className="font-bold text-amber-900">Degraded / Grounded Fallback Answer</span>
-            <p className="mt-0.5 text-amber-800 leading-relaxed">
-              {comparison.degradedReason ||
-                'Generative cross-document comparison was temporarily unavailable. Analysis was safely compiled directly from indexed passages.'}
-            </p>
+        <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <span className="font-bold text-amber-900">Passage-Grounded Fallback Analysis</span>
+              <p className="mt-0.5 text-amber-800 leading-relaxed">
+                {sanitizeDegradedReason(comparison.degradedReason)}
+              </p>
+            </div>
           </div>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-amber-900 hover:bg-amber-100 border border-amber-300 transition-colors shrink-0 shadow-2xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Retry Comparison</span>
+            </button>
+          )}
         </div>
       )}
 
