@@ -118,6 +118,12 @@ export const ResearchPage: React.FC = () => {
     setSessionId(undefined);
     setMessages([]);
     setApiError(null);
+    if (selectedDocIds.length === 0) {
+      const readyDocs = documents.filter((d) => d.status === 'ready');
+      if (readyDocs.length > 0) {
+        selectAllDocs(readyDocs.map((d) => d._id));
+      }
+    }
   };
 
   // Delete session handler
@@ -465,7 +471,17 @@ export const ResearchPage: React.FC = () => {
               </div>
             </div>
           ) : (
-            messages.map((msg, i) => <ChatMessage key={i} message={msg} />)
+            messages.map((msg, i) => (
+              <ChatMessage
+                key={i}
+                message={msg}
+                onRetry={
+                  msg.degraded && i > 0 && messages[i - 1]?.role === 'user'
+                    ? () => handleAsk(messages[i - 1].content)
+                    : undefined
+                }
+              />
+            ))
           )}
 
           {/* Loading indicator */}
@@ -490,6 +506,21 @@ export const ResearchPage: React.FC = () => {
 
         {/* Input Area */}
         <div className="p-4 bg-white border-t border-slate-200">
+          <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span>Target: <strong>{selectedDocIds.length}</strong> {selectedDocIds.length === 1 ? 'paper' : 'papers'} selected for research</span>
+            </span>
+            {selectedDocIds.length === 1 ? (
+              <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
+                Single-paper mode (select more to compare)
+              </span>
+            ) : (
+              <span className="text-[11px] text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200 font-medium">
+                Multi-paper synthesis mode
+              </span>
+            )}
+          </div>
           <ChatInput
             onSendMessage={handleAsk}
             isLoading={isLoading}

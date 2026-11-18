@@ -115,14 +115,40 @@ describe('Frontend Component Tests: ChatMessage', () => {
       screen.getByText('The Transformer architecture relies entirely on self-attention.')
     ).toBeInTheDocument();
 
-    // Degraded banner
-    expect(screen.getByText(/Synthesis Degraded Mode/i)).toBeInTheDocument();
+    // Degraded banner (updated to student-friendly format)
+    expect(screen.getByText(/AI-generated summary is temporarily unavailable/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Model quota exceeded; synthesized from grounded excerpts./i)
     ).toBeInTheDocument();
 
     // Export button
     expect(screen.getByTitle('Export response to Markdown (.md)')).toBeInTheDocument();
+  });
+
+  it('cleans raw JSON from content and renders table and formatted elements', () => {
+    const rawJsonMessage: IChatMessage = {
+      sessionId: 'sess_123',
+      role: 'assistant',
+      content: JSON.stringify({
+        hasInsufficientEvidence: false,
+        answer: '### Methodology Comparison\n\n| Paper | Method |\n| :--- | :--- |\n| Attention | Self-Attention |\n\n1. First point\n- Bullet point',
+        claims: [{ claim: 'Self-attention replaces recurrence', sourceIndices: [1] }],
+      }),
+      citations: [],
+      createdAt: '2026-11-18T00:00:00Z',
+    };
+
+    render(<ChatMessage message={rawJsonMessage} />);
+
+    // Should NOT display raw JSON internal fields
+    expect(screen.queryByText(/hasInsufficientEvidence/i)).toBeNull();
+    expect(screen.queryByText(/sourceIndices/i)).toBeNull();
+
+    // Should render clean headings and table content
+    expect(screen.getByText('Methodology Comparison')).toBeInTheDocument();
+    expect(screen.getByText('Self-Attention')).toBeInTheDocument();
+    expect(screen.getByText('First point')).toBeInTheDocument();
+    expect(screen.getByText('Bullet point')).toBeInTheDocument();
   });
 });
 

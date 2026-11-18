@@ -433,7 +433,7 @@ export class LLMService {
     }
 
     // RAG Structured JSON Q&A schema requested
-    if (p.includes('"answer":') || p.includes('output your answer as strict json')) {
+    if (p.includes('"answer":') || p.includes('output your answer as strict json') || p.includes('generate your json response now')) {
       const isTrap =
         p.includes('speech-to-text') ||
         p.includes('vision transformers') ||
@@ -456,13 +456,56 @@ export class LLMService {
           answer: 'The provided document passages do not contain evidence regarding this specific topic.',
           claims: [],
           hasInsufficientEvidence: true,
+          insufficientReason: 'The provided documents do not contain evidence for this premise.',
+        });
+      }
+
+      // Check specific question intent for mock generation
+      if (p.includes('main findings') || p.includes('main contribution')) {
+        return JSON.stringify({
+          answer: `**Main Findings**\n\nThis research investigates efficient neural modeling and sequence transformation across standardized evaluation benchmarks.\n\n1. Multi-head self-attention eliminates recurrence, allowing full training parallelization and reducing training time significantly [Attention Is All You Need.pdf, p. 2].\n2. The model achieves state-of-the-art translation quality with 28.4 BLEU on English-to-German [Attention Is All You Need.pdf, p. 8].\n3. Low-rank parameter decomposition reduces trainable parameter overhead by over 90% while matching full fine-tuning performance [LoRA.pdf, p. 5].\n4. Positional encodings successfully preserve word order semantics without recurrent memory overhead [Attention Is All You Need.pdf, p. 6].\n\n**Overall Conclusion**\n\nReplacing complex recurrent cells with self-attention and low-rank matrix adaptation provides a faster, highly scalable foundation for modern language modeling.`,
+          claims: [
+            { claim: 'Multi-head self-attention eliminates recurrence, allowing full training parallelization.', sourceIndices: [1] },
+            { claim: 'The model achieves state-of-the-art translation quality with 28.4 BLEU.', sourceIndices: [1] }
+          ],
+          hasInsufficientEvidence: false,
+        });
+      }
+
+      if (p.includes('methodolog') || p.includes('compare the methodolog') || p.includes('explain the methodolog')) {
+        return JSON.stringify({
+          answer: `**Methodology Comparison**\n\nFor each selected paper, the core research procedures and computational techniques are outlined below:\n\n- **Research Approach:** Evaluated empirically through controlled sequence transformation and matrix factorization experiments.\n- **Algorithms / Models Used:** Multi-Head Scaled Dot-Product Attention [Attention Is All You Need.pdf, p. 3] and Low-Rank Adaptation (LoRA) decomposed matrices [LoRA.pdf, p. 4].\n- **Dataset Used:** WMT 2014 English-to-German, WMT 2014 English-to-French, and GLUE benchmark suites [Attention Is All You Need.pdf, p. 7].\n- **How the Method Works:** Queries, keys, and values are mapped into multi-head projections where dot-product attention compute token relationships simultaneously across sequence positions.\n\n### Comparison Table\n\n| Paper | Research Approach | Algorithms / Models | Datasets Used | Key Differences |\n| :--- | :--- | :--- | :--- | :--- |\n| Attention Is All You Need | Elimination of recurrent networks | Multi-Head Self-Attention | WMT 2014 En-De (4.5M pairs) | Fully self-attentive sequence transduction |\n| LoRA | Parameter-efficient weight tuning | Low-Rank Matrix Factorization | GLUE, WikiSQL | Freezes base weights and injects trainable rank matrices |`,
+          claims: [
+            { claim: 'Queries, keys, and values are mapped into multi-head projections.', sourceIndices: [1] }
+          ],
+          hasInsufficientEvidence: false,
+        });
+      }
+
+      if (p.includes('limitation')) {
+        return JSON.stringify({
+          answer: `**Reported Limitations**\n\n- Self-attention computational complexity scales quadratically with respect to input sequence length, increasing memory footprint on very long contexts [Attention Is All You Need.pdf, p. 6].\n- LoRA requires task-specific hyperparameter tuning for matrix rank r, which may vary across classification versus generative tasks [LoRA.pdf, p. 7].\n- Autoregressive generation remains inherently sequential during inference, limiting generation speed [Attention Is All You Need.pdf, p. 9].`,
+          claims: [
+            { claim: 'Self-attention computational complexity scales quadratically with respect to sequence length.', sourceIndices: [1] }
+          ],
+          hasInsufficientEvidence: false,
+        });
+      }
+
+      if (p.includes('conclusion')) {
+        return JSON.stringify({
+          answer: `**Comparison of Conclusions**\n\n- **Attention Is All You Need:** Concludes that pure self-attention architectures generalize effectively to sequence transduction tasks, outperforming recurrent and convolutional baselines while training faster [Attention Is All You Need.pdf, p. 10].\n- **LoRA:** Concludes that weight update matrices have low intrinsic rank, enabling efficient fine-tuning without storing full gradient checkpoints [LoRA.pdf, p. 8].\n\n**Similarities**\n- Both papers conclude that architectural efficiency can be significantly improved without sacrificing downstream task accuracy.\n\n**Differences**\n- The Transformer paper concludes on foundational architecture redesign, whereas LoRA concludes on modular parameter adaptation for existing foundation models.\n\n**Main Takeaway**\nModular, attention-focused designs provide superior performance and computational economics compared to conventional architectures.`,
+          claims: [
+            { claim: 'Pure self-attention architectures generalize effectively to sequence transduction tasks.', sourceIndices: [1] }
+          ],
+          hasInsufficientEvidence: false,
         });
       }
 
       return JSON.stringify({
-        answer: 'Based on the provided research documents, the Transformer architecture replaces recurrence with multi-head self-attention.',
+        answer: 'Based on the provided research documents, the Transformer architecture replaces recurrence with multi-head self-attention [Attention Is All You Need.pdf, p. 2]. This enables full training parallelization across sequence tokens, achieving higher computational efficiency.',
         claims: [
-          { claimText: 'The Transformer architecture replaces recurrence with multi-head self-attention.', sourcePassageIndices: [1] },
+          { claim: 'The Transformer architecture replaces recurrence with multi-head self-attention.', sourceIndices: [1] },
         ],
         hasInsufficientEvidence: false,
       });
