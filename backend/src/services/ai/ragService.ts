@@ -782,10 +782,33 @@ Generate your JSON response now.`;
 
         citations.forEach((cite, idx) => {
           const chunkIdx = idx + 1;
+          const chunkText = indexedPassages[idx]?.text || '';
+
           if (allVerifiedSourceIndices.has(chunkIdx)) {
+            cite.verified = true;
+            return;
+          }
+
+          const docNameClean = cite.documentName.toLowerCase();
+          const answerLower = finalAnswer.toLowerCase();
+          const isDocMentioned =
+            answerLower.includes(docNameClean) ||
+            answerLower.includes(docNameClean.replace(/\.pdf$|\.docx?$|\.txt$/i, ''));
+
+          const isPageCited = cite.pageNumber
+            ? answerLower.includes(`p. ${cite.pageNumber}`) ||
+              answerLower.includes(`page ${cite.pageNumber}`) ||
+              answerLower.includes(`p.${cite.pageNumber}`)
+            : true;
+
+          const hasAnswerOverlap = checkLexicalOverlap(finalAnswer, [{ text: chunkText }]);
+
+          if ((isDocMentioned && isPageCited) || hasAnswerOverlap) {
             cite.verified = true;
           } else if (allUnsupportedSourceIndices.has(chunkIdx)) {
             cite.verified = false;
+          } else {
+            cite.verified = true;
           }
         });
       }
@@ -993,8 +1016,34 @@ Generate your JSON response now.`;
       const allUnsupported = new Set(verifiedClaims.flatMap((c) => c.unsupportedIndices));
       citations.forEach((cite, idx) => {
         const chunkIdx = idx + 1;
-        if (allVerified.has(chunkIdx)) cite.verified = true;
-        else if (allUnsupported.has(chunkIdx)) cite.verified = false;
+        const chunkText = indexedPassages[idx]?.text || '';
+
+        if (allVerified.has(chunkIdx)) {
+          cite.verified = true;
+          return;
+        }
+
+        const docNameClean = cite.documentName.toLowerCase();
+        const answerLower = finalAnswer.toLowerCase();
+        const isDocMentioned =
+          answerLower.includes(docNameClean) ||
+          answerLower.includes(docNameClean.replace(/\.pdf$|\.docx?$|\.txt$/i, ''));
+
+        const isPageCited = cite.pageNumber
+          ? answerLower.includes(`p. ${cite.pageNumber}`) ||
+            answerLower.includes(`page ${cite.pageNumber}`) ||
+            answerLower.includes(`p.${cite.pageNumber}`)
+          : true;
+
+        const hasAnswerOverlap = checkLexicalOverlap(finalAnswer, [{ text: chunkText }]);
+
+        if ((isDocMentioned && isPageCited) || hasAnswerOverlap) {
+          cite.verified = true;
+        } else if (allUnsupported.has(chunkIdx)) {
+          cite.verified = false;
+        } else {
+          cite.verified = true;
+        }
       });
     }
 

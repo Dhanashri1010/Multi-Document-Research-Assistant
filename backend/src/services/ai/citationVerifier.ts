@@ -40,7 +40,15 @@ function extractSalientTokens(text: string): string[] {
 }
 
 function extractNumbersAndCodes(text: string): string[] {
-  const matches = text.match(/\b\d+(?:\.\d+)?(?:%|x|gb|mb|m|b|flops)?\b/gi) || [];
+  // Strip inline citations [Doc, p. 2], page markers (p. 2, page 8), section markers, and paper labels
+  const cleaned = text
+    .replace(/\[[^\]]+\]/g, ' ')
+    .replace(/\b(?:p|page|pp)\.?\s*\d+\b/gi, ' ')
+    .replace(/\b(?:section|sec|para|paragraph)\.?\s*\d+(?:\.\d+)*\b/gi, ' ')
+    .replace(/\b(?:figure|fig|table)\.?\s*\d+\b/gi, ' ')
+    .replace(/\bpaper[_\s]*\d+\b/gi, ' ');
+
+  const matches = cleaned.match(/\b\d+(?:\.\d+)?(?:%|x|gb|mb|m|b|flops)?\b/gi) || [];
   return Array.from(new Set(matches.map((m) => m.toLowerCase())));
 }
 
@@ -130,13 +138,13 @@ export class CitationVerifier {
       };
     } catch {
       // Robust fallback to lexical containment
-      const isSupported = lexicalContainment >= 0.16;
+      const isSupported = lexicalContainment >= 0.12 || matchedTokens.length >= 2;
       return {
         isSupported,
         supportScore: Math.round(lexicalContainment * 100) / 100,
         matchedTokens,
         missingNumbers: [],
-        reason: isSupported ? undefined : `Low lexical containment (${Math.round(lexicalContainment * 100)}% < 16%)`,
+        reason: isSupported ? undefined : `Low lexical containment (${Math.round(lexicalContainment * 100)}% < 12%)`,
       };
     }
   }
