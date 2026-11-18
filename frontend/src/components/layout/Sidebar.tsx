@@ -88,7 +88,7 @@ export const Sidebar: React.FC = () => {
         {/* Project Workflow & Technology Guide Link */}
         <div className="pt-4">
           <div className="px-3 mb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            Evaluation & Guide
+            Documentation
           </div>
           <NavLink
             to="/workflow-guide"
@@ -106,9 +106,6 @@ export const Sidebar: React.FC = () => {
                 Project Workflow & Technology Guide
               </span>
             </div>
-            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30 font-bold shrink-0 ml-1">
-              Rubric
-            </span>
           </NavLink>
         </div>
       </nav>

@@ -5,9 +5,7 @@ import {
   ArrowLeft,
   Layers,
   Cpu,
-  TableProperties,
   Binary,
-  CheckCircle2,
   FileText,
   Database,
   Search,
@@ -17,7 +15,6 @@ import {
   GitCompare,
   History,
   AlertTriangle,
-  Info,
   ShieldCheck,
   Zap,
   BookOpen,
@@ -38,9 +35,7 @@ export const WorkflowGuidePage: React.FC = () => {
     { id: 'overview', label: '1. Overview', icon: BookOpen },
     { id: 'workflow', label: '2. Workflow & Pipeline', icon: Layers },
     { id: 'technologies', label: '3. Tech Stack & Uses', icon: Cpu },
-    { id: 'rubric', label: '4. Rubric Mapping (CO1–CO4)', icon: TableProperties },
-    { id: 'algorithms', label: '5. Algorithms & NLP', icon: Binary },
-    { id: 'demo', label: '6. Faculty Demo Guide', icon: CheckCircle2 },
+    { id: 'algorithms', label: '4. Algorithms & NLP', icon: Binary },
   ];
 
   return (
@@ -829,180 +824,13 @@ export const WorkflowGuidePage: React.FC = () => {
         </section>
 
         {/* ========================================== */}
-        {/* SECTION 4: ASSESSMENT RUBRIC MAPPING */}
-        {/* ========================================== */}
-        <section id="rubric" className="scroll-mt-32">
-          <div className="mb-6">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200 text-xs font-semibold mb-2">
-              <TableProperties className="w-3.5 h-3.5" />
-              <span>Section 4</span>
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Assessment Rubric Mapping (CO1 to CO4)
-            </h2>
-            <p className="text-sm text-slate-600 mt-1 max-w-3xl">
-              Direct mapping of our implemented features to your college's official Project Demonstration Assessment Rubric (30 Total Marks). This table provides faculty evaluators with an objective, verified breakdown of every criteria.
-            </p>
-          </div>
-
-          {/* Academic Transparency Alert */}
-          <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 mb-6 flex items-start gap-3">
-            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="text-xs text-amber-900 leading-relaxed">
-              <strong>Academic Integrity & Scope Disclosure:</strong> In accordance with strict software engineering ethics, this guide accurately reports both fully implemented features and curriculum gaps. Specifically, <em>Sentiment Analysis</em> (CO2) is marked as out of scope for factual academic grounding, and <em>Unsupervised Topic Modeling / Multilingual NLP</em> (CO3) is explicitly identified as a curriculum limitation rather than falsely claiming embedding clusters are topic models.
-            </div>
-          </div>
-
-          {/* Rubric Mapping Table */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
-                    <th className="py-3.5 px-4 w-28">CO & Marks</th>
-                    <th className="py-3.5 px-4 w-48">Assessment Criteria</th>
-                    <th className="py-3.5 px-4 w-44">Project Feature</th>
-                    <th className="py-3.5 px-4 w-52">Technologies / Algorithms Used</th>
-                    <th className="py-3.5 px-4">How It Works in Our Project & Coverage Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {/* ROW CO1 */}
-                  <tr className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-4 px-4 align-top">
-                      <div className="font-bold text-sm text-brand-700">CO1</div>
-                      <div className="text-[11px] font-semibold text-slate-500">7 Marks</div>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        100% Implemented
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 align-top font-medium text-slate-800">
-                      Text extraction, preprocessing, cleaning and vectorization of unstructured data.
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-700">
-                      <strong>Multi-Format Ingestion & Semantic Vector Pipeline</strong>
-                      <div className="text-slate-500 mt-1">PDF, Word (DOCX/DOC), TXT processing with sliding chunking and local embeddings.</div>
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-600 font-mono text-[11px]">
-                      • pdf-parse (1.1.1)<br />
-                      • mammoth (1.13.0)<br />
-                      • word-extractor (1.0.4)<br />
-                      • Xenova/all-MiniLM-L6-v2<br />
-                      • MongoDB ChunkModel
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-600 leading-relaxed">
-                      Files are uploaded via Multer, verified by MIME/magic bytes, and extracted into text streams. <code>extractor.ts</code> strips non-printable control characters and fixes hyphenation. <code>chunker.ts</code> executes sliding-window chunking (500–1000 chars, 15% overlap) retaining exact page metadata. <code>embeddingService.ts</code> generates 384-dimensional dense vectors locally using ONNX runtime in Node.js and persists them to MongoDB with atomic transactional replacement.
-                    </td>
-                  </tr>
-
-                  {/* ROW CO2 */}
-                  <tr className="hover:bg-slate-50/60 transition-colors bg-slate-50/30">
-                    <td className="py-4 px-4 align-top">
-                      <div className="font-bold text-sm text-brand-700">CO2</div>
-                      <div className="text-[11px] font-semibold text-slate-500">8 Marks</div>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        Information Extraction: Active<br />Sentiment Analysis: Out of Scope
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 align-top font-medium text-slate-800">
-                      Implementation and evaluation of sentiment analysis and information extraction using appropriate algorithms.
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-700">
-                      <strong>Scientific Information Extraction & Factual Grounding</strong>
-                      <div className="text-slate-500 mt-1">Structured metadata parsing, 10-dimension academic extraction, claim-citation verification.</div>
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-600 font-mono text-[11px]">
-                      • Regex metadata parser<br />
-                      • 10-Dimension comparison schema<br />
-                      • citationVerifier.ts<br />
-                      • Zod schema validation
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-600 leading-relaxed">
-                      <strong>Information Extraction:</strong> Fully implemented. Extracts titles, authors, page counts, numerical benchmark metrics, and extracts evidence across 10 structured dimensions (Objectives, Architectures, Results, Limitations, Gaps).
-                      <br /><br />
-                      <strong className="text-amber-800">Sentiment Analysis Audit Note:</strong> Not implemented in source code. Academic literature requires objective, empirical veracity rather than emotional polarity classification (positive/negative sentiment). We deliberately do not fabricate sentiment labels on scholarly papers.
-                    </td>
-                  </tr>
-
-                  {/* ROW CO3 */}
-                  <tr className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-4 px-4 align-top">
-                      <div className="font-bold text-sm text-brand-700">CO3</div>
-                      <div className="text-[11px] font-semibold text-slate-500">7 Marks</div>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        Cloud AI: Implemented<br />Topic/Multilingual: Future Work
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 align-top font-medium text-slate-800">
-                      Implementation of topic modeling or multilingual NLP using appropriate NLP techniques and cloud-based AI services.
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-700">
-                      <strong>Cloud AI Integration & Research Synthesis</strong>
-                      <div className="text-slate-500 mt-1">Google Gemini 2.5 Flash API integration for high-level semantic synthesis and categorization.</div>
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-600 font-mono text-[11px]">
-                      • Google Gemini 2.5 Flash (@google/genai)<br />
-                      • OpenAI GPT-4o SDK<br />
-                      • Rule-based topic classifier
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-600 leading-relaxed">
-                      <strong>Cloud AI Services:</strong> Fully integrated. Connects to <code>@google/genai</code> (Gemini 2.5 Flash) and OpenAI APIs for executive summarization, cross-document synthesis, and query rewriting.
-                      <br /><br />
-                      <strong className="text-amber-800">Topic Modeling & Multilingual Audit Note:</strong> Unsupervised topic models (e.g., LDA or BERTopic) and cross-lingual translation are curriculum gaps not present in the current release. The system relies on semantic embedding neighborhoods and LLM semantic synthesis rather than statistical topic Dirichlet distributions.
-                    </td>
-                  </tr>
-
-                  {/* ROW CO4 */}
-                  <tr className="hover:bg-slate-50/60 transition-colors bg-slate-50/30">
-                    <td className="py-4 px-4 align-top">
-                      <div className="font-bold text-sm text-brand-700">CO4</div>
-                      <div className="text-[11px] font-semibold text-slate-500">8 Marks</div>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        100% Implemented
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 align-top font-medium text-slate-800">
-                      Generative AI/LLM application, prompt engineering, integration and working demonstration of the project solution.
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-700">
-                      <strong>Production RAG System with Citations & Cross-Comparison</strong>
-                      <div className="text-slate-500 mt-1">Full question answering, prompt hardening, RRF + MMR re-ranking, multi-turn history.</div>
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-600 font-mono text-[11px]">
-                      • RAG pipeline (ragService.ts)<br />
-                      • Reciprocal Rank Fusion (k=60)<br />
-                      • MMR diversity re-ranking<br />
-                      • Anti-injection prompts<br />
-                      • Multi-provider adapter
-                    </td>
-                    <td className="py-4 px-4 align-top text-slate-600 leading-relaxed">
-                      Generates fully grounded answers by assembling retrieved document chunks into hardened system prompts with explicit anti-injection and anti-hallucination guardrails. Emits verifiable citations <code>[Doc: ..., Page: ...]</code> that cross-reference MongoDB chunk records. Features multi-turn query rewriting, 10-dimension comparative matrix generation, and full multi-provider support (Gemini, OpenAI, Ollama, Mock).
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Rubric Total Score Footer */}
-            <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-600 gap-2">
-              <span className="font-semibold text-slate-800">
-                Total Assessment Weight: 30 Marks (CO1: 7M + CO2: 8M + CO3: 7M + CO4: 8M)
-              </span>
-              <span className="text-slate-500 text-[11px]">
-                Verified against active source code on branch <code>improvements</code>
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* ========================================== */}
-        {/* SECTION 5: ALGORITHMS AND NLP TECHNIQUES */}
+        {/* SECTION 4: ALGORITHMS AND NLP TECHNIQUES */}
         {/* ========================================== */}
         <section id="algorithms" className="scroll-mt-32">
           <div className="mb-6">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold mb-2">
               <Binary className="w-3.5 h-3.5" />
-              <span>Section 5</span>
+              <span>Section 4</span>
             </div>
             <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Algorithms and NLP Techniques</h2>
             <p className="text-sm text-slate-600 mt-1 max-w-3xl">
@@ -1226,119 +1054,6 @@ export const WorkflowGuidePage: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* ========================================== */}
-        {/* SECTION 6: LIVE DEMONSTRATION GUIDE */}
-        {/* ========================================== */}
-        <section id="demo" className="scroll-mt-32">
-          <div className="mb-6">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 border border-teal-200 text-xs font-semibold mb-2">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Section 6</span>
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Faculty Viva & Live Demonstration Guide
-            </h2>
-            <p className="text-sm text-slate-600 mt-1 max-w-3xl">
-              A 10-step sequential demonstration checklist designed specifically for presentation to project evaluators, faculty members, and external examiners. Follow these steps to showcase all working features seamlessly.
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs divide-y divide-slate-100">
-            {[
-              {
-                step: 1,
-                title: 'Upload a Research Document (PDF or Word)',
-                action: 'Navigate to the Documents tab or click "Upload" in the header. Drag and drop an academic PDF or Word DOCX/DOC file (e.g. an AI research paper or technical report).',
-                highlight: 'Demonstrates multi-format file validation, MIME verification, and 50MB upload limits.',
-                badge: 'CO1',
-              },
-              {
-                step: 2,
-                title: 'Show Real-Time Ingestion & Local Vectorization',
-                action: 'Observe the processing badge transition from "processing" to "ready". Point out that text extraction, regex cleaning, and ONNX vectorization run locally on the backend.',
-                highlight: 'Proves the local Xenova/all-MiniLM-L6-v2 pipeline runs without external API fees or third-party vector databases.',
-                badge: 'CO1',
-              },
-              {
-                step: 3,
-                title: 'Inspect Processed Document Metadata & Chunks',
-                action: 'Open the document details card in the Documents view. Review extracted page counts, character length, chunk counts, and preview the raw text.',
-                highlight: 'Demonstrates clean segmentation, paragraph preservation, and database persistence in MongoDB.',
-                badge: 'CO1',
-              },
-              {
-                step: 4,
-                title: 'Ask a Domain-Specific Question on One Document',
-                action: 'Go to the Research Workspace, select the uploaded document, and ask a specific factual question (e.g., "What was the main architecture proposed in this paper?").',
-                highlight: 'Activates hybrid retrieval (dense semantic + BM25) and reciprocal rank fusion.',
-                badge: 'CO4',
-              },
-              {
-                step: 5,
-                title: 'Inspect the Grounded Answer and Verified Citations',
-                action: 'Show the generated answer in the chat panel. Hover over or click on the inline citations [Doc: ..., Page: ...] to inspect the exact source chunk snippet.',
-                highlight: 'Proves zero hallucination and verifiable grounding through citationVerifier.ts.',
-                badge: 'CO4',
-              },
-              {
-                step: 6,
-                title: 'Upload a Second Complementary Research Paper',
-                action: 'Upload a second paper on a related subject (e.g., comparing BERT vs RoBERTa or ResNet vs EfficientNet). Wait for it to show "Ready".',
-                highlight: 'Demonstrates scalability and multi-document repository indexing.',
-                badge: 'CO1',
-              },
-              {
-                step: 7,
-                title: 'Ask a Multi-Document Cross-Synthesis Question',
-                action: 'Select BOTH uploaded documents in the Research Workspace. Ask: "Compare the datasets, hardware, and benchmark results between both papers."',
-                highlight: 'Demonstrates cross-document synthesis, MMR diversity re-ranking, and multi-source citations in a single response.',
-                badge: 'CO4',
-              },
-              {
-                step: 8,
-                title: 'Demonstrate 10-Dimension Document Comparison',
-                action: 'Click on the "Compare Documents" tab in the sidebar. Select two or more documents and click "Generate Comparison".',
-                highlight: 'Show the structured 10-dimension comparative matrix covering Objectives, Architecture, Findings, Datasets, Advantages, Gaps, Innovations, and Verdict.',
-                badge: 'CO2 & CO4',
-              },
-              {
-                step: 9,
-                title: 'Demonstrate Automated Executive Summarization',
-                action: 'View the Document Summary section. Show the high-level executive briefing, methodology breakdown, and key takeaways generated for the paper.',
-                highlight: 'Demonstrates Cloud AI summarization via Google Gemini 2.5 Flash / OpenAI without hallucination.',
-                badge: 'CO3 & CO4',
-              },
-              {
-                step: 10,
-                title: 'Demonstrate Conversational History & Query Rewriting',
-                action: 'In the Research Workspace, ask a follow-up question containing ambiguous pronouns (e.g. "What were their limitations?" or "How did they evaluate it?").',
-                highlight: 'Show how query rewriting references the last 6 turns in MongoDB ResearchSessionModel to resolve context accurately.',
-                badge: 'CO4',
-              },
-            ].map((item) => (
-              <div key={item.step} className="p-5 flex flex-col md:flex-row md:items-start gap-4 hover:bg-slate-50/50 transition-colors">
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-brand-50 border border-brand-200 text-brand-700 flex items-center justify-center font-bold text-xs">
-                    {item.step}
-                  </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                    {item.badge}
-                  </span>
-                </div>
-                <div className="flex-1 space-y-1">
-                  <h4 className="text-sm font-bold text-slate-900">{item.title}</h4>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    <strong>Action:</strong> {item.action}
-                  </p>
-                  <p className="text-xs text-brand-700 font-medium leading-relaxed">
-                    <strong>What to Highlight to Evaluator:</strong> {item.highlight}
-                  </p>
-                </div>
-              </div>
-            ))}
           </div>
         </section>
 

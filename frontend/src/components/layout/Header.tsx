@@ -37,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenUpload }) => {
       case '/workflow-guide':
         return {
           title: 'Project Workflow & Technology Guide',
-          description: 'System architecture, NLP algorithms, technology stack, and college assessment rubric mapping (CO1–CO4).',
+          description: 'System architecture, NLP algorithms, and technology stack.',
         };
       default:
         return {
