@@ -39,7 +39,7 @@ const envSchema = z.object({
   CHUNK_OVERLAP_TOKENS: z.coerce.number().int().nonnegative().default(60),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   LLM_MAX_RETRIES: z.coerce.number().int().nonnegative().default(2),
-  COMPARE_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  COMPARE_TIMEOUT_MS: z.coerce.number().int().positive().default(65000),
   PRE_LLM_COSINE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.28),
   RERANKER: z.enum(['on', 'off']).default('off'),
 }).refine(

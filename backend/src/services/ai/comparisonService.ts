@@ -410,11 +410,11 @@ ${docsContext}
 Generate the JSON comparison now.`;
 
     const startTime = Date.now();
-    const baseTimeout = Math.max(15000, config.compareTimeoutMs || 30000);
-    // Scale timeout with document count (+8s per document beyond 2)
-    const totalBudgetMs = baseTimeout + Math.max(0, docs.length - 2) * 8000;
-    // Attempt 1 budget: ~65% of total budget (at least 12s)
-    const attempt1Timeout = Math.max(12000, Math.floor(totalBudgetMs * 0.65));
+    const baseTimeout = Math.max(50000, config.compareTimeoutMs || 65000);
+    // Scale timeout with document count (+10s per document beyond 2, capped at 85s for reverse proxy safety)
+    const totalBudgetMs = Math.min(85000, baseTimeout + Math.max(0, docs.length - 2) * 10000);
+    // Attempt 1 budget: ~80% of total budget (at least 45s) to allow frontier LLM full generation time
+    const attempt1Timeout = Math.max(45000, Math.floor(totalBudgetMs * 0.8));
 
     let response = '';
     let lastError: any = null;
@@ -423,7 +423,7 @@ Generate the JSON comparison now.`;
       response = await LLMService.generate(userPrompt, {
         systemPrompt,
         temperature: 0.1,
-        maxTokens: 6144,
+        maxTokens: 3584,
         timeoutMs: attempt1Timeout,
         maxRetries: 0,
       });
@@ -432,8 +432,13 @@ Generate the JSON comparison now.`;
       const elapsed = Date.now() - startTime;
       const remainingMs = totalBudgetMs - elapsed;
 
-      // Allow one retry if sufficient time remains in budget (at least 10s for API)
-      if (remainingMs >= 10000) {
+      const isTimeout =
+        err?.message?.includes('timed out') ||
+        err?.message?.includes('timeout') ||
+        err?.message?.includes('ETIMEDOUT');
+
+      // Only retry if it was not a timeout and sufficient time remains in budget (at least 20s)
+      if (!isTimeout && remainingMs >= 20000) {
         console.warn(
           `[ComparisonService] Attempt 1 failed (${err.message}). Retrying once with remaining budget of ${remainingMs}ms...`
         );
@@ -441,7 +446,7 @@ Generate the JSON comparison now.`;
           response = await LLMService.generate(userPrompt, {
             systemPrompt,
             temperature: 0.1,
-            maxTokens: 6144,
+            maxTokens: 3584,
             timeoutMs: remainingMs,
             maxRetries: 0,
           });
