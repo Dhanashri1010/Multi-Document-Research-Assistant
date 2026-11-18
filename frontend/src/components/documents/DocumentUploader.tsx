@@ -44,10 +44,11 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
         file.type === 'application/x-msword' ||
         file.type === 'application/x-cfb' ||
         ext === 'doc';
+      const isTxt = file.type === 'text/plain' || ext === 'txt';
 
-      if (!isPdf && !isDocx && !isDoc) {
+      if (!isPdf && !isDocx && !isDoc && !isTxt) {
         setErrorMessage(
-          `"${file.name}" is not a supported format. Please upload PDF (.pdf), Word (.docx), or legacy Word (.doc) documents.`
+          `"${file.name}" is not a supported format. Please upload PDF (.pdf), Word (.docx, .doc), or Text (.txt) documents.`
         );
         return [];
       }
@@ -196,7 +197,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+              accept=".pdf,.docx,.doc,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain"
               multiple
               className="hidden"
               onChange={handleFileChange}
@@ -210,7 +211,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
               Click to upload or drag & drop research documents
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Supports PDF (.pdf), Word (.docx), and legacy Word (.doc) up to 25MB each.
+              Supports PDF (.pdf), Word (.docx, .doc), and Text (.txt) up to 25MB each.
             </p>
           </div>
 
@@ -218,7 +219,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
           {selectedFiles.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                Selected for Ingestion ({selectedFiles.length})
+                Selected for Upload ({selectedFiles.length})
               </p>
               <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                 {selectedFiles.map((f, i) => {
@@ -265,7 +266,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
                   onClick={handleUpload}
                   isLoading={isUploading}
                 >
-                  {isUploading ? `Ingesting (${uploadProgress}%)` : `Ingest ${selectedFiles.length} Paper(s)`}
+                  {isUploading ? `Uploading & Preparing (${uploadProgress}%)` : `Upload ${selectedFiles.length} Document(s)`}
                 </Button>
               </div>
             </div>
@@ -290,7 +291,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
               />
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
-              Paste any arXiv abstract or PDF link. The assistant will download and chunk the paper automatically.
+              Paste any arXiv abstract or PDF link. The assistant will download and prepare the paper automatically.
             </p>
           </div>
 
@@ -320,11 +321,11 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
               {isImportingArxiv ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Downloading & Ingesting...</span>
+                  <span>Downloading & Preparing...</span>
                 </>
               ) : (
                 <>
-                  <span>Fetch & Ingest Paper</span>
+                  <span>Import Paper</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}
@@ -346,7 +347,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onUploadComp
         <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2 text-xs">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>
-            {successMessage || `Successfully uploaded and queued ${successCount} document(s) for ingestion.`}
+            {successMessage || `Successfully uploaded and queued ${successCount} document(s) for processing.`}
           </span>
         </div>
       )}

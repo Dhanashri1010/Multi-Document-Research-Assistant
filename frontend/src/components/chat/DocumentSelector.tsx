@@ -147,7 +147,7 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
                   <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
                     <span>{doc.pageCount} pages</span>
                     <span>•</span>
-                    <span>{doc.chunkCount} chunks</span>
+                    <span>{doc.chunkCount} sections</span>
                     {doc.collectionName && doc.collectionName !== 'General' && (
                       <>
                         <span>•</span>
@@ -161,7 +161,7 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
 
                 <button
                   type="button"
-                  title="Generate Executive Document Summary"
+                  title="View Document Summary"
                   onClick={(e) => {
                     e.stopPropagation();
                     onSummarize(doc._id);

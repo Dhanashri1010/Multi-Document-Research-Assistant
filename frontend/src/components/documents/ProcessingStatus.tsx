@@ -23,14 +23,14 @@ export const ProcessingStatusBadge: React.FC<ProcessingStatusProps> = ({
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
           {showIcon && <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />}
-          Processing
+          Preparing
         </span>
       );
     case 'uploaded':
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
           {showIcon && <Clock className="w-3.5 h-3.5 text-amber-600" />}
-          Queued
+          Uploaded
         </span>
       );
     case 'failed':

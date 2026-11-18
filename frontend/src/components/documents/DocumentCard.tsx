@@ -155,7 +155,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
               <button
                 onClick={() => setShowReprocessModal(true)}
-                title="Reprocess & re-index document"
+                title="Reprocess document"
                 className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
@@ -340,14 +340,14 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               isLoading={isRetrying}
               onClick={handleReprocess}
             >
-              Retry Ingestion
+              Retry Processing
             </Button>
           )}
 
           {document.status === 'processing' && (
             <div className="flex-1 py-1 px-3 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 border border-amber-200">
               <RefreshCw className="w-3 h-3 animate-spin" />
-              <span>Indexing...</span>
+              <span>Preparing...</span>
             </div>
           )}
         </div>
@@ -369,8 +369,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             <p className="font-bold">This operation will permanently remove:</p>
             <ul className="list-disc list-inside space-y-0.5">
               <li>The document metadata and database record</li>
-              <li>All extracted chunks and vector embeddings</li>
-              <li>Stored physical PDF file on disk</li>
+              <li>All extracted text and search data</li>
+              <li>Stored document file on disk</li>
             </ul>
           </div>
           <div className="flex items-center justify-end gap-3 pt-2">
@@ -399,20 +399,20 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       <Modal
         isOpen={showReprocessModal}
         onClose={() => setShowReprocessModal(false)}
-        title="Reprocess & Re-Index Confirmation"
+        title="Reprocess Document Confirmation"
         maxWidth="md"
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600 leading-relaxed">
-            Are you sure you want to re-index{' '}
+            Are you sure you want to reprocess{' '}
             <strong className="text-slate-900 font-semibold">{document.originalName}</strong>?
           </p>
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs space-y-1">
             <p className="font-bold">What will happen:</p>
             <ul className="list-disc list-inside space-y-0.5">
-              <li>Document text will be extracted and re-chunked with latest settings</li>
-              <li>Dense vector embeddings will be refreshed</li>
-              <li>Existing working chunks and summary are safely preserved if reprocessing fails</li>
+              <li>Document text will be re-analyzed and prepared</li>
+              <li>Search index will be refreshed</li>
+              <li>Existing working text and summary are safely preserved if reprocessing fails</li>
             </ul>
           </div>
           <div className="flex items-center justify-end gap-3 pt-2">
@@ -453,7 +453,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               Error Message
             </h4>
             <p className="text-xs text-rose-800 leading-relaxed font-mono whitespace-pre-wrap">
-              {document.errorDetails || 'An unexpected error occurred during document ingestion.'}
+              {document.errorDetails || 'An error occurred while preparing this document.'}
             </p>
           </div>
           <p className="text-xs text-slate-500">
@@ -477,7 +477,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               }}
               icon={<RefreshCw className="w-3.5 h-3.5" />}
             >
-              Retry Ingestion
+              Retry Processing
             </Button>
           </div>
         </div>

@@ -300,7 +300,7 @@ export const ResearchPage: React.FC = () => {
       console.error('Summary synthesis failed:', err);
       // DO NOT fabricate fake generic text. Present honest error and retry action.
       setSummaryError(
-        err.message || 'Failed to synthesize summary. Please try again or re-index the document.'
+        err.message || 'Failed to synthesize summary. Please try again or reprocess the document.'
       );
     } finally {
       setLoadingSummary(false);
@@ -435,7 +435,7 @@ export const ResearchPage: React.FC = () => {
               </div>
               <h3 className="text-base font-bold text-slate-800">No Ready Documents</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Please upload PDF research papers in the Documents page and wait for vector embedding to complete before asking questions.
+                Please upload research documents in the Documents page and wait for document preparation to complete before asking questions.
               </p>
               <Button
                 variant="primary"

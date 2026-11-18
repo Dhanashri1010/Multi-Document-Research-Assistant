@@ -17,17 +17,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenUpload }) => {
       case '/dashboard':
         return {
           title: 'Research Dashboard',
-          description: 'High-level synthesis and overview of your document research repository.',
+          description: 'Overview of your uploaded documents and research activity.',
         };
       case '/documents':
         return {
           title: 'Document Management',
-          description: 'Upload, inspect, and manage indexed academic PDFs and research reports.',
+          description: 'Upload, view, and organize your research documents.',
         };
       case '/research':
         return {
           title: 'Research Workspace',
-          description: 'Multi-document question-answering with grounded vector retrieval & citations.',
+          description: 'Ask questions across your selected documents with verified source citations.',
         };
       case '/compare':
         return {
@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenUpload }) => {
       default:
         return {
           title: 'Multi-Document Research Assistant',
-          description: 'AI-assisted scholarly document analysis.',
+          description: 'AI-assisted document research and analysis.',
         };
     }
   };

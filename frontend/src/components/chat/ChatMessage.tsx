@@ -303,9 +303,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
           <div className="mb-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 flex items-start gap-2.5 text-xs">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold">Insufficient Document Evidence</p>
+              <p className="font-semibold">Not Enough Information Found</p>
               <p className="mt-0.5 text-amber-700">
-                The selected documents do not contain enough conclusive evidence to confidently answer this specific question.
+                The selected documents do not contain enough information to answer this question. Try selecting more documents or rephrasing your question.
               </p>
             </div>
           </div>

@@ -61,9 +61,9 @@ export const ComparePage: React.FC = () => {
           Compare Research Papers
         </h1>
         <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-          Select at least two indexed papers to synthesize side-by-side matrices across 8 academic
-          dimensions: Research Objective, Methodology, Model/Architecture, Dataset, Metrics, Results,
-          Limitations, and Conclusions.
+          Select at least two documents to synthesize side-by-side matrices across 10 academic
+          dimensions: Research Objectives, Methodologies, Models and Technologies, Datasets, Evaluation Metrics,
+          Results, Advantages, Limitations, Conclusions, and Research Gaps.
         </p>
       </div>
 
@@ -122,7 +122,7 @@ export const ComparePage: React.FC = () => {
                       {doc.originalName}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      {doc.pageCount} pages • {doc.chunkCount} passages
+                      {doc.pageCount} pages • {doc.chunkCount} sections
                     </p>
                   </div>
                 </div>

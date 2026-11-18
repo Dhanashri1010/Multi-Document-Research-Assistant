@@ -782,7 +782,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
 
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <span className="text-slate-400 block mb-0.5">
-                      {isWordDoc ? 'Sections / Chunks' : 'Page Count'}
+                      {isWordDoc ? 'Sections' : 'Page Count'}
                     </span>
                     <span className="font-semibold text-slate-800">
                       {isWordDoc

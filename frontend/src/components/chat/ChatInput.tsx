@@ -110,7 +110,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       </form>
       <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
         <span>Press <kbd className="font-mono bg-slate-100 px-1 rounded border">Enter</kbd> to submit, <kbd className="font-mono bg-slate-100 px-1 rounded border">Shift + Enter</kbd> for new line</span>
-        <span>Answers grounded in vector retrieval</span>
+        <span>Answers grounded in your selected documents</span>
       </div>
     </div>
   );

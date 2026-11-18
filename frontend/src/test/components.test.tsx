@@ -87,6 +87,23 @@ describe('Frontend Component Tests: SourceCitation', () => {
 
     expect(screen.getByText(/Open in PDF Viewer at Page 3/i)).toBeInTheDocument();
   });
+
+  it('correctly handles and displays not checked citation state when unverified by AI', () => {
+    const uncheckCitations: ICitation[] = [
+      {
+        documentId: 'doc3',
+        documentName: 'Paper 3 - Raw Excerpt',
+        pageNumber: 2,
+        excerpt: 'Direct excerpt retrieved from vector store.',
+        verified: undefined,
+      },
+    ];
+
+    render(<SourceCitation citations={uncheckCitations} />);
+
+    expect(screen.getByText(/sources not checked/i)).toBeInTheDocument();
+    expect(screen.getByText('not checked')).toBeInTheDocument();
+  });
 });
 
 describe('Frontend Component Tests: ChatMessage', () => {

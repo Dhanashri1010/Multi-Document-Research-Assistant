@@ -101,14 +101,13 @@ export const DashboardPage: React.FC = () => {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
           <span className="text-xs font-bold text-brand-600 uppercase tracking-wider">
-            AI Research Knowledge Base
+            Research Assistant
           </span>
           <h1 className="text-2xl font-extrabold text-slate-900 mt-0.5 tracking-tight">
             Research Dashboard
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Multi-Document Research Assistant ingests literature, extracts structured passages, generates
-            dense sentence embeddings, and conducts grounded Retrieval-Augmented Generation across your corpus.
+            Easily explore, ask questions, and compare research papers or documents. Upload your files, select what you want to research, and get clear answers backed by direct citations.
           </p>
         </div>
 
@@ -129,9 +128,42 @@ export const DashboardPage: React.FC = () => {
               icon={<Sparkles className="w-4 h-4" />}
               onClick={() => handleStartResearch()}
             >
-              Open Research Workspace
+              Start Research
             </Button>
           )}
+        </div>
+      </div>
+
+      {/* Quick Start Guide for New Users */}
+      <div className="bg-gradient-to-r from-brand-50/80 via-white to-blue-50/50 p-5 rounded-2xl border border-brand-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-brand-500/20">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">How to get started</h3>
+            <p className="text-xs text-slate-600 mt-0.5">
+              1. <strong>Upload</strong> PDF, Word, or TXT documents &nbsp;→&nbsp; 2. <strong>Select</strong> papers in Workspace &nbsp;→&nbsp; 3. <strong>Ask</strong> questions to receive verified answers.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/documents')}
+            icon={<FileText className="w-3.5 h-3.5 text-brand-600" />}
+          >
+            View Documents
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/compare')}
+            icon={<GitCompare className="w-3.5 h-3.5 text-blue-600" />}
+          >
+            Compare Documents
+          </Button>
         </div>
       </div>
 
@@ -148,7 +180,7 @@ export const DashboardPage: React.FC = () => {
           <p className="text-3xl font-extrabold text-slate-900 tracking-tight">
             {stats?.totalDocuments ?? 0}
           </p>
-          <p className="text-xs text-slate-400">Indexed in database</p>
+          <p className="text-xs text-slate-400">Saved in your library</p>
         </div>
 
         {/* Ready Documents */}
@@ -162,13 +194,13 @@ export const DashboardPage: React.FC = () => {
           <p className="text-3xl font-extrabold text-emerald-600 tracking-tight">
             {stats?.readyDocuments ?? 0}
           </p>
-          <p className="text-xs text-slate-400">Vector indexed & queryable</p>
+          <p className="text-xs text-slate-400">Ready to answer questions</p>
         </div>
 
         {/* Processing Documents */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Currently Ingesting</span>
+            <span className="text-xs font-semibold text-slate-500">Preparing Documents</span>
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
               <Clock className="w-4 h-4" />
             </div>
@@ -176,13 +208,13 @@ export const DashboardPage: React.FC = () => {
           <p className="text-3xl font-extrabold text-blue-600 tracking-tight">
             {stats?.processingDocuments ?? 0}
           </p>
-          <p className="text-xs text-slate-400">Extracting & embedding</p>
+          <p className="text-xs text-slate-400">Reading and indexing</p>
         </div>
 
         {/* Failed Documents */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Failed Ingestion</span>
+            <span className="text-xs font-semibold text-slate-500">Processing Issues</span>
             <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
               <AlertCircle className="w-4 h-4" />
             </div>
@@ -190,7 +222,7 @@ export const DashboardPage: React.FC = () => {
           <p className="text-3xl font-extrabold text-rose-600 tracking-tight">
             {stats?.failedDocuments ?? 0}
           </p>
-          <p className="text-xs text-slate-400">Action required</p>
+          <p className="text-xs text-slate-400">Needs retry or check</p>
         </div>
       </div>
 
@@ -202,7 +234,7 @@ export const DashboardPage: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-slate-800">Recent Documents</h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Latest papers processed into the semantic retrieval index.
+                Recently added documents ready for research.
               </p>
             </div>
             <Link
@@ -217,7 +249,7 @@ export const DashboardPage: React.FC = () => {
             <EmptyState
               icon={BookOpen}
               title="Your Research Repository is Empty"
-              description="Upload research papers (PDF) to begin automatic text extraction, sentence chunking, dense vector embedding, and cross-document QA."
+              description="Upload your documents (PDF, Word, or Text) to start asking questions, finding key takeaways, and comparing findings."
               action={
                 <Button
                   variant="primary"
@@ -225,7 +257,7 @@ export const DashboardPage: React.FC = () => {
                   icon={<UploadCloud className="w-4 h-4" />}
                   onClick={() => setIsUploadOpen(true)}
                 >
-                  Upload Research Papers
+                  Upload Documents
                 </Button>
               }
             />
@@ -300,7 +332,7 @@ export const DashboardPage: React.FC = () => {
               </Link>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Previous QA dialogues and paper investigations.
+              Previous questions and research conversations.
             </p>
 
             <div className="mt-4 space-y-2">

@@ -70,12 +70,12 @@ export const DocumentsPage: React.FC = () => {
       setIsReindexing(true);
       setError(null);
       const res = await documentService.reindexAll();
-      setReindexMessage(`Successfully re-indexed ${res.succeeded} of ${res.total} document(s).`);
+      setReindexMessage(`Successfully reprocessed ${res.succeeded} of ${res.total} document(s).`);
       await refreshDocuments();
       await fetchStats();
       setTimeout(() => setReindexMessage(null), 6000);
     } catch (err: any) {
-      setError(err.message || 'Failed to re-index documents.');
+      setError(err.message || 'Failed to reprocess documents.');
     } finally {
       setIsReindexing(false);
     }
@@ -186,7 +186,7 @@ export const DocumentsPage: React.FC = () => {
             isLoading={isReindexing}
             icon={<RefreshCw className="w-3.5 h-3.5" />}
           >
-            Re-index
+            Reprocess All
           </Button>
 
           <Button

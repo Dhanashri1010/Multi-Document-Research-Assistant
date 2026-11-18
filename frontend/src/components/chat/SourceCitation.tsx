@@ -18,6 +18,7 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
   if (!citations || citations.length === 0) return null;
 
   const unverifiedCount = citations.filter((c) => c.verified === false).length;
+  const notCheckedCount = citations.filter((c) => c.verified === undefined).length;
 
   return (
     <>
@@ -27,7 +28,14 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
             <FileText className="w-3.5 h-3.5 text-brand-600" />
             Retrieved Evidence & Citations ({citations.length})
           </span>
-          {unverifiedCount > 0 ? (
+          {notCheckedCount === citations.length ? (
+            <span
+              title="Sources retrieved as direct document excerpts (not checked by AI verifier)"
+              className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-semibold flex items-center gap-1 border border-slate-200"
+            >
+              sources not checked
+            </span>
+          ) : unverifiedCount > 0 ? (
             <span
               title="Some citations could not be verified with high semantic confidence"
               className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold flex items-center gap-1 border border-amber-300/60"
@@ -55,7 +63,9 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
                 className={`p-2.5 rounded-lg border transition-all text-xs ${
                   cite.verified === false
                     ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    : cite.verified === true
+                    ? 'border-emerald-200/60 bg-white hover:border-slate-300'
+                    : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
                 }`}
               >
                 <div
@@ -79,7 +89,7 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
                         ? `para ${cite.paragraphNumber}`
                         : cite.heading || cite.section || 'section'}
                     </span>
-                    {cite.verified !== false ? (
+                    {cite.verified === true ? (
                       <span
                         title="Citation verified against claim"
                         className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold text-[10px] flex items-center gap-0.5"
@@ -87,13 +97,20 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({ citations }) => 
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                         verified
                       </span>
-                    ) : (
+                    ) : cite.verified === false ? (
                       <span
                         title="Low evidence overlap"
                         className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] flex items-center gap-0.5"
                       >
                         <AlertCircle className="w-3 h-3 text-amber-600" />
                         unverified
+                      </span>
+                    ) : (
+                      <span
+                        title="Source retrieved but claim not checked"
+                        className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium text-[10px] flex items-center gap-0.5 border border-slate-200"
+                      >
+                        not checked
                       </span>
                     )}
                     {isExpanded ? (

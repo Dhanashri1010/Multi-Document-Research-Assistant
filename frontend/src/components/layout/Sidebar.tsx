@@ -52,7 +52,7 @@ export const Sidebar: React.FC = () => {
           <h1 className="text-sm font-bold text-white tracking-tight leading-none">
             Research Assistant
           </h1>
-          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Multi-Document RAG</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Smart Document Assistant</p>
         </div>
       </div>
 
@@ -120,7 +120,7 @@ export const Sidebar: React.FC = () => {
           <span className="font-semibold text-slate-300">{readyCount} Ready</span>
         </div>
         <p className="text-[11px] text-slate-500 truncate">
-          Local Semantic Vector Engine
+          Document Search Ready
         </p>
       </div>
     </aside>
