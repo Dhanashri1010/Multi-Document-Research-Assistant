@@ -34,6 +34,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenUpload }) => {
           title: 'Compare Documents',
           description: 'Cross-paper comparative analysis across objectives, models, metrics, and results.',
         };
+      case '/workflow-guide':
+        return {
+          title: 'Project Workflow & Technology Guide',
+          description: 'System architecture, NLP algorithms, technology stack, and college assessment rubric mapping (CO1–CO4).',
+        };
       default:
         return {
           title: 'Multi-Document Research Assistant',

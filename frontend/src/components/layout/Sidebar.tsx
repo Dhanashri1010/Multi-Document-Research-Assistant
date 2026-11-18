@@ -6,6 +6,7 @@ import {
   Sparkles,
   GitCompare,
   BookOpenCheck,
+  GraduationCap,
 } from 'lucide-react';
 import { useWorkspace } from '../../context/WorkspaceContext.js';
 
@@ -83,6 +84,33 @@ export const Sidebar: React.FC = () => {
             )}
           </NavLink>
         ))}
+
+        {/* Project Workflow & Technology Guide Link */}
+        <div className="pt-4">
+          <div className="px-3 mb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            Evaluation & Guide
+          </div>
+          <NavLink
+            to="/workflow-guide"
+            className={({ isActive }) =>
+              `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30 font-semibold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`
+            }
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <GraduationCap className="w-4 h-4 shrink-0 text-brand-400" />
+              <span className="text-xs font-semibold leading-tight line-clamp-2">
+                Project Workflow & Technology Guide
+              </span>
+            </div>
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30 font-bold shrink-0 ml-1">
+              Rubric
+            </span>
+          </NavLink>
+        </div>
       </nav>
 
       {/* System Status Footer */}

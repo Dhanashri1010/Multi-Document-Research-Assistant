@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage.js';
 import { DocumentsPage } from './pages/DocumentsPage.js';
 import { ResearchPage } from './pages/ResearchPage.js';
 import { ComparePage } from './pages/ComparePage.js';
+import { WorkflowGuidePage } from './pages/WorkflowGuidePage.js';
 
 export function App() {
   return (
@@ -17,6 +18,7 @@ export function App() {
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/research" element={<ResearchPage />} />
             <Route path="/compare" element={<ComparePage />} />
+            <Route path="/workflow-guide" element={<WorkflowGuidePage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
