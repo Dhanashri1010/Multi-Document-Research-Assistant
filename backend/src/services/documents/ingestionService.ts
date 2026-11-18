@@ -4,7 +4,7 @@ import mongoose, { Types } from 'mongoose';
 import { DocumentModel } from '../../models/Document.js';
 import { DocumentChunkModel } from '../../models/DocumentChunk.js';
 import { ResearchSessionModel } from '../../models/ResearchSession.js';
-import { extractPdf, extractTxt, extractDocx, extractDoc } from './extractor.js';
+import { extractPdf, extractTxt, extractDocx, extractDoc, type ExtractionResult } from './extractor.js';
 import { chunkPages, chunkWordDocument, estimateTokenCount } from './chunker.js';
 import { getEmbeddingProvider } from '../ai/embeddingService.js';
 import { invalidateVectorCache } from '../ai/vectorStore.js';
@@ -122,7 +122,7 @@ export class IngestionService {
       const isWordDoc = isDocx || isDoc;
       const isTxt = ext === '.txt' || doc.mimeType === 'text/plain';
 
-      const extraction = isDocx
+      let extraction: ExtractionResult | null = isDocx
         ? await extractDocx(doc.filePath)
         : isDoc
         ? await extractDoc(doc.filePath)
@@ -240,7 +240,16 @@ export class IngestionService {
         }
       }
 
-      console.log(`[Ingestion] Generated ${chunks.length} chunks (including Front-Matter chunk). Generating embeddings...`);
+      // Preserve lightweight scalar metadata required for persistence
+      const totalPages = isWordDoc ? 0 : (extraction?.totalPages || 0);
+      const extractionWarning = extraction?.warning;
+      const isLowTextDensity = extraction?.isLowTextDensity;
+
+      // Explicitly release heavy extraction data (fullText, pages, raw chunks) before embedding generation
+      extraction = null;
+      rawChunks.length = 0;
+
+      console.log(`[Ingestion] Generated ${chunks.length} chunks (including Front-Matter chunk). Released extraction memory. Generating embeddings...`);
 
       // 3. Dense Embeddings Generation
       const chunkTexts = chunks.map((c) => c.embeddingText || c.text);
@@ -309,12 +318,12 @@ export class IngestionService {
 
           doc.status = 'ready';
           doc.fileType = detectedFileType;
-          doc.pageCount = isWordDoc ? 0 : extraction.totalPages;
+          doc.pageCount = totalPages;
           doc.chunkCount = chunks.length;
           doc.embeddingModel = modelName;
           doc.embeddingDim = dim;
-          doc.warning = extraction.warning;
-          doc.isLowTextDensity = extraction.isLowTextDensity;
+          doc.warning = extractionWarning;
+          doc.isLowTextDensity = isLowTextDensity;
           doc.errorDetails = undefined;
           doc.summaryData = undefined;
           doc.summaryText = undefined;
@@ -343,12 +352,12 @@ export class IngestionService {
         // 3. Commit ready status and update metadata
         doc.status = 'ready';
         doc.fileType = detectedFileType;
-        doc.pageCount = isWordDoc ? 0 : extraction.totalPages;
+        doc.pageCount = totalPages;
         doc.chunkCount = chunks.length;
         doc.embeddingModel = modelName;
         doc.embeddingDim = dim;
-        doc.warning = extraction.warning;
-        doc.isLowTextDensity = extraction.isLowTextDensity;
+        doc.warning = extractionWarning;
+        doc.isLowTextDensity = isLowTextDensity;
         doc.errorDetails = undefined;
         doc.summaryData = undefined;
         doc.summaryText = undefined;
@@ -358,8 +367,8 @@ export class IngestionService {
       // Invalidate vector cache so fresh embeddings are loaded
       invalidateVectorCache(doc._id.toString());
 
-      if (extraction.warning) {
-        console.warn(`[Ingestion] Warning for "${doc.originalName}": ${extraction.warning}`);
+      if (extractionWarning) {
+        console.warn(`[Ingestion] Warning for "${doc.originalName}": ${extractionWarning}`);
       }
 
       console.log(`[Ingestion] Successfully indexed "${doc.originalName}" with ${chunks.length} chunks (${modelName}, dim: ${dim}).`);

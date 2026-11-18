@@ -11,15 +11,27 @@ export interface EmbeddingProvider {
 // Singleton instances for lazy loading
 let xenovaExtractor: any = null;
 
+function formatMemoryMB(): string {
+  const mem = process.memoryUsage();
+  const rssMB = Math.round(mem.rss / 1024 / 1024);
+  const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+  return `RSS: ${rssMB}MB, Heap: ${heapMB}MB`;
+}
+
 class LocalEmbeddingProvider implements EmbeddingProvider {
   private modelName = 'all-MiniLM-L6-v2';
 
   private async getExtractor() {
     if (!xenovaExtractor) {
+      console.log(`[EmbeddingService] Before model initialization (${formatMemoryMB()})`);
       console.log(`[EmbeddingService] Loading local embedding model: Xenova/${this.modelName}...`);
-      const { pipeline } = await import('@xenova/transformers');
+      const { pipeline, env } = await import('@xenova/transformers');
+      // Enforce single-thread WASM execution to constrain memory on 512MB hosts
+      if (env?.backends?.onnx?.wasm) {
+        env.backends.onnx.wasm.numThreads = 1;
+      }
       xenovaExtractor = await pipeline('feature-extraction', `Xenova/${this.modelName}`);
-      console.log(`[EmbeddingService] Local embedding model loaded successfully.`);
+      console.log(`[EmbeddingService] Local embedding model loaded successfully (${formatMemoryMB()}).`);
     }
     return xenovaExtractor;
   }
@@ -51,26 +63,36 @@ class LocalEmbeddingProvider implements EmbeddingProvider {
   async embedDocuments(texts: string[]): Promise<number[][]> {
     const extractor = await this.getExtractor();
     const results: number[][] = [];
-    const batchSize = 16;
+    const total = texts.length;
     const dim = this.getDimension();
 
-    for (let i = 0; i < texts.length; i += batchSize) {
-      const batch = texts.slice(i, i + batchSize);
-      try {
-        const output = await extractor(batch, { pooling: 'mean', normalize: true });
-        const data = output.data;
-        for (let b = 0; b < batch.length; b++) {
-          const slice = Array.from(data.slice(b * dim, (b + 1) * dim)) as number[];
-          results.push(slice);
-        }
-      } catch (_batchErr) {
-        // Fallback to sequential items if batch fails
-        for (const text of batch) {
-          const output = await extractor(text, { pooling: 'mean', normalize: true });
-          results.push(Array.from(output.data));
-        }
+    console.log(`[EmbeddingService] Before embedding generation: ${total} chunks (${formatMemoryMB()})`);
+
+    // Process chunks sequentially (batchSize = 1) to eliminate large activation buffers
+    for (let i = 0; i < total; i++) {
+      const text = texts[i];
+      const output = await extractor(text, { pooling: 'mean', normalize: true });
+      const vector = Array.from(output.data) as number[];
+
+      if (!Array.isArray(vector) || vector.length !== dim) {
+        throw new Error(
+          `Local embedding dimension mismatch at chunk ${i}: expected ${dim}, received ${vector?.length || 0}`
+        );
+      }
+      results.push(vector);
+
+      // Lightweight diagnostic logging every 10 processed chunks and on final chunk
+      if ((i + 1) % 10 === 0 || i + 1 === total) {
+        console.log(`[EmbeddingService] Processed ${i + 1}/${total} chunks (${formatMemoryMB()})`);
+      }
+
+      // Yield event loop between chunks to allow garbage collection and avoid event loop starvation
+      if (i + 1 < total) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
       }
     }
+
+    console.log(`[EmbeddingService] Embedding completed: ${results.length} vectors generated (${formatMemoryMB()})`);
     return results;
   }
 
