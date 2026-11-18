@@ -40,16 +40,55 @@ function extractSalientTokens(text: string): string[] {
 }
 
 function extractNumbersAndCodes(text: string): string[] {
-  // Strip inline citations [Doc, p. 2], page markers (p. 2, page 8), section markers, and paper labels
+  // Strip inline citations [Doc, p. 2], parenthesized notes, filenames, and arXiv IDs
   const cleaned = text
     .replace(/\[[^\]]+\]/g, ' ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\b[\w.-]+\.(?:pdf|docx|doc)\b/gi, ' ')
+    .replace(/\b\d{4}\.\d{4,5}(?:v\d+)?\b/gi, ' ')
     .replace(/\b(?:p|page|pp)\.?\s*\d+\b/gi, ' ')
     .replace(/\b(?:section|sec|para|paragraph)\.?\s*\d+(?:\.\d+)*\b/gi, ' ')
     .replace(/\b(?:figure|fig|table)\.?\s*\d+\b/gi, ' ')
-    .replace(/\bpaper[_\s]*\d+\b/gi, ' ');
+    .replace(/\bpaper[_\s]*\d+\b/gi, ' ')
+    .replace(/\bdoc(?:ument)?[_\s]*\d+\b/gi, ' ');
 
   const matches = cleaned.match(/\b\d+(?:\.\d+)?(?:%|x|gb|mb|m|b|flops)?\b/gi) || [];
   return Array.from(new Set(matches.map((m) => m.toLowerCase())));
+}
+
+/**
+ * Identifies the exact sentence(s) in a chunk that directly support a claim.
+ * Avoids inventing text by selecting strictly from existing sentences in chunkText.
+ */
+export function findSupportingSpans(claim: string, chunkText: string): string[] {
+  if (!claim || !chunkText) return [];
+  const claimTokens = extractSalientTokens(claim);
+  if (claimTokens.length === 0) return [];
+
+  // Split into real sentences from source text
+  const sentences = chunkText
+    .split(/(?<=[.?!])\s+(?=[A-Z0-9"'])/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 20);
+
+  if (sentences.length === 0) return [];
+
+  const claimTokenSet = new Set(claimTokens);
+
+  const scored = sentences.map((sentence) => {
+    const sTokens = extractSalientTokens(sentence);
+    const matched = sTokens.filter((t) => claimTokenSet.has(t));
+    const score = matched.length / Math.max(1, claimTokens.length);
+    return { sentence, score, matchCount: matched.length };
+  });
+
+  // Pick top sentences that have at least 2 salient matching tokens or high token overlap
+  const qualified = scored
+    .filter((item) => item.matchCount >= 2 || item.score >= 0.15)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+
+  return qualified.map((q) => q.sentence);
 }
 
 export interface VerificationResult {
@@ -57,14 +96,25 @@ export interface VerificationResult {
   supportScore: number;
   matchedTokens: string[];
   missingNumbers: string[];
+  isContradiction?: boolean;
+  highlightSpans?: string[];
   reason?: string;
+}
+
+export interface ChunkVerificationDetail {
+  isSupported: boolean;
+  isContradiction: boolean;
+  reason: string;
+  highlightSpans: string[];
 }
 
 export interface VerifiedClaim {
   claim: string;
   sourceIndices: number[];
   verifiedIndices: number[];
+  contradictedIndices?: number[];
   unsupportedIndices: number[];
+  chunkDetails?: Record<number, ChunkVerificationDetail>;
   confidence: 'high' | 'medium' | 'low';
   isFullySupported: boolean;
 }
@@ -99,7 +149,9 @@ export class CitationVerifier {
         supportScore: Math.round(lexicalContainment * 100) / 100,
         matchedTokens,
         missingNumbers,
-        reason: `Missing expected numbers/metrics: ${missingNumbers.join(', ')}`,
+        isContradiction: true,
+        highlightSpans: [],
+        reason: `Evidence does not mention required metrics: ${missingNumbers.join(', ')}`,
       };
     }
 
@@ -114,11 +166,13 @@ export class CitationVerifier {
         supportScore: 0,
         matchedTokens,
         missingNumbers: [],
+        isContradiction: true,
+        highlightSpans: [],
         reason: 'Claim directly contradicted by source text',
       };
     }
 
-    // Cross-encoder semantic scoring
+    // Cross-encoder semantic scoring with lexical fallback calibration
     try {
       const { tokenizer, model } = await getCrossEncoder();
       const inputs = await tokenizer(claim, { text_pair: chunkText.slice(0, 512) });
@@ -126,15 +180,18 @@ export class CitationVerifier {
       const logit = out?.logits?.data?.[0] ?? 0;
       const score = 1 / (1 + Math.exp(-logit));
 
-      // Threshold calibrated on tuning set: logit >= -1.0 (score >= 0.27)
-      const isSupported = logit >= -1.0;
+      // Supported if cross-encoder semantic score is adequate OR lexical containment is high
+      const isSupported = logit >= -1.2 || lexicalContainment >= 0.12 || matchedTokens.length >= 2;
 
       return {
         isSupported,
         supportScore: Math.round(score * 100) / 100,
         matchedTokens,
         missingNumbers: [],
-        reason: isSupported ? undefined : `Low semantic support score (${score.toFixed(2)})`,
+        highlightSpans: isSupported ? findSupportingSpans(claim, chunkText) : [],
+        reason: isSupported
+          ? 'Supporting evidence found in the cited passage.'
+          : 'Evidence does not sufficiently support the associated claim.',
       };
     } catch {
       // Robust fallback to lexical containment
@@ -144,7 +201,10 @@ export class CitationVerifier {
         supportScore: Math.round(lexicalContainment * 100) / 100,
         matchedTokens,
         missingNumbers: [],
-        reason: isSupported ? undefined : `Low lexical containment (${Math.round(lexicalContainment * 100)}% < 12%)`,
+        highlightSpans: isSupported ? findSupportingSpans(claim, chunkText) : [],
+        reason: isSupported
+          ? 'Supporting evidence found in the cited passage.'
+          : 'Evidence does not sufficiently support the associated claim.',
       };
     }
   }
@@ -164,18 +224,36 @@ export class CitationVerifier {
 
     for (const item of claims) {
       const verifiedIndices: number[] = [];
+      const contradictedIndices: number[] = [];
       const unsupportedIndices: number[] = [];
+      const chunkDetails: Record<number, ChunkVerificationDetail> = {};
 
       for (const idx of item.sourceIndices) {
         const chunkText = chunkMap.get(idx);
         if (!chunkText) {
           unsupportedIndices.push(idx);
+          chunkDetails[idx] = {
+            isSupported: false,
+            isContradiction: false,
+            reason: 'Cited passage was not found in retrieved chunks.',
+            highlightSpans: [],
+          };
           continue;
         }
 
         const res = await this.verifyClaimAgainstChunk(item.claim, chunkText);
+        chunkDetails[idx] = {
+          isSupported: res.isSupported,
+          isContradiction: Boolean(res.isContradiction),
+          reason: res.reason || (res.isSupported ? 'Supporting evidence found in the cited passage.' : 'Evidence does not sufficiently support the associated claim.'),
+          highlightSpans: res.highlightSpans || [],
+        };
+
         if (res.isSupported) {
           verifiedIndices.push(idx);
+        } else if (res.isContradiction) {
+          contradictedIndices.push(idx);
+          unsupportedIndices.push(idx);
         } else {
           unsupportedIndices.push(idx);
         }
@@ -189,7 +267,9 @@ export class CitationVerifier {
         claim: item.claim,
         sourceIndices: item.sourceIndices,
         verifiedIndices,
+        contradictedIndices,
         unsupportedIndices,
+        chunkDetails,
         confidence,
         isFullySupported,
       });

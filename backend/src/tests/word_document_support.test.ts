@@ -82,6 +82,23 @@ describe('Word Document Support (PDF, DOC, DOCX)', () => {
       const validationGenericZip = validateDocumentBuffer(genericZip, 'archive.docx');
       expect(validationGenericZip.isValid).toBe(false);
       expect(validationGenericZip.error).toContain('Microsoft Word (.docx)');
+
+      // TXT file containing binary null bytes (e.g. binary executable renamed to .txt)
+      const binaryFakeTxt = Buffer.from('MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xFF\xFF');
+      const validationBinaryTxt = validateDocumentBuffer(binaryFakeTxt, 'binary.txt');
+      expect(validationBinaryTxt.isValid).toBe(false);
+      expect(validationBinaryTxt.error).toContain('null bytes');
+    });
+
+    it('validates UTF-8 text files and strips UTF-8 BOM cleanly', () => {
+      const utf8TextWithBom = Buffer.from('\uFEFF# Research Notes\nThis is clean UTF-8 text with BOM.', 'utf-8');
+      const validation = validateDocumentBuffer(utf8TextWithBom, 'notes.txt');
+      expect(validation.isValid).toBe(true);
+      expect(validation.format).toBe('txt');
+
+      const cleaned = cleanText(utf8TextWithBom.toString('utf-8'));
+      expect(cleaned.startsWith('\uFEFF')).toBe(false);
+      expect(cleaned).toContain('# Research Notes');
     });
 
     it('sanitizes filenames while preserving .docx, .doc, and .pdf extensions', () => {

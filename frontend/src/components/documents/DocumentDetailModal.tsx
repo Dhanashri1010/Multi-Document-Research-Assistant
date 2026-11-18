@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X,
   Download,
@@ -186,7 +186,51 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
     documentService.downloadFile(doc._id, doc.originalName);
   };
 
-  const pdfUrl = `/api/documents/${doc._id}/file#page=${currentPage}`;
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [loadingPdfBlob, setLoadingPdfBlob] = useState(false);
+  const [pdfBlobError, setPdfBlobError] = useState<string | null>(null);
+  const pdfBlobUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!doc?._id || isWordDoc) return;
+
+    let active = true;
+    setLoadingPdfBlob(true);
+    setPdfBlobError(null);
+
+    const loadBlob = async () => {
+      try {
+        const blob = await documentService.getFileBlob(doc._id);
+        if (!active) return;
+        if (pdfBlobUrlRef.current) {
+          URL.revokeObjectURL(pdfBlobUrlRef.current);
+        }
+        const url = URL.createObjectURL(blob);
+        pdfBlobUrlRef.current = url;
+        setPdfBlobUrl(url);
+      } catch (err: any) {
+        if (!active) return;
+        const msg =
+          err.response?.status === 401
+            ? 'Your session has expired. Please log in again.'
+            : err.message || 'Failed to securely load PDF preview.';
+        setPdfBlobError(msg);
+      } finally {
+        if (active) setLoadingPdfBlob(false);
+      }
+    };
+
+    loadBlob();
+
+    return () => {
+      active = false;
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current);
+        pdfBlobUrlRef.current = null;
+        setPdfBlobUrl(null);
+      }
+    };
+  }, [doc?._id, isWordDoc]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
@@ -386,15 +430,19 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   </button>
                 </div>
 
-                <a
-                  href={pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
+                <button
+                  type="button"
+                  disabled={!pdfBlobUrl}
+                  onClick={() => {
+                    if (pdfBlobUrl) {
+                      window.open(`${pdfBlobUrl}#page=${currentPage}`, '_blank');
+                    }
+                  }}
+                  className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-50 rounded-lg border border-slate-200 transition-colors"
                   title="Open PDF in new tab"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                </button>
               </div>
             )
           )}
@@ -725,21 +773,37 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
               </div>
             ) : (
               <div className="h-full flex flex-col bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-                <div
-                  className="flex-1 w-full relative"
-                  style={{
-                    transform: `scale(${zoomLevel / 100})`,
-                    transformOrigin: 'top center',
-                    transition: 'transform 0.15s ease',
-                  }}
-                >
-                  <iframe
-                    src={pdfUrl}
-                    title={doc.originalName}
-                    className="w-full h-full border-0 min-h-[68vh]"
-                    allow="fullscreen"
-                  />
-                </div>
+                {loadingPdfBlob && (
+                  <div className="py-24 flex justify-center items-center">
+                    <LoadingState message="Fetching secure PDF preview..." />
+                  </div>
+                )}
+                {pdfBlobError && !loadingPdfBlob && (
+                  <div className="max-w-md mx-auto p-6 bg-white rounded-xl border border-rose-200 shadow-sm text-center space-y-3 my-12">
+                    <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800">Unable to load document</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">{pdfBlobError}</p>
+                  </div>
+                )}
+                {pdfBlobUrl && !loadingPdfBlob && !pdfBlobError && (
+                  <div
+                    className="flex-1 w-full relative"
+                    style={{
+                      transform: `scale(${zoomLevel / 100})`,
+                      transformOrigin: 'top center',
+                      transition: 'transform 0.15s ease',
+                    }}
+                  >
+                    <iframe
+                      src={`${pdfBlobUrl}#page=${currentPage}`}
+                      title={doc.originalName}
+                      className="w-full h-full border-0 min-h-[68vh]"
+                      allow="fullscreen"
+                    />
+                  </div>
+                )}
               </div>
             )
           )}

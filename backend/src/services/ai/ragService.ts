@@ -470,7 +470,7 @@ STANDALONE SEARCH QUERY:`;
 
     let session = options.sessionId ? await ResearchSessionModel.findById(options.sessionId) : null;
     if (session) {
-      if (options.userId && session.userId && session.userId.toString() !== options.userId) {
+      if (session.userId && options.userId && session.userId.toString() !== options.userId) {
         throw new Error('Access denied: You do not have permission to access this research session.');
       }
       session.selectedDocumentIds = validDocs.map((d) => d._id);
@@ -821,27 +821,58 @@ Generate your JSON response now.`;
           indexedPassages
         );
 
-        const allVerified = new Set(verifiedClaims.flatMap((c) => c.verifiedIndices));
-        const allUnsupported = new Set(verifiedClaims.flatMap((c) => c.unsupportedIndices));
-        const allClaimed = new Set(extracted.claims.flatMap((c: any) => c.sourceIndices || []));
+        const chunkEvaluations = new Map<
+          number,
+          {
+            verified?: boolean;
+            claim?: string;
+            reason?: string;
+            highlightSpans?: string[];
+          }
+        >();
+
+        for (const vc of verifiedClaims) {
+          if (vc.chunkDetails) {
+            for (const [idxStr, detail] of Object.entries(vc.chunkDetails)) {
+              const idx = parseInt(idxStr, 10);
+              const existing = chunkEvaluations.get(idx);
+              // If already verified by another claim, retain verified status
+              if (existing?.verified === true && !detail.isSupported) {
+                continue;
+              }
+              chunkEvaluations.set(idx, {
+                verified: detail.isSupported ? true : false,
+                claim: vc.claim,
+                reason: detail.reason,
+                highlightSpans: detail.highlightSpans || [],
+              });
+            }
+          }
+        }
 
         citations.forEach((cite, idx) => {
           const chunkIdx = idx + 1;
-          if (allVerified.has(chunkIdx)) {
-            cite.verified = true;
-          } else if (allUnsupported.has(chunkIdx)) {
-            cite.verified = false;
-          } else if (allClaimed.has(chunkIdx)) {
-            cite.verified = false;
+          const evaluation = chunkEvaluations.get(chunkIdx);
+          if (evaluation) {
+            cite.verified = evaluation.verified;
+            cite.claim = evaluation.claim;
+            cite.verificationReason = evaluation.reason;
+            cite.highlightSpans = evaluation.highlightSpans;
           } else {
             // Source was retrieved as background context, but not cited for a specific claim
             cite.verified = undefined;
+            cite.verificationReason =
+              'This passage was retrieved as background context and was not evaluated against a specific claim.';
+            cite.highlightSpans = [];
           }
         });
       } else {
         // No claim-level citations returned; mark as not checked
         citations.forEach((cite) => {
           cite.verified = undefined;
+          cite.verificationReason =
+            'This passage was retrieved as background context and was not evaluated against a specific claim.';
+          cite.highlightSpans = [];
         });
       }
     } catch (llmErr: any) {
@@ -1045,25 +1076,57 @@ Generate your JSON response now.`;
         indexedPassages
       );
 
-      const allVerified = new Set(verifiedClaims.flatMap((c) => c.verifiedIndices));
-      const allUnsupported = new Set(verifiedClaims.flatMap((c) => c.unsupportedIndices));
-      const allClaimed = new Set(extracted.claims.flatMap((c: any) => c.sourceIndices || []));
+      const chunkEvaluations = new Map<
+        number,
+        {
+          verified?: boolean;
+          claim?: string;
+          reason?: string;
+          highlightSpans?: string[];
+        }
+      >();
+
+      for (const vc of verifiedClaims) {
+        if (vc.chunkDetails) {
+          for (const [idxStr, detail] of Object.entries(vc.chunkDetails)) {
+            const idx = parseInt(idxStr, 10);
+            const existing = chunkEvaluations.get(idx);
+            // If already verified by another claim, retain verified status
+            if (existing?.verified === true && !detail.isSupported) {
+              continue;
+            }
+            chunkEvaluations.set(idx, {
+              verified: detail.isSupported ? true : false,
+              claim: vc.claim,
+              reason: detail.reason,
+              highlightSpans: detail.highlightSpans || [],
+            });
+          }
+        }
+      }
 
       citations.forEach((cite, idx) => {
         const chunkIdx = idx + 1;
-        if (allVerified.has(chunkIdx)) {
-          cite.verified = true;
-        } else if (allUnsupported.has(chunkIdx)) {
-          cite.verified = false;
-        } else if (allClaimed.has(chunkIdx)) {
-          cite.verified = false;
+        const evaluation = chunkEvaluations.get(chunkIdx);
+        if (evaluation) {
+          cite.verified = evaluation.verified;
+          cite.claim = evaluation.claim;
+          cite.verificationReason = evaluation.reason;
+          cite.highlightSpans = evaluation.highlightSpans;
         } else {
+          // Source was retrieved as background context, but not cited for a specific claim
           cite.verified = undefined;
+          cite.verificationReason =
+            'This passage was retrieved as background context and was not evaluated against a specific claim.';
+          cite.highlightSpans = [];
         }
       });
     } else {
       citations.forEach((cite) => {
         cite.verified = undefined;
+        cite.verificationReason =
+          'This passage was retrieved as background context and was not evaluated against a specific claim.';
+        cite.highlightSpans = [];
       });
     }
 

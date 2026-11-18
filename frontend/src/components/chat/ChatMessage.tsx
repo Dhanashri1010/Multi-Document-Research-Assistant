@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { User, Sparkles, AlertCircle, Download, RotateCcw } from 'lucide-react';
 import { IChatMessage } from '../../types/research.js';
 import { SourceCitation } from './SourceCitation.js';
@@ -87,6 +87,19 @@ export function cleanUserFacingText(content: string): string {
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) => {
   const isUser = message.role === 'user';
   const displayContent = cleanUserFacingText(message.content);
+  const [expandedCitationIndex, setExpandedCitationIndex] = useState<number | null>(null);
+  const messageId = message._id || (message as any).id || 'msg';
+
+  const handleCitationClick = (idx: number) => {
+    setExpandedCitationIndex(idx);
+    const cardId = `citation-card-${messageId}-${idx}`;
+    setTimeout(() => {
+      const el = document.getElementById(cardId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
+  };
 
   const exportMarkdown = () => {
     let md = `# Multi-Document Research Answer\n\n`;
@@ -126,6 +139,47 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
         );
       }
       if (part.startsWith('[') && part.endsWith(']')) {
+        const rawInner = part.slice(1, -1).trim();
+        // Determine target citation index if possible
+        let targetIdx: number | null = null;
+        if (/^\d+$/.test(rawInner)) {
+          const num = parseInt(rawInner, 10);
+          if (message.citations && num >= 1 && num <= message.citations.length) {
+            targetIdx = num - 1;
+          }
+        } else if (message.citations && message.citations.length > 0) {
+          // Check if it mentions filename or page
+          const matchIdx = message.citations.findIndex((c) => {
+            const cleanDoc = c.documentName
+              ? c.documentName.toLowerCase().replace(/\.(?:pdf|docx|doc)$/i, '')
+              : '';
+            const docMatch = cleanDoc && rawInner.toLowerCase().includes(cleanDoc);
+            const pageMatch =
+              c.pageNumber &&
+              (rawInner.includes(`p. ${c.pageNumber}`) ||
+                rawInner.includes(`page ${c.pageNumber}`) ||
+                rawInner.includes(`p.${c.pageNumber}`));
+            return Boolean(docMatch || pageMatch);
+          });
+          if (matchIdx !== -1) {
+            targetIdx = matchIdx;
+          }
+        }
+
+        if (targetIdx !== null) {
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleCitationClick(targetIdx!)}
+              className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded bg-brand-50 hover:bg-brand-100 text-brand-700 hover:text-brand-800 font-semibold text-xs border border-brand-200 hover:border-brand-300 transition-colors cursor-pointer select-none"
+              title={`Click to view verified evidence citation #${targetIdx + 1}`}
+            >
+              {part}
+            </button>
+          );
+        }
+
         return (
           <span
             key={i}
@@ -356,7 +410,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
 
         {/* Citations Card */}
         {!isUser && message.citations && message.citations.length > 0 && (
-          <SourceCitation citations={message.citations} />
+          <SourceCitation
+            citations={message.citations}
+            messageId={messageId}
+            expandedIndex={expandedCitationIndex}
+            onToggleExpand={(idx) =>
+              setExpandedCitationIndex((prev) => (prev === idx ? null : idx))
+            }
+          />
         )}
       </div>
     </div>

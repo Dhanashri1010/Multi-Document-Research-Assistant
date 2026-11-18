@@ -10,11 +10,16 @@ import { DocumentCard } from '../components/documents/DocumentCard.js';
 import { ComparisonTable, sanitizeDegradedReason } from '../components/research/ComparisonTable.js';
 import { IDocument } from '../types/document.js';
 import { IChatMessage, ICitation, ComparisonResult } from '../types/research.js';
+import { documentService } from '../services/documentService.js';
 
 describe('Frontend Component Tests: PdfViewerModal', () => {
-  it('renders modal with target page number and document title', () => {
+  it('renders modal with target page number and document title using secure blob URL', async () => {
+    vi.spyOn(documentService, 'getFileBlob').mockResolvedValue(
+      new Blob(['fake-pdf-stream'], { type: 'application/pdf' })
+    );
+
     const handleClose = vi.fn();
-    const { container } = render(
+    render(
       <PdfViewerModal
         isOpen={true}
         onClose={handleClose}
@@ -27,8 +32,10 @@ describe('Frontend Component Tests: PdfViewerModal', () => {
     expect(screen.getByText('Attention_Is_All_You_Need.pdf')).toBeInTheDocument();
     expect(screen.getByText(/Page 4/i)).toBeInTheDocument();
 
-    const iframe = container.querySelector('iframe');
-    expect(iframe).toHaveAttribute('src', '/api/documents/doc123/file#page=4');
+    const iframe = await screen.findByTestId('pdf-viewer-iframe');
+    expect(iframe).toBeInTheDocument();
+    expect(iframe).toHaveAttribute('src', expect.stringMatching(/^blob:.*#page=4$/));
+    expect(iframe.getAttribute('src')).not.toContain('token=');
 
     const closeBtn = screen.getByTitle('Close PDF viewer');
     fireEvent.click(closeBtn);
@@ -86,6 +93,39 @@ describe('Frontend Component Tests: SourceCitation', () => {
     fireEvent.click(firstDoc);
 
     expect(screen.getByText(/Open in PDF Viewer at Page 3/i)).toBeInTheDocument();
+    expect(screen.getByText(/Copy Citation/i)).toBeInTheDocument();
+    expect(screen.getByText(/Copy Passage/i)).toBeInTheDocument();
+  });
+
+  it('renders exact highlighted supporting spans and referenced claim when available', () => {
+    const verifiedWithSpans: ICitation[] = [
+      {
+        documentId: 'doc_rag',
+        documentName: 'RAG_Paper.pdf',
+        pageNumber: 4,
+        excerpt: 'We present RAG models. Retrieval-Augmented Generation outperforms parametric models on Open-Domain QA.',
+        highlightSpans: ['Retrieval-Augmented Generation outperforms parametric models on Open-Domain QA.'],
+        claim: 'RAG models outperform standard parametric seq2seq models on open-domain question answering.',
+        verified: true,
+        verificationReason: 'Supporting evidence found in the cited passage.',
+      },
+    ];
+
+    render(<SourceCitation citations={verifiedWithSpans} />);
+
+    const docHeader = screen.getByText('RAG_Paper.pdf');
+    fireEvent.click(docHeader);
+
+    expect(screen.getByText(/Referenced Claim/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/"RAG models outperform standard parametric seq2seq models on open-domain question answering."/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Highlighted sentence supports claim/i)).toBeInTheDocument();
+
+    // The highlighted span should be wrapped in a mark element
+    const markEl = document.querySelector('mark');
+    expect(markEl).toBeInTheDocument();
+    expect(markEl?.textContent).toContain('Retrieval-Augmented Generation outperforms parametric models');
   });
 
   it('correctly handles and displays not checked citation state when unverified by AI', () => {
@@ -184,6 +224,39 @@ describe('Frontend Component Tests: ChatMessage', () => {
     expect(screen.queryByText(/JSON parsing failed/i)).toBeNull();
     expect(screen.queryByText(/position 7203/i)).toBeNull();
     expect(screen.getByText(/The AI model response was interrupted during generation/i)).toBeInTheDocument();
+  });
+
+  it('renders interactive inline citation buttons and opens evidence card on click', () => {
+    const inlineCiteMsg: IChatMessage = {
+      _id: 'msg_inline_1',
+      sessionId: 'sess_1',
+      role: 'assistant',
+      content: 'Transformers replace recurrence with multi-head attention [1].',
+      citations: [
+        {
+          documentId: 'doc1',
+          documentName: 'Attention Is All You Need.pdf',
+          pageNumber: 2,
+          excerpt: 'We propose multi-head attention to jointly attend to information.',
+          verified: true,
+          verificationReason: 'Supporting evidence found in the cited passage.',
+        },
+      ],
+      createdAt: '2026-11-18T00:00:00Z',
+    };
+
+    render(<ChatMessage message={inlineCiteMsg} />);
+
+    const inlineBtn = screen.getByText('[1]');
+    expect(inlineBtn).toBeInTheDocument();
+    expect(inlineBtn.tagName).toBe('BUTTON');
+
+    // Click inline citation button to expand evidence card
+    fireEvent.click(inlineBtn);
+
+    expect(
+      screen.getByText('We propose multi-head attention to jointly attend to information.')
+    ).toBeInTheDocument();
   });
 });
 

@@ -12,6 +12,9 @@ export interface ICitation {
   score?: number;
   verified?: boolean;
   supportScore?: number;
+  claim?: string;
+  verificationReason?: string;
+  highlightSpans?: string[];
 }
 
 export interface IChatMessage {

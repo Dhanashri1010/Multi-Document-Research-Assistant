@@ -41,7 +41,23 @@ const envSchema = z.object({
   COMPARE_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   PRE_LLM_COSINE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.28),
   RERANKER: z.enum(['on', 'off']).default('off'),
-});
+}).refine(
+  (data) => {
+    if (data.NODE_ENV === 'production') {
+      return (
+        data.JWT_SECRET &&
+        data.JWT_SECRET !== 'multi-doc-assistant-secure-jwt-secret-key-2026' &&
+        data.JWT_SECRET.length >= 32
+      );
+    }
+    return true;
+  },
+  {
+    message:
+      'In production (NODE_ENV=production), a strong custom JWT_SECRET (at least 32 characters) must be configured in environment variables without insecure defaults.',
+    path: ['JWT_SECRET'],
+  }
+);
 
 const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {

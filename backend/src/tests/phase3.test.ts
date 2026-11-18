@@ -123,6 +123,24 @@ describe('Phase 3: Claim-Level Citation Verification', () => {
     expect(verified[0].verifiedIndices).toContain(1);
     expect(verified[0].unsupportedIndices).toContain(2);
     expect(verified[0].confidence).toBe('medium');
+    expect(verified[0].chunkDetails).toBeDefined();
+    expect(verified[0].chunkDetails?.[1].isSupported).toBe(true);
+    expect(verified[0].chunkDetails?.[1].reason).toBe('Supporting evidence found in the cited passage.');
+    expect(verified[0].chunkDetails?.[1].highlightSpans.length).toBeGreaterThan(0);
+    expect(verified[0].chunkDetails?.[2].isSupported).toBe(false);
+  });
+
+  it('accurately identifies supporting sentence spans without fabricating text', async () => {
+    const { findSupportingSpans } = await import('../services/ai/citationVerifier.js');
+    const claim = 'The big Transformer achieves 28.4 BLEU on English-to-German.';
+    const spans = findSupportingSpans(claim, sampleChunk);
+
+    expect(spans.length).toBeGreaterThan(0);
+    expect(sampleChunk).toContain(spans[0]);
+
+    // Unrelated claim should produce empty spans
+    const unrelatedSpans = findSupportingSpans('Quantum annealing requires cryogenic cooling.', sampleChunk);
+    expect(unrelatedSpans.length).toBe(0);
   });
 });
 

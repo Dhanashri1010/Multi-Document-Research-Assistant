@@ -56,8 +56,6 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.split(' ')[1];
-  } else if (req.query?.token && typeof req.query.token === 'string') {
-    token = req.query.token;
   }
 
   if (token) {

@@ -12,6 +12,9 @@ export interface ICitation {
   score?: number;
   verified?: boolean;
   supportScore?: number;
+  claim?: string;
+  verificationReason?: string;
+  highlightSpans?: string[];
 }
 
 export interface IChatMessage extends MongooseDoc {
@@ -36,8 +39,11 @@ const CitationSchema = new Schema<ICitation>(
     fileType: { type: String },
     excerpt: { type: String, required: true },
     score: { type: Number },
-    verified: { type: Boolean, default: true },
+    verified: { type: Boolean, required: false },
     supportScore: { type: Number },
+    claim: { type: String },
+    verificationReason: { type: String },
+    highlightSpans: { type: [String], default: [] },
   },
   { _id: false }
 );

@@ -82,13 +82,23 @@ export const documentService = {
     return response.data;
   },
 
-  downloadFile(id: string, originalName: string): void {
+  async getFileBlob(id: string): Promise<Blob> {
+    const response = await apiClient.get<Blob>(`/documents/${id}/file`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  async downloadFile(id: string, originalName: string): Promise<void> {
+    const blob = await this.getFileBlob(id);
+    const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = `/api/documents/${id}/download`;
+    link.href = blobUrl;
     link.download = originalName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
   },
 
   async getChunks(id: string): Promise<any[]> {

@@ -45,7 +45,9 @@ export interface ExtractionResult {
  */
 export function cleanText(rawText: string): string {
   if (!rawText) return '';
-  let text = rawText
+  // Strip UTF-8 Byte Order Mark (BOM) if present
+  let text = rawText.replace(/^\uFEFF/, '');
+  text = text
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // remove control chars
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n');

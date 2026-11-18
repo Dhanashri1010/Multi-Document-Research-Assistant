@@ -320,6 +320,85 @@ describe('Phase 2 Multi-User Security & Data Isolation Tests', () => {
       );
     });
 
+    it('prevents ordinary users from listing legacy sessions without userId', async () => {
+      const findSpy = vi.spyOn(ResearchSessionModel, 'find').mockReturnValue({
+        sort: vi.fn().mockResolvedValue([]),
+      } as any);
+
+      const req: any = {
+        user: userAPayload,
+      };
+      const res: any = {
+        json: vi.fn(),
+      };
+      const next = vi.fn();
+
+      await ChatController.getSessions(req, res, next);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        userId: new mongoose.Types.ObjectId(userAPayload.userId),
+      });
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it('prevents ordinary users from viewing messages of legacy sessions without userId (403 Forbidden)', async () => {
+      const legacySession = {
+        _id: 'legacy_sess_no_user',
+        title: 'Legacy Session Without User ID',
+        // no userId
+      };
+      vi.spyOn(ResearchSessionModel, 'findById').mockResolvedValueOnce(legacySession as any);
+
+      const req: any = {
+        params: { sessionId: 'legacy_sess_no_user' },
+        user: userAPayload,
+      };
+      const res: any = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      };
+      const next = vi.fn();
+
+      await ChatController.getSessionMessages(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringMatching(/access denied/i),
+        })
+      );
+    });
+
+    it('prevents ordinary users from deleting legacy sessions without userId (403 Forbidden)', async () => {
+      const legacySession = {
+        _id: 'legacy_sess_no_user',
+        title: 'Legacy Session Without User ID',
+        // no userId
+      };
+      vi.spyOn(ResearchSessionModel, 'findById').mockResolvedValueOnce(legacySession as any);
+
+      const req: any = {
+        params: { sessionId: 'legacy_sess_no_user' },
+        user: userAPayload,
+      };
+      const res: any = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      };
+      const next = vi.fn();
+
+      await ChatController.deleteSession(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringMatching(/access denied/i),
+        })
+      );
+    });
+
     it("prevents User A from querying or comparing User B's private documents in Chat", async () => {
       // Simulate DocumentModel.countDocuments returning 0 when User A tries to select User B's doc
       vi.spyOn(DocumentModel, 'countDocuments').mockResolvedValueOnce(0);
@@ -328,6 +407,68 @@ describe('Phase 2 Multi-User Security & Data Isolation Tests', () => {
         body: {
           question: 'What are the main findings?',
           documentIds: ['doc_belonging_to_user_b'],
+        },
+        user: userAPayload,
+      };
+      const res: any = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      };
+      const next = vi.fn();
+
+      await ChatController.ask(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringMatching(/access denied/i),
+        })
+      );
+    });
+
+    it('prevents User A from querying against a legacy session without userId (403 Forbidden)', async () => {
+      vi.spyOn(DocumentModel, 'countDocuments').mockResolvedValueOnce(1);
+      const legacySession = {
+        _id: 'legacy_sess_123',
+        title: 'Legacy Session',
+      };
+      vi.spyOn(ResearchSessionModel, 'findById').mockResolvedValueOnce(legacySession as any);
+
+      const req: any = {
+        body: {
+          question: 'What is this?',
+          documentIds: ['doc_a'],
+          sessionId: 'legacy_sess_123',
+        },
+        user: userAPayload,
+      };
+      const res: any = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      };
+      const next = vi.fn();
+
+      await ChatController.ask(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringMatching(/access denied/i),
+        })
+      );
+    });
+
+    it("prevents User A from querying against User B's research session (403 Forbidden)", async () => {
+      vi.spyOn(DocumentModel, 'countDocuments').mockResolvedValueOnce(1);
+      vi.spyOn(ResearchSessionModel, 'findById').mockResolvedValueOnce(sessionB as any);
+
+      const req: any = {
+        body: {
+          question: 'What is this?',
+          documentIds: ['doc_a'],
+          sessionId: sessionBId,
         },
         user: userAPayload,
       };

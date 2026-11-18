@@ -9,6 +9,7 @@ import { chunkPages, chunkWordDocument, estimateTokenCount } from './chunker.js'
 import { getEmbeddingProvider } from '../ai/embeddingService.js';
 import { invalidateVectorCache } from '../ai/vectorStore.js';
 import { detectDocumentCategory } from '../ai/documentSummaryService.js';
+import { StorageService } from '../storage/supabaseStorage.js';
 import { config } from '../../config/env.js';
 
 /**
@@ -94,6 +95,25 @@ export class IngestionService {
       await doc.save();
 
       console.log(`[Ingestion] Starting ingestion for: "${doc.originalName}" (${doc._id}) [reprocessing=${isReprocessing}]`);
+
+      // If local file is missing but exists in cloud storage (e.g. after container restart / redeploy on Render), restore from storage
+      if ((!doc.filePath || !fs.existsSync(doc.filePath)) && doc.storageProvider === 'supabase' && doc.storagePath) {
+        try {
+          console.log(`[Ingestion] Local file missing for "${doc.originalName}". Restoring buffer from cloud storage...`);
+          const buffer = await StorageService.getDocumentBuffer(doc);
+          const uploadDir = path.resolve(process.cwd(), config.uploadDir);
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const restoredName = `${Date.now()}-${doc._id}-${doc.originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+          const restoredPath = path.join(uploadDir, restoredName);
+          await fs.promises.writeFile(restoredPath, buffer);
+          doc.filePath = restoredPath;
+          await doc.save();
+        } catch (restoreErr: any) {
+          console.warn(`[Ingestion] Could not restore buffer from storage: ${restoreErr.message}`);
+        }
+      }
 
       // 1. Text Extraction (Route by format: DOCX, DOC, TXT, PDF)
       const ext = path.extname(doc.filePath).toLowerCase();

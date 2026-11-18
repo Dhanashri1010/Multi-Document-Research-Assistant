@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { RAGService } from '../services/ai/ragService.js';
 import { ResearchSessionModel } from '../models/ResearchSession.js';
 import { ChatMessageModel } from '../models/ChatMessage.js';
@@ -47,6 +48,17 @@ export class ChatController {
         return;
       }
 
+      if (sessionId) {
+        const session = await ResearchSessionModel.findById(sessionId);
+        if (session && (!session.userId || !userId || session.userId.toString() !== userId)) {
+          res.status(403).json({
+            success: false,
+            error: 'Access denied: You do not have permission to access this research session.',
+          });
+          return;
+        }
+      }
+
       const response = await RAGService.ask({
         question,
         documentIds,
@@ -90,6 +102,17 @@ export class ChatController {
         return;
       }
 
+      if (sessionId) {
+        const session = await ResearchSessionModel.findById(sessionId);
+        if (session && (!session.userId || !userId || session.userId.toString() !== userId)) {
+          res.status(403).json({
+            success: false,
+            error: 'Access denied: You do not have permission to access this research session.',
+          });
+          return;
+        }
+      }
+
       // Configure SSE response headers
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -114,7 +137,8 @@ export class ChatController {
   static async getSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.userId;
-      const filter: any = userId ? { $or: [{ userId }, { userId: { $exists: false } }] } : {};
+      // Strict user isolation: user sees ONLY their own sessions. Unowned legacy sessions are blocked.
+      const filter: any = userId ? { userId: new mongoose.Types.ObjectId(userId) } : { _id: null };
       const sessions = await ResearchSessionModel.find(filter).sort({ updatedAt: -1 });
       res.json({ success: true, sessions });
     } catch (err) {
@@ -123,7 +147,7 @@ export class ChatController {
   }
 
   /**
-   * Get messages and session details for a given session with ownership validation.
+   * Get messages and session details for a given session with strict ownership validation.
    */
   static async getSessionMessages(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -135,7 +159,8 @@ export class ChatController {
       }
 
       const userId = req.user?.userId;
-      if (session.userId && userId && session.userId.toString() !== userId) {
+      // Strict ownership check: session must be owned by the authenticated user
+      if (!session.userId || !userId || session.userId.toString() !== userId) {
         res.status(403).json({
           success: false,
           error: 'Access denied: You do not have permission to access this research session.',
@@ -151,7 +176,7 @@ export class ChatController {
   }
 
   /**
-   * Clear / delete a research session and its messages with ownership check.
+   * Clear / delete a research session and its messages with strict ownership check.
    */
   static async deleteSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -163,7 +188,8 @@ export class ChatController {
       }
 
       const userId = req.user?.userId;
-      if (session.userId && userId && session.userId.toString() !== userId) {
+      // Strict ownership check: session must be owned by the authenticated user
+      if (!session.userId || !userId || session.userId.toString() !== userId) {
         res.status(403).json({
           success: false,
           error: 'Access denied: You do not have permission to delete this research session.',
