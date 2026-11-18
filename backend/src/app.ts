@@ -8,6 +8,9 @@ import { errorHandler } from './middleware/errorHandler.js';
 export function createApp(): express.Application {
   const app = express();
 
+  // Enable proxy trust for reverse proxies (Render, Vercel, Cloudflare)
+  app.set('trust proxy', 1);
+
   // CORS Configuration
   app.use(
     cors({
@@ -30,13 +33,13 @@ export function createApp(): express.Application {
   // Root handler: redirect browser visitors to the frontend UI
   app.get('/', (req, res) => {
     if (req.accepts('html')) {
-      res.redirect('http://localhost:5173');
+      res.redirect(config.frontendUrl);
       return;
     }
     res.json({
       service: 'Multi-Document Research Assistant API',
       status: 'running',
-      frontendUrl: 'http://localhost:5173',
+      frontendUrl: config.frontendUrl,
       healthUrl: '/api/health',
     });
   });

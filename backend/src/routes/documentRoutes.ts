@@ -4,8 +4,12 @@ import { DocumentController } from '../controllers/documentController.js';
 import { uploadMiddleware } from '../middleware/upload.js';
 import { validateParams, validateBody } from '../middleware/validateRequest.js';
 import { uploadRateLimiter, aiRateLimiter } from '../middleware/rateLimiter.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
+
+// Protect all document management endpoints with user authentication
+router.use(requireAuth);
 
 const idParamSchema = z.object({
   id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Document ID must be a valid 24-character hexadecimal MongoDB ObjectId'),

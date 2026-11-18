@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, ExternalLink, Download, FileText } from 'lucide-react';
 import { Button } from './Button.js';
+import { useAuth } from '../../context/AuthContext.js';
 
 interface PdfViewerModalProps {
   isOpen: boolean;
@@ -17,9 +18,20 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
   documentName,
   pageNumber = 1,
 }) => {
+  let token: string | null = null;
+  try {
+    const auth = useAuth();
+    token = auth.token;
+  } catch {
+    token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  }
+
   if (!isOpen || !documentId) return null;
 
-  const pdfUrl = `/api/documents/${documentId}/file#page=${pageNumber}`;
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+  const pdfUrl = `/api/documents/${documentId}/file${tokenParam}#page=${pageNumber}`;
+  const fullTabUrl = `/api/documents/${documentId}/file${tokenParam}`;
+  const downloadUrl = `/api/documents/${documentId}/file${tokenParam ? `${tokenParam}&download=true` : '?download=true'}`;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
@@ -42,7 +54,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 
           <div className="flex items-center gap-2 shrink-0">
             <a
-              href={`/api/documents/${documentId}/file`}
+              href={fullTabUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-200/80 transition-colors border border-slate-300"
@@ -52,7 +64,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
               <span>Full Tab</span>
             </a>
             <a
-              href={`/api/documents/${documentId}/file`}
+              href={downloadUrl}
               download={documentName}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-200/80 transition-colors border border-slate-300"
               title="Download PDF"

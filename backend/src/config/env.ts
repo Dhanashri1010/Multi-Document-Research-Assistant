@@ -16,6 +16,15 @@ const envSchema = z.object({
   VECTOR_SEARCH_PROVIDER: z.enum(['local', 'atlas']).default('local'),
   VECTOR_INDEX_NAME: z.string().default('default'),
 
+  // User Authentication
+  JWT_SECRET: z.string().default('multi-doc-assistant-secure-jwt-secret-key-2026'),
+
+  // Cloud Storage (Supabase)
+  STORAGE_PROVIDER: z.enum(['local', 'supabase']).default('local'),
+  SUPABASE_URL: z.string().optional(),
+  SUPABASE_SERVICE_KEY: z.string().optional(),
+  SUPABASE_BUCKET: z.string().default('documents'),
+
   EMBEDDING_PROVIDER: z.enum(['local', 'gemini', 'openai']).default('local'),
   EMBEDDING_MODEL: z.string().optional(),
   EMBEDDING_API_KEY: z.string().optional(),
@@ -58,6 +67,13 @@ export const config = {
 
   vectorSearchProvider: env.VECTOR_SEARCH_PROVIDER,
   vectorIndexName: env.VECTOR_INDEX_NAME,
+
+  jwtSecret: env.JWT_SECRET,
+
+  storageProvider: env.STORAGE_PROVIDER,
+  supabaseUrl: env.SUPABASE_URL || '',
+  supabaseServiceKey: env.SUPABASE_SERVICE_KEY || '',
+  supabaseBucket: env.SUPABASE_BUCKET,
 
   embeddingProvider: env.EMBEDDING_PROVIDER,
   embeddingModel:

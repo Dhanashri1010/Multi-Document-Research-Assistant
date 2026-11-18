@@ -4,6 +4,9 @@ export type DocumentStatus = 'uploaded' | 'processing' | 'ready' | 'failed';
 export type DocumentFileType = 'pdf' | 'docx' | 'doc' | 'txt';
 
 export interface IDocument extends MongooseDoc {
+  userId?: mongoose.Types.ObjectId;
+  storageProvider?: 'local' | 'supabase';
+  storagePath?: string;
   filename: string;
   originalName: string;
   fileSize: number;
@@ -33,6 +36,9 @@ export interface IDocument extends MongooseDoc {
 
 const DocumentSchema = new Schema<IDocument>(
   {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+    storageProvider: { type: String, enum: ['local', 'supabase'], default: 'local' },
+    storagePath: { type: String },
     filename: { type: String, required: true },
     originalName: { type: String, required: true },
     fileSize: { type: Number, required: true },

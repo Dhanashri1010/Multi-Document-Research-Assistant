@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document as MongooseDoc, Types } from 'mongoose';
 
 export interface IDocumentChunk extends MongooseDoc {
+  userId?: Types.ObjectId;
   documentId: Types.ObjectId;
   chunkIndex: number;
   text: string;
@@ -23,6 +24,12 @@ export interface IDocumentChunk extends MongooseDoc {
 
 const DocumentChunkSchema = new Schema<IDocumentChunk>(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: false,
+      index: true,
+    },
     documentId: {
       type: Schema.Types.ObjectId,
       ref: 'Document',

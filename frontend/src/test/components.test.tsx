@@ -167,6 +167,24 @@ describe('Frontend Component Tests: ChatMessage', () => {
     expect(screen.getByText('First point')).toBeInTheDocument();
     expect(screen.getByText('Bullet point')).toBeInTheDocument();
   });
+
+  it('sanitizes raw JSON parsing errors in degradedReason', () => {
+    const rawErrorMsg: IChatMessage = {
+      sessionId: 'sess_deg_1',
+      role: 'assistant',
+      content: 'Passage text extracted directly from document.',
+      citations: [],
+      degraded: true,
+      degradedReason: 'JSON parsing failed (Unterminated string in JSON at position 7203 (line 167 column 47))',
+      createdAt: '2026-11-18T00:00:00Z',
+    };
+
+    render(<ChatMessage message={rawErrorMsg} />);
+
+    expect(screen.queryByText(/JSON parsing failed/i)).toBeNull();
+    expect(screen.queryByText(/position 7203/i)).toBeNull();
+    expect(screen.getByText(/The AI model response was interrupted during generation/i)).toBeInTheDocument();
+  });
 });
 
 describe('Frontend Component Tests: DocumentCard', () => {

@@ -1,11 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { Request, Response, NextFunction } from 'express';
 import { DocumentModel } from '../models/Document.js';
 import { DocumentChunkModel } from '../models/DocumentChunk.js';
 import { IngestionService } from '../services/documents/ingestionService.js';
 import { ComparisonService } from '../services/ai/comparisonService.js';
+import { StorageService } from '../services/storage/supabaseStorage.js';
 import {
   validatePdfMagicBytes,
   validatePdfBuffer,
@@ -17,8 +19,8 @@ import { config } from '../config/env.js';
 export class DocumentController {
   /**
    * Upload one or multiple documents.
-   * Performs magic-byte verification, filename sanitization, and SHA-256 deduplication.
-   * Immediately persists new records and enqueues background ingestion.
+   * Performs magic-byte verification, filename sanitization, SHA-256 deduplication,
+   * user-scoping, and cloud/local persistent storage.
    */
   static async upload(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -28,13 +30,14 @@ export class DocumentController {
         return;
       }
 
+      const userId = req.user?.userId;
       const createdDocs = [];
 
       for (const file of files) {
         // Magic-byte verification for PDF, DOCX, DOC
         const validation = await validateDocumentMagicBytes(file.path, file.originalname);
         if (!validation.isValid) {
-          await fs.promises.unlink(file.path).catch(() => {});
+          await fs.promises.unlink(file.path).catch(() => { });
           res.status(400).json({
             success: false,
             error: `Invalid file "${file.originalname}". ${validation.error || 'Only valid PDF, DOC, and DOCX files are permitted.'}`,
@@ -43,34 +46,49 @@ export class DocumentController {
         }
 
         const safeOriginalName = sanitizeFilename(file.originalname);
+        const fileBuffer = await fs.promises.readFile(file.path);
+        const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-        // Compute SHA-256 file hash
-        let fileHash: string | undefined;
-        try {
-          const fileBuffer = await fs.promises.readFile(file.path);
-          fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-        } catch {
-          // If hashing fails, proceed without hash
-        }
-
-        // Deduplication check: if an identical document is already indexed and ready, reuse it
-        if (fileHash) {
-          const existing = await DocumentModel.findOne({ fileHash, status: 'ready' });
+        // Deduplication check: strictly scoped to the authenticated user's own documents.
+        // Never return another user's document record across user boundaries.
+        if (userId) {
+          const existing = await DocumentModel.findOne({
+            fileHash,
+            userId: new mongoose.Types.ObjectId(userId),
+            status: 'ready',
+          });
           if (existing) {
-            // Remove redundant temporary upload file
-            await fs.promises.unlink(file.path).catch(() => {});
+            await fs.promises.unlink(file.path).catch(() => { });
             createdDocs.push(existing);
             continue;
           }
         }
 
+        const docId = new mongoose.Types.ObjectId();
+        const stored = await StorageService.saveDocumentFile(
+          fileBuffer,
+          file.originalname,
+          userId || 'default',
+          docId.toString(),
+          file.mimetype
+        );
+
+        // Remove temporary upload file if stored elsewhere
+        if (path.resolve(file.path) !== path.resolve(stored.localPath)) {
+          await fs.promises.unlink(file.path).catch(() => { });
+        }
+
         const doc = await DocumentModel.create({
+          _id: docId,
+          userId: userId ? new mongoose.Types.ObjectId(userId) : undefined,
           filename: file.filename,
           originalName: safeOriginalName,
           fileSize: file.size,
           mimeType: file.mimetype,
           fileType: validation.format,
-          filePath: file.path,
+          filePath: stored.localPath,
+          storageProvider: stored.storageProvider,
+          storagePath: stored.storagePath,
           fileHash,
           status: 'uploaded',
         });
@@ -94,7 +112,7 @@ export class DocumentController {
   }
 
   /**
-   * List all documents with optional filtering, search, sorting, and pagination.
+   * List all documents with user-scoped isolation, filtering, search, sorting, and pagination.
    */
   static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -109,7 +127,13 @@ export class DocumentController {
         limit,
       } = req.query as Record<string, string | undefined>;
 
+      const userId = req.user?.userId;
       const filter: any = {};
+
+      // User data isolation: user sees only their documents plus existing legacy documents
+      if (userId) {
+        filter.$or = [{ userId }, { userId: { $exists: false } }];
+      }
 
       if (status && status !== 'all') {
         if (status === 'processing') {
@@ -129,31 +153,50 @@ export class DocumentController {
 
       if (fileType && fileType !== 'all') {
         const ft = fileType.toLowerCase();
+        const typeConditions: any[] = [];
         if (ft === 'pdf') {
-          filter.$or = [{ fileType: 'pdf' }, { mimeType: 'application/pdf' }];
+          typeConditions.push({ fileType: 'pdf' }, { mimeType: 'application/pdf' });
         } else if (ft === 'docx') {
-          filter.$or = [{ fileType: 'docx' }, { originalName: /\.docx$/i }];
+          typeConditions.push({ fileType: 'docx' }, { originalName: /\.docx$/i });
         } else if (ft === 'doc') {
-          filter.$or = [{ fileType: 'doc' }, { originalName: /\.doc$/i }];
+          typeConditions.push({ fileType: 'doc' }, { originalName: /\.doc$/i });
         } else if (ft === 'word') {
-          filter.$or = [
+          typeConditions.push(
             { fileType: { $in: ['docx', 'doc'] } },
-            { originalName: /\.(docx|doc)$/i },
-          ];
+            { originalName: /\.(docx|doc)$/i }
+          );
         } else if (ft === 'txt') {
-          filter.mimeType = { $in: ['text/plain', 'text/txt'] };
+          typeConditions.push({ mimeType: { $in: ['text/plain', 'text/txt'] } });
+        }
+
+        if (typeConditions.length > 0) {
+          if (filter.$or) {
+            filter.$and = [{ $or: filter.$or }, { $or: typeConditions }];
+            delete filter.$or;
+          } else {
+            filter.$or = typeConditions;
+          }
         }
       }
 
       if (search && typeof search === 'string' && search.trim()) {
         const s = search.trim();
         const searchRegex = new RegExp(s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i');
-        filter.$or = [
+        const searchConditions = [
           { originalName: searchRegex },
           { title: searchRegex },
           { abstract: searchRegex },
           { authors: searchRegex },
         ];
+
+        if (filter.$and) {
+          filter.$and.push({ $or: searchConditions });
+        } else if (filter.$or) {
+          filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+          delete filter.$or;
+        } else {
+          filter.$or = searchConditions;
+        }
       }
 
       let sortOption: any = { createdAt: -1 };
@@ -197,16 +240,19 @@ export class DocumentController {
   }
 
   /**
-   * Get workspace statistics for the dashboard.
+   * Get workspace statistics for the dashboard scoped to user.
    */
-  static async getStats(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async getStats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const userId = req.user?.userId;
+      const baseFilter: any = userId ? { $or: [{ userId }, { userId: { $exists: false } }] } : {};
+
       const [total, ready, processing, failed, recent] = await Promise.all([
-        DocumentModel.countDocuments(),
-        DocumentModel.countDocuments({ status: 'ready' }),
-        DocumentModel.countDocuments({ status: { $in: ['uploaded', 'processing'] } }),
-        DocumentModel.countDocuments({ status: 'failed' }),
-        DocumentModel.find().sort({ createdAt: -1 }).limit(5),
+        DocumentModel.countDocuments(baseFilter),
+        DocumentModel.countDocuments({ ...baseFilter, status: 'ready' }),
+        DocumentModel.countDocuments({ ...baseFilter, status: { $in: ['uploaded', 'processing'] } }),
+        DocumentModel.countDocuments({ ...baseFilter, status: 'failed' }),
+        DocumentModel.find(baseFilter).sort({ createdAt: -1 }).limit(5),
       ]);
 
       res.json({
@@ -225,6 +271,15 @@ export class DocumentController {
   }
 
   /**
+   * Helper to check document ownership.
+   */
+  private static checkOwnership(doc: any, userId?: string): boolean {
+    if (!doc.userId) return true; // Legacy document
+    if (!userId) return false;
+    return doc.userId.toString() === userId;
+  }
+
+  /**
    * Get single document details.
    */
   static async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -234,6 +289,12 @@ export class DocumentController {
         res.status(404).json({ success: false, error: 'Document not found.' });
         return;
       }
+
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied: You do not have permission to view this document.' });
+        return;
+      }
+
       res.json({ success: true, document: doc });
     } catch (err) {
       next(err);
@@ -245,11 +306,19 @@ export class DocumentController {
    */
   static async getStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const doc = await DocumentModel.findById(req.params.id as string).select('status errorDetails pageCount chunkCount updatedAt');
+      const doc = await DocumentModel.findById(req.params.id as string).select(
+        'userId status errorDetails pageCount chunkCount updatedAt'
+      );
       if (!doc) {
         res.status(404).json({ success: false, error: 'Document not found.' });
         return;
       }
+
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied.' });
+        return;
+      }
+
       res.json({
         success: true,
         status: doc.status,
@@ -273,9 +342,13 @@ export class DocumentController {
         return;
       }
 
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied: You do not own this document.' });
+        return;
+      }
+
       doc.status = 'processing';
       doc.errorDetails = undefined;
-      // Do not wipe summaryData or summaryText here; IngestionService safely preserves them if reprocessing fails
       await doc.save();
 
       IngestionService.queueDocument(doc._id).catch((err) => {
@@ -298,11 +371,20 @@ export class DocumentController {
   static async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const docId = req.params.id as string;
-      const success = await IngestionService.deleteDocument(docId);
-      if (!success) {
+      const doc = await DocumentModel.findById(docId);
+      if (!doc) {
         res.status(404).json({ success: false, error: 'Document not found or already deleted.' });
         return;
       }
+
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied: You do not have permission to delete this document.' });
+        return;
+      }
+
+      await StorageService.deleteDocumentFile(doc);
+      await IngestionService.deleteDocument(docId);
+
       res.json({ success: true, message: 'Document and associated vectors deleted successfully.' });
     } catch (err) {
       next(err);
@@ -331,6 +413,17 @@ export class DocumentController {
   static async summarize(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const docId = req.params.id as string;
+      const doc = await DocumentModel.findById(docId);
+      if (!doc) {
+        res.status(404).json({ success: false, error: 'Document not found.' });
+        return;
+      }
+
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied: You do not own this document.' });
+        return;
+      }
+
       const regenerate = Boolean(req.body?.regenerate);
       const summaryResult = await ComparisonService.summarize(docId, regenerate);
       res.json({
@@ -343,56 +436,56 @@ export class DocumentController {
   }
 
   /**
-   * Serve raw document PDF for in-app viewing or inline rendering.
+   * Serve raw document for in-app viewing or inline rendering via Supabase / local storage.
    */
   static async getFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const doc = await DocumentModel.findById(req.params.id as string);
-      if (!doc || !doc.filePath) {
+      if (!doc) {
         res.status(404).json({ success: false, error: 'Document not found.' });
         return;
       }
 
-      const uploadDir = path.resolve(process.cwd(), config.uploadDir);
-      const resolvedPath = path.resolve(doc.filePath);
-      if (!resolvedPath.startsWith(uploadDir) || !fs.existsSync(resolvedPath)) {
-        res.status(404).json({ success: false, error: 'Document file not found on disk or invalid path.' });
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied: You do not have permission to view this file.' });
         return;
       }
 
+      const buffer = await StorageService.getDocumentBuffer(doc);
       const isDownload = req.query.download === 'true';
+
       res.setHeader('Content-Type', doc.mimeType || 'application/pdf');
       res.setHeader(
         'Content-Disposition',
         `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(doc.originalName)}"`
       );
-      fs.createReadStream(resolvedPath).pipe(res);
+      res.send(buffer);
     } catch (err) {
       next(err);
     }
   }
 
   /**
-   * Download the exact original uploaded file.
+   * Download the exact original uploaded file via Supabase / local storage.
    */
   static async downloadFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const doc = await DocumentModel.findById(req.params.id as string);
-      if (!doc || !doc.filePath) {
+      if (!doc) {
         res.status(404).json({ success: false, error: 'Document not found.' });
         return;
       }
 
-      const uploadDir = path.resolve(process.cwd(), config.uploadDir);
-      const resolvedPath = path.resolve(doc.filePath);
-      if (!resolvedPath.startsWith(uploadDir) || !fs.existsSync(resolvedPath)) {
-        res.status(404).json({ success: false, error: 'Document file not found on disk or invalid path.' });
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied: You do not have permission to download this file.' });
         return;
       }
 
+      const buffer = await StorageService.getDocumentBuffer(doc);
+
       res.setHeader('Content-Type', doc.mimeType || 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.originalName)}"`);
-      fs.createReadStream(resolvedPath).pipe(res);
+      res.send(buffer);
     } catch (err) {
       next(err);
     }
@@ -408,6 +501,12 @@ export class DocumentController {
         res.status(404).json({ success: false, error: 'Document not found.' });
         return;
       }
+
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied: You do not own this document.' });
+        return;
+      }
+
       const rawCollection = req.body.collectionName;
       doc.collectionName = (rawCollection && typeof rawCollection === 'string' ? rawCollection.trim() : '') || 'General';
       await doc.save();
@@ -418,11 +517,17 @@ export class DocumentController {
   }
 
   /**
-   * List all unique collections with document counts.
+   * List all unique collections with document counts scoped to user.
    */
-  static async listCollections(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async listCollections(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const userId = req.user?.userId;
+      const matchStage: any = userId
+        ? { $match: { $or: [{ userId: new mongoose.Types.ObjectId(userId) }, { userId: { $exists: false } }] } }
+        : { $match: {} };
+
       const counts = await DocumentModel.aggregate([
+        matchStage,
         { $group: { _id: { $ifNull: ['$collectionName', 'General'] }, count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]);
@@ -442,17 +547,18 @@ export class DocumentController {
   static async importArxiv(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { url, collectionName } = req.body;
+      const userId = req.user?.userId;
+
       if (!url || typeof url !== 'string') {
         res.status(400).json({ success: false, error: 'Please provide a valid arXiv URL or identifier.' });
         return;
       }
 
-      // Extract arXiv ID e.g. 2106.09685 or 1706.03762
       const match = url.match(/(?:arxiv\.org\/(?:abs|pdf)\/|arxiv:)?([0-9]{4}\.[0-9]{4,5}(?:v[0-9]+)?)/i);
       if (!match || !match[1]) {
         res.status(400).json({
           success: false,
-          error: 'Could not extract a valid arXiv ID from the provided URL. Expected format e.g. "https://arxiv.org/abs/2106.09685" or "2106.09685".',
+          error: 'Could not extract a valid arXiv ID from the provided URL.',
         });
         return;
       }
@@ -460,15 +566,6 @@ export class DocumentController {
       const arxivId = match[1];
       const pdfDownloadUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
 
-      const uploadDir = config.uploadDir || './uploads';
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      const filename = `arxiv_${arxivId.replace(/[^a-zA-Z0-9.-]/g, '_')}.pdf`;
-      const filePath = path.resolve(uploadDir, filename);
-
-      // Download PDF from arXiv
       const response = await fetch(pdfDownloadUrl, {
         headers: {
           'User-Agent': 'MultiDocumentResearchAssistant/1.0 (academic-nlp-tool)',
@@ -494,29 +591,45 @@ export class DocumentController {
         return;
       }
 
-      fs.writeFileSync(filePath, buffer);
-
       const fileHash = crypto.createHash('sha256').update(buffer).digest('hex');
-
-      // Deduplication check
-      const existing = await DocumentModel.findOne({ fileHash, status: 'ready' });
-      if (existing) {
-        fs.unlinkSync(filePath);
-        res.json({
-          success: true,
-          message: 'Document already exists in corpus.',
-          document: existing,
-          isDuplicate: true,
+      // Deduplication strictly scoped to user's documents
+      if (userId) {
+        const existing = await DocumentModel.findOne({
+          fileHash,
+          userId: new mongoose.Types.ObjectId(userId),
+          status: 'ready',
         });
-        return;
+        if (existing) {
+          res.json({
+            success: true,
+            message: 'Document already exists in your workspace.',
+            document: existing,
+            isDuplicate: true,
+          });
+          return;
+        }
       }
 
+      const docId = new mongoose.Types.ObjectId();
+      const filename = `arxiv_${arxivId.replace(/[^a-zA-Z0-9.-]/g, '_')}.pdf`;
+      const stored = await StorageService.saveDocumentFile(
+        buffer,
+        `arXiv_${arxivId}.pdf`,
+        userId || 'default',
+        docId.toString(),
+        'application/pdf'
+      );
+
       const doc = await DocumentModel.create({
+        _id: docId,
+        userId: userId ? new mongoose.Types.ObjectId(userId) : undefined,
         filename,
         originalName: `arXiv_${arxivId}.pdf`,
         fileSize: buffer.length,
         mimeType: 'application/pdf',
-        filePath,
+        filePath: stored.localPath,
+        storageProvider: stored.storageProvider,
+        storagePath: stored.storagePath,
         fileHash,
         collectionName: (collectionName && typeof collectionName === 'string' ? collectionName.trim() : '') || 'arXiv',
         status: 'uploaded',
@@ -542,6 +655,17 @@ export class DocumentController {
   static async getChunks(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const docId = req.params.id as string;
+      const doc = await DocumentModel.findById(docId);
+      if (!doc) {
+        res.status(404).json({ success: false, error: 'Document not found.' });
+        return;
+      }
+
+      if (!DocumentController.checkOwnership(doc, req.user?.userId)) {
+        res.status(403).json({ success: false, error: 'Access denied: You do not own this document.' });
+        return;
+      }
+
       const chunks = await DocumentChunkModel.find({ documentId: docId })
         .select('chunkIndex text heading section paragraphNumber fileType pageNumber pageStart pageEnd')
         .sort({ chunkIndex: 1 })

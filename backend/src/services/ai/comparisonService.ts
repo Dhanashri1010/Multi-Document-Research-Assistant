@@ -105,26 +105,44 @@ export function repairAndParseComparisonJson(raw: string): any {
     // Proceed to repair
   }
 
-  // Attempt 2: Clean unescaped newlines/tabs inside strings
+  // Attempt 2: String-aware escaping of literal control characters (newlines, carriage returns, tabs)
+  // ONLY inside JSON string literals, preserving JSON structural formatting
+  let withEscapedStrings = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (ch === '\\' && inString) {
+      escaped = !escaped;
+      withEscapedStrings += ch;
+    } else if (ch === '"' && !escaped) {
+      inString = !inString;
+      withEscapedStrings += ch;
+    } else if (inString) {
+      escaped = false;
+      if (ch === '\n') withEscapedStrings += '\\n';
+      else if (ch === '\r') withEscapedStrings += '\\r';
+      else if (ch === '\t') withEscapedStrings += '\\t';
+      else withEscapedStrings += ch;
+    } else {
+      escaped = false;
+      withEscapedStrings += ch;
+    }
+  }
+
   try {
-    const fixedWhitespace = cleaned.replace(/[\u0000-\u001F]+/g, (match) => {
-      if (match === '\n') return '\\n';
-      if (match === '\r') return '\\r';
-      if (match === '\t') return '\\t';
-      return '';
-    });
-    return JSON.parse(fixedWhitespace);
+    return JSON.parse(withEscapedStrings);
   } catch (_e2) {
     // Proceed to structural repair
   }
 
   // Attempt 3: Repair truncated JSON (unclosed quotes, unbalanced brackets/braces)
   try {
-    let repaired = cleaned;
+    let repaired = withEscapedStrings;
 
     // Check if inside an unclosed string literal
-    let inString = false;
-    let escaped = false;
+    inString = false;
+    escaped = false;
     for (let i = 0; i < repaired.length; i++) {
       const char = repaired[i];
       if (char === '\\' && inString) {
@@ -139,6 +157,11 @@ export function repairAndParseComparisonJson(raw: string): any {
     if (inString) {
       repaired += '"';
     }
+
+    // Strip trailing incomplete keys or dangling commas before balancing
+    repaired = repaired
+      .replace(/,\s*"[^"]*"\s*:\s*"?$/g, '')
+      .replace(/,\s*$/g, '');
 
     // Now balance open brackets/braces
     const stack: string[] = [];
@@ -163,7 +186,7 @@ export function repairAndParseComparisonJson(raw: string): any {
       }
     }
 
-    // Strip trailing commas before closing brackets
+    if (inString) repaired += '"';
     repaired = repaired.replace(/,\s*$/g, '');
 
     // Close remaining open brackets/braces in reverse order

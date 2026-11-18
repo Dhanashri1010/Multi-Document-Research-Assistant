@@ -3,8 +3,12 @@ import { z } from 'zod';
 import { ChatController } from '../controllers/chatController.js';
 import { validateBody, validateParams } from '../middleware/validateRequest.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
+
+// Protect all chat & research assistant endpoints with user authentication
+router.use(requireAuth);
 
 const askBodySchema = z.object({
   question: z.string().trim().min(1, 'Question cannot be empty.'),

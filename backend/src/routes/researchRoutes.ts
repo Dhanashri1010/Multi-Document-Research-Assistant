@@ -3,8 +3,12 @@ import { z } from 'zod';
 import { ResearchController } from '../controllers/researchController.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
+
+// Protect cross-document comparison with user authentication
+router.use(requireAuth);
 
 const compareBodySchema = z.object({
   documentIds: z

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -7,11 +7,15 @@ import {
   GitCompare,
   BookOpenCheck,
   GraduationCap,
+  LogOut,
+  LogIn,
 } from 'lucide-react';
 import { useWorkspace } from '../../context/WorkspaceContext.js';
+import { useAuth } from '../../context/AuthContext.js';
 
 export const Sidebar: React.FC = () => {
   const { documents, selectedDocIds } = useWorkspace();
+  const { user, isAuthenticated, logout } = useAuth();
   const readyCount = documents.filter((d) => d.status === 'ready').length;
 
   const navItems = [
@@ -109,6 +113,42 @@ export const Sidebar: React.FC = () => {
           </NavLink>
         </div>
       </nav>
+
+      {/* User Profile & Logout */}
+      {isAuthenticated && user ? (
+        <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-brand-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm shadow-brand-500/20">
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-white truncate" title={user.name}>
+                {user.name}
+              </p>
+              <p className="text-[10px] text-slate-400 truncate" title={user.email}>
+                {user.email}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            title="Sign out of your account"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="p-3 border-t border-slate-800 bg-slate-950/60">
+          <Link
+            to="/login"
+            className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs transition-colors"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Sign In</span>
+          </Link>
+        </div>
+      )}
 
       {/* System Status Footer */}
       <div className="p-4 border-t border-slate-800 bg-slate-950/40">

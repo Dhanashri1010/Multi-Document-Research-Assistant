@@ -3,6 +3,20 @@ import { User, Sparkles, AlertCircle, Download, RotateCcw } from 'lucide-react';
 import { IChatMessage } from '../../types/research.js';
 import { SourceCitation } from './SourceCitation.js';
 
+export function sanitizeDegradedReason(reason?: string): string {
+  if (!reason) {
+    return 'Displaying the most relevant passages retrieved directly from your documents.';
+  }
+  if (
+    /json|syntaxerror|position \d+|unterminated|unexpected token|failed to parse|econnrefused|at line \d+/i.test(
+      reason
+    )
+  ) {
+    return 'The AI model response was interrupted during generation. Document excerpts and verified passages have been retrieved directly from your indexed papers.';
+  }
+  return reason;
+}
+
 interface ChatMessageProps {
   message: IChatMessage;
   onRetry?: () => void;
@@ -319,7 +333,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
               <div>
                 <p className="font-semibold">AI-generated summary is temporarily unavailable.</p>
                 <p className="mt-0.5 text-amber-700">
-                  {message.degradedReason || 'Displaying the most relevant passages retrieved directly from your documents.'}
+                  {sanitizeDegradedReason(message.degradedReason)}
                 </p>
               </div>
             </div>

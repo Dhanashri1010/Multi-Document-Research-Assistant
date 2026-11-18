@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { DocumentModel } from '../../models/Document.js';
 import { ResearchSessionModel } from '../../models/ResearchSession.js';
 import { ChatMessageModel, ICitation } from '../../models/ChatMessage.js';
@@ -12,6 +13,7 @@ export interface RAGQueryOptions {
   question: string;
   documentIds: string[];
   sessionId?: string;
+  userId?: string;
 }
 
 export interface RAGResponse {
@@ -93,10 +95,49 @@ export function extractCleanAnswer(raw: string): {
       };
     }
   } catch {
-    // Strict parse failed (e.g. unescaped newlines or quotation marks inside the answer string)
+    // Strict parse failed (proceed to string-aware escaping and repair)
   }
 
-  // 2. Resilient extraction for answer string
+  // 2. String-aware escaping of literal newlines/tabs inside string literals
+  try {
+    let withEscapedStrings = '';
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < clean.length; i++) {
+      const ch = clean[i];
+      if (ch === '\\' && inString) {
+        escaped = !escaped;
+        withEscapedStrings += ch;
+      } else if (ch === '"' && !escaped) {
+        inString = !inString;
+        withEscapedStrings += ch;
+      } else if (inString) {
+        escaped = false;
+        if (ch === '\n') withEscapedStrings += '\\n';
+        else if (ch === '\r') withEscapedStrings += '\\r';
+        else if (ch === '\t') withEscapedStrings += '\\t';
+        else withEscapedStrings += ch;
+      } else {
+        escaped = false;
+        withEscapedStrings += ch;
+      }
+    }
+
+    const parsed2 = JSON.parse(withEscapedStrings);
+    if (parsed2 && typeof parsed2 === 'object') {
+      let ans = typeof parsed2.answer === 'string' ? parsed2.answer : '';
+      return {
+        answer: stripDuplicateCitationsList(ans || (parsed2.hasInsufficientEvidence ? (parsed2.insufficientReason || '') : '')),
+        hasInsufficientEvidence: Boolean(parsed2.hasInsufficientEvidence),
+        insufficientReason: parsed2.insufficientReason,
+        claims: Array.isArray(parsed2.claims) ? parsed2.claims : [],
+      };
+    }
+  } catch {
+    // Proceed to resilient regex extraction
+  }
+
+  // 3. Resilient extraction for answer string
   let extractedAnswer = '';
   const answerKeyMatch = clean.match(/"answer"\s*:\s*"/);
   if (answerKeyMatch && answerKeyMatch.index !== undefined) {
@@ -429,11 +470,15 @@ STANDALONE SEARCH QUERY:`;
 
     let session = options.sessionId ? await ResearchSessionModel.findById(options.sessionId) : null;
     if (session) {
+      if (options.userId && session.userId && session.userId.toString() !== options.userId) {
+        throw new Error('Access denied: You do not have permission to access this research session.');
+      }
       session.selectedDocumentIds = validDocs.map((d) => d._id);
       await session.save();
     } else {
       const title = question.slice(0, 40) + (question.length > 40 ? '...' : '');
       session = await ResearchSessionModel.create({
+        userId: options.userId ? new mongoose.Types.ObjectId(options.userId) : undefined,
         title,
         selectedDocumentIds: validDocs.map((d) => d._id),
       });
@@ -769,47 +814,34 @@ Generate your JSON response now.`;
         finalAnswer += singleDocAdvisory;
       }
 
-      // Claim-Level Citation Verification
+      // Accurate Claim-Level Citation Verification
       if (Array.isArray(extracted.claims) && extracted.claims.length > 0) {
         const verifiedClaims = await CitationVerifier.verifyAllClaims(
           extracted.claims,
           indexedPassages
         );
 
-        // Map claim verification results onto the citation cards
-        const allVerifiedSourceIndices = new Set(verifiedClaims.flatMap((c) => c.verifiedIndices));
-        const allUnsupportedSourceIndices = new Set(verifiedClaims.flatMap((c) => c.unsupportedIndices));
+        const allVerified = new Set(verifiedClaims.flatMap((c) => c.verifiedIndices));
+        const allUnsupported = new Set(verifiedClaims.flatMap((c) => c.unsupportedIndices));
+        const allClaimed = new Set(extracted.claims.flatMap((c: any) => c.sourceIndices || []));
 
         citations.forEach((cite, idx) => {
           const chunkIdx = idx + 1;
-          const chunkText = indexedPassages[idx]?.text || '';
-
-          if (allVerifiedSourceIndices.has(chunkIdx)) {
+          if (allVerified.has(chunkIdx)) {
             cite.verified = true;
-            return;
-          }
-
-          const docNameClean = cite.documentName.toLowerCase();
-          const answerLower = finalAnswer.toLowerCase();
-          const isDocMentioned =
-            answerLower.includes(docNameClean) ||
-            answerLower.includes(docNameClean.replace(/\.pdf$|\.docx?$|\.txt$/i, ''));
-
-          const isPageCited = cite.pageNumber
-            ? answerLower.includes(`p. ${cite.pageNumber}`) ||
-              answerLower.includes(`page ${cite.pageNumber}`) ||
-              answerLower.includes(`p.${cite.pageNumber}`)
-            : true;
-
-          const hasAnswerOverlap = checkLexicalOverlap(finalAnswer, [{ text: chunkText }]);
-
-          if ((isDocMentioned && isPageCited) || hasAnswerOverlap) {
-            cite.verified = true;
-          } else if (allUnsupportedSourceIndices.has(chunkIdx)) {
+          } else if (allUnsupported.has(chunkIdx)) {
+            cite.verified = false;
+          } else if (allClaimed.has(chunkIdx)) {
             cite.verified = false;
           } else {
-            cite.verified = true;
+            // Source was retrieved as background context, but not cited for a specific claim
+            cite.verified = undefined;
           }
+        });
+      } else {
+        // No claim-level citations returned; mark as not checked
+        citations.forEach((cite) => {
+          cite.verified = undefined;
         });
       }
     } catch (llmErr: any) {
@@ -1012,38 +1044,26 @@ Generate your JSON response now.`;
         extracted.claims,
         indexedPassages
       );
+
       const allVerified = new Set(verifiedClaims.flatMap((c) => c.verifiedIndices));
       const allUnsupported = new Set(verifiedClaims.flatMap((c) => c.unsupportedIndices));
+      const allClaimed = new Set(extracted.claims.flatMap((c: any) => c.sourceIndices || []));
+
       citations.forEach((cite, idx) => {
         const chunkIdx = idx + 1;
-        const chunkText = indexedPassages[idx]?.text || '';
-
         if (allVerified.has(chunkIdx)) {
-          cite.verified = true;
-          return;
-        }
-
-        const docNameClean = cite.documentName.toLowerCase();
-        const answerLower = finalAnswer.toLowerCase();
-        const isDocMentioned =
-          answerLower.includes(docNameClean) ||
-          answerLower.includes(docNameClean.replace(/\.pdf$|\.docx?$|\.txt$/i, ''));
-
-        const isPageCited = cite.pageNumber
-          ? answerLower.includes(`p. ${cite.pageNumber}`) ||
-            answerLower.includes(`page ${cite.pageNumber}`) ||
-            answerLower.includes(`p.${cite.pageNumber}`)
-          : true;
-
-        const hasAnswerOverlap = checkLexicalOverlap(finalAnswer, [{ text: chunkText }]);
-
-        if ((isDocMentioned && isPageCited) || hasAnswerOverlap) {
           cite.verified = true;
         } else if (allUnsupported.has(chunkIdx)) {
           cite.verified = false;
+        } else if (allClaimed.has(chunkIdx)) {
+          cite.verified = false;
         } else {
-          cite.verified = true;
+          cite.verified = undefined;
         }
+      });
+    } else {
+      citations.forEach((cite) => {
+        cite.verified = undefined;
       });
     }
 
