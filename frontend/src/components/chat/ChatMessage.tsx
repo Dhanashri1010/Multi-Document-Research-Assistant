@@ -266,11 +266,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onRetry }) =>
     <div className={`flex gap-3.5 p-4 rounded-xl ${isUser ? 'bg-slate-100/80 ml-8' : 'bg-white border border-slate-200 shadow-2xs mr-4'}`}>
       {/* Avatar */}
       <div
-        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-          isUser
+        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isUser
             ? 'bg-slate-800 text-white'
             : 'bg-brand-600 text-white shadow-sm shadow-brand-500/20'
-        }`}
+          }`}
       >
         {isUser ? <User className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
       </div>
