@@ -105,31 +105,145 @@ class LocalEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
-class GeminiEmbeddingProvider implements EmbeddingProvider {
+export function sanitizeErrorMessage(rawMsg: string): string {
+  if (!rawMsg) return 'unknown error';
+  return rawMsg
+    .replace(/AIza[0-9A-Za-z_\-]{20,50}/g, '[REDACTED_API_KEY]')
+    .replace(/(key|token|auth|secret|bearer)=([^&\s]+)/gi, '$1=[REDACTED]')
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [REDACTED]')
+    .replace(/https?:\/\/[^\s]+/g, (url) => {
+      try {
+        const parsed = new URL(url);
+        parsed.search = '';
+        return parsed.toString();
+      } catch {
+        return '[URL]';
+      }
+    })
+    .slice(0, 200);
+}
+
+export function isGeminiRetryableError(err: any): boolean {
+  if (!err) return false;
+  const status = err.status || err.statusCode || err.response?.status;
+  const msg = String(err.message || '').toLowerCase();
+
+  // Permanent non-retryable errors (client faults, auth, not found, or vector dimension mismatches)
+  if (
+    status === 400 ||
+    status === 401 ||
+    status === 403 ||
+    status === 404 ||
+    msg.includes('api_key_invalid') ||
+    msg.includes('invalid api key') ||
+    msg.includes('unauthenticated') ||
+    msg.includes('permission denied') ||
+    msg.includes('not found') ||
+    msg.includes('deprecated') ||
+    msg.includes('mismatch') ||
+    msg.includes('dimension') ||
+    msg.includes('validation')
+  ) {
+    return false;
+  }
+
+  // Transient retryable errors (429 rate limits, 5xx server issues, network drops)
+  if (status === 429 || (typeof status === 'number' && status >= 500 && status < 600)) {
+    return true;
+  }
+
+  return (
+    msg.includes('429') ||
+    msg.includes('rate limit') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('quota') ||
+    msg.includes('503') ||
+    msg.includes('500') ||
+    msg.includes('502') ||
+    msg.includes('504') ||
+    msg.includes('service unavailable') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('network')
+  );
+}
+
+export async function withGeminiRetry<T>(
+  fn: () => Promise<T>,
+  operationName: string,
+  maxRetries: number = 3,
+  baseDelayMs: number = 2000
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      if (attempt >= maxRetries || !isGeminiRetryableError(err)) {
+        throw err;
+      }
+      attempt++;
+      // Exponential backoff: ~2s, ~4s, ~8s with random jitter (0 to 500ms)
+      const delay = Math.round(baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500);
+      const safeErrorMsg = sanitizeErrorMessage(err?.message || String(err));
+      console.warn(
+        `[GeminiEmbeddingProvider] ${operationName} failed (attempt ${attempt}/${maxRetries}): ${safeErrorMsg}. Retrying in ${delay}ms...`
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+export class GeminiEmbeddingProvider implements EmbeddingProvider {
   private apiKey: string;
   private model: string;
   private dimension = 768;
+  private maxRetries: number;
+  private baseDelayMs: number;
 
-  constructor(apiKey: string, model: string = 'gemini-embedding-001') {
+  constructor(
+    apiKey: string,
+    model: string = 'gemini-embedding-001',
+    options?: { maxRetries?: number; baseDelayMs?: number }
+  ) {
     this.apiKey = apiKey;
     this.model = model || 'gemini-embedding-001';
+    this.maxRetries = options?.maxRetries ?? 3;
+    this.baseDelayMs = options?.baseDelayMs ?? 2000;
   }
 
   async embedQuery(text: string): Promise<number[]> {
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
-    const result = await ai.models.embedContent({
-      model: this.model,
-      contents: text,
-      config: {
-        taskType: 'RETRIEVAL_QUERY',
-        outputDimensionality: this.dimension,
+
+    return withGeminiRetry(
+      async () => {
+        const result = await ai.models.embedContent({
+          model: this.model,
+          contents: text,
+          config: {
+            taskType: 'RETRIEVAL_QUERY',
+            outputDimensionality: this.dimension,
+          },
+        });
+
+        const vector = result.embeddings?.[0]?.values;
+        if (!Array.isArray(vector) || vector.length !== this.dimension) {
+          throw new Error(
+            `Gemini query embedding failed: expected ${this.dimension}-dim vector, got ${vector?.length ?? 'none'}`
+          );
+        }
+        return vector;
       },
-    });
-    return result.embeddings?.[0]?.values || [];
+      'embedQuery',
+      this.maxRetries,
+      this.baseDelayMs
+    );
   }
 
   async embedDocuments(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) return [];
+
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
 
@@ -138,23 +252,55 @@ class GeminiEmbeddingProvider implements EmbeddingProvider {
 
     for (let i = 0; i < texts.length; i += batchSize) {
       const batch = texts.slice(i, i + batchSize);
-      const res = await ai.models.embedContent({
-        model: this.model,
-        contents: batch,
-        config: {
-          taskType: 'RETRIEVAL_DOCUMENT',
-          outputDimensionality: this.dimension,
-        },
-      });
+      const batchIndex = Math.floor(i / batchSize) + 1;
+      const totalBatches = Math.ceil(texts.length / batchSize);
 
-      if (res.embeddings) {
-        for (const emb of res.embeddings) {
-          if (emb.values) {
-            results.push(emb.values);
+      const batchVectors = await withGeminiRetry(
+        async () => {
+          const res = await ai.models.embedContent({
+            model: this.model,
+            contents: batch,
+            config: {
+              taskType: 'RETRIEVAL_DOCUMENT',
+              outputDimensionality: this.dimension,
+            },
+          });
+
+          const embeddings = res.embeddings;
+          if (!Array.isArray(embeddings) || embeddings.length !== batch.length) {
+            throw new Error(
+              `Gemini batch embedding mismatch for batch ${batchIndex}/${totalBatches}: expected ${batch.length} vectors, got ${embeddings?.length ?? 0}`
+            );
           }
-        }
+
+          const extracted: number[][] = [];
+          for (let b = 0; b < embeddings.length; b++) {
+            const vals = embeddings[b]?.values;
+            if (!Array.isArray(vals) || vals.length !== this.dimension) {
+              throw new Error(
+                `Gemini embedding vector dimension mismatch at batch index ${b}: expected ${this.dimension}, got ${vals?.length ?? 'none'}`
+              );
+            }
+            extracted.push(vals);
+          }
+          return extracted;
+        },
+        `embedDocuments batch ${batchIndex}/${totalBatches}`,
+        this.maxRetries,
+        this.baseDelayMs
+      );
+
+      for (const vec of batchVectors) {
+        results.push(vec);
       }
     }
+
+    if (results.length !== texts.length) {
+      throw new Error(
+        `Gemini document embedding total mismatch: expected ${texts.length} vectors, got ${results.length}`
+      );
+    }
+
     return results;
   }
 
