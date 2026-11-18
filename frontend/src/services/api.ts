@@ -1,6 +1,32 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+/**
+ * Resolves the API base URL with full environment variable flexibility and safe fallbacks:
+ * 1. Checks VITE_API_URL (configured on Vercel / production hosts).
+ * 2. Checks VITE_API_BASE_URL (legacy / alternate configuration).
+ * 3. Strips trailing slashes to prevent malformed double-slash URLs.
+ * 4. In development mode (import.meta.env.DEV), falls back to 'http://localhost:5000/api'.
+ * 5. In production builds, falls back to relative '/api', never to localhost:5000.
+ */
+export function getApiBaseUrl(): string {
+  const envUrl =
+    (import.meta.env.VITE_API_URL as string | undefined) ||
+    (import.meta.env.VITE_API_BASE_URL as string | undefined);
+
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+
+  // Development fallback for local work
+  if (import.meta.env.DEV) {
+    return 'http://localhost:5000/api';
+  }
+
+  // Production fallback: relative endpoint, never localhost
+  return '/api';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

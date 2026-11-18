@@ -11,6 +11,7 @@ import { ComparisonTable, sanitizeDegradedReason } from '../components/research/
 import { IDocument } from '../types/document.js';
 import { IChatMessage, ICitation, ComparisonResult } from '../types/research.js';
 import { documentService } from '../services/documentService.js';
+import { getApiBaseUrl } from '../services/api.js';
 
 describe('Frontend Component Tests: PdfViewerModal', () => {
   it('renders modal with target page number and document title using secure blob URL', async () => {
@@ -365,5 +366,43 @@ describe('Frontend Component Tests: ComparisonTable', () => {
     expect(cleaned).not.toContain('Unterminated');
     expect(cleaned).not.toContain('position 7203');
     expect(cleaned).toContain('The AI model response was interrupted');
+  });
+});
+
+describe('Frontend API URL Configuration Tests', () => {
+  it('correctly resolves VITE_API_URL and strips trailing slashes', () => {
+    const originalEnv = { ...import.meta.env };
+    try {
+      (import.meta.env as any).VITE_API_URL = 'https://multi-doc-research-backend.onrender.com/api/';
+      expect(getApiBaseUrl()).toBe('https://multi-doc-research-backend.onrender.com/api');
+    } finally {
+      (import.meta.env as any).VITE_API_URL = originalEnv.VITE_API_URL;
+    }
+  });
+
+  it('correctly resolves VITE_API_BASE_URL as fallback and never produces double slashes', () => {
+    const originalEnv = { ...import.meta.env };
+    try {
+      delete (import.meta.env as any).VITE_API_URL;
+      (import.meta.env as any).VITE_API_BASE_URL = 'https://custom-api.example.com/api';
+      expect(getApiBaseUrl()).toBe('https://custom-api.example.com/api');
+    } finally {
+      (import.meta.env as any).VITE_API_URL = originalEnv.VITE_API_URL;
+      (import.meta.env as any).VITE_API_BASE_URL = originalEnv.VITE_API_BASE_URL;
+    }
+  });
+
+  it('never falls back to localhost:5000 in production when env is not set', () => {
+    const originalEnv = { ...import.meta.env };
+    try {
+      delete (import.meta.env as any).VITE_API_URL;
+      delete (import.meta.env as any).VITE_API_BASE_URL;
+      (import.meta.env as any).DEV = false;
+      (import.meta.env as any).PROD = true;
+      expect(getApiBaseUrl()).toBe('/api');
+      expect(getApiBaseUrl()).not.toContain('localhost');
+    } finally {
+      Object.assign(import.meta.env, originalEnv);
+    }
   });
 });

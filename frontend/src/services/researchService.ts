@@ -1,4 +1,4 @@
-import { apiClient } from './api.js';
+import { apiClient, API_BASE_URL } from './api.js';
 import { IChatMessage, IResearchSession, ComparisonResult, ICitation } from '../types/research.js';
 
 export const researchService = {
@@ -46,13 +46,13 @@ export const researchService = {
       onError?: (err: any) => void;
     }
   ): Promise<void> {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE_URL}/chat/ask/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(params),
       });
