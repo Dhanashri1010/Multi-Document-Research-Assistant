@@ -1,7 +1,7 @@
 import { createApp } from './app.js';
 import { connectDB, disconnectDB } from './config/db.js';
 import { config } from './config/env.js';
-
+import { getEmbeddingProvider } from './services/ai/embeddingService.js';
 import { DocumentModel } from './models/Document.js';
 
 async function startServer() {
@@ -23,11 +23,13 @@ async function startServer() {
   const app = createApp();
 
   const server = app.listen(config.port, () => {
+    const activeEmbedder = getEmbeddingProvider();
     console.log(`=======================================================`);
     console.log(`  Multi-Document Research Assistant Backend is running `);
     console.log(`  Local: http://localhost:${config.port}`);
     console.log(`  Health: http://localhost:${config.port}/api/health`);
-    console.log(`  Embedding: ${config.embeddingProvider} (${config.embeddingModel})`);
+    console.log(`  Configured Embedding: ${config.embeddingProvider} (${config.embeddingModel})`);
+    console.log(`  Active Embedding Model: ${activeEmbedder.getModelName()} (${activeEmbedder.getDimension()}-dim)`);
     console.log(`  LLM: ${config.llmProvider} (${config.llmModel})`);
     console.log(`  Vector Search: ${config.vectorSearchProvider}`);
     console.log(`=======================================================`);

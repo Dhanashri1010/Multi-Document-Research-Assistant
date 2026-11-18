@@ -88,6 +88,7 @@ export class IngestionService {
 
     let stagedChunkIds: Types.ObjectId[] = [];
     let transactionCommitted = false;
+    const ingestionStartTime = performance.now();
 
     try {
       doc.status = 'processing';
@@ -100,6 +101,7 @@ export class IngestionService {
       if ((!doc.filePath || !fs.existsSync(doc.filePath)) && doc.storageProvider === 'supabase' && doc.storagePath) {
         try {
           console.log(`[Ingestion] Local file missing for "${doc.originalName}". Restoring buffer from cloud storage...`);
+          const downloadStartTime = performance.now();
           const buffer = await StorageService.getDocumentBuffer(doc);
           const uploadDir = path.resolve(process.cwd(), config.uploadDir);
           if (!fs.existsSync(uploadDir)) {
@@ -110,6 +112,8 @@ export class IngestionService {
           await fs.promises.writeFile(restoredPath, buffer);
           doc.filePath = restoredPath;
           await doc.save();
+          const downloadDuration = Math.round(performance.now() - downloadStartTime);
+          console.log(`[Ingestion:Timing] Supabase download completed in ${downloadDuration}ms (${buffer.length} bytes)`);
         } catch (restoreErr: any) {
           console.warn(`[Ingestion] Could not restore buffer from storage: ${restoreErr.message}`);
         }
@@ -122,6 +126,7 @@ export class IngestionService {
       const isWordDoc = isDocx || isDoc;
       const isTxt = ext === '.txt' || doc.mimeType === 'text/plain';
 
+      const extractionStartTime = performance.now();
       let extraction: ExtractionResult | null = isDocx
         ? await extractDocx(doc.filePath)
         : isDoc
@@ -140,7 +145,8 @@ export class IngestionService {
         );
       }
 
-      console.log(`[Ingestion] Extracted ${isWordDoc ? `${extraction.blocks?.length || 0} blocks` : `${extraction.totalPages} pages`} from "${doc.originalName}"`);
+      const extractionDuration = Math.round(performance.now() - extractionStartTime);
+      console.log(`[Ingestion:Timing] Text extraction completed in ${extractionDuration}ms (${isWordDoc ? `${extraction.blocks?.length || 0} blocks` : `${extraction.totalPages} pages`})`);
 
       // Attach page 1 / front matter metadata if extracted
       if (extraction.metadata?.title) {
@@ -169,6 +175,7 @@ export class IngestionService {
       doc.category = detectedCategory;
 
       // 2. Chunking with format adaptation
+      const chunkingStartTime = performance.now();
       const embeddingProvider = getEmbeddingProvider();
       const rawChunks = isWordDoc && extraction.blocks
         ? chunkWordDocument(extraction.blocks, {
@@ -240,6 +247,9 @@ export class IngestionService {
         }
       }
 
+      const chunkingDuration = Math.round(performance.now() - chunkingStartTime);
+      console.log(`[Ingestion:Timing] Text cleaning and chunking completed in ${chunkingDuration}ms (${chunks.length} chunks)`);
+
       // Preserve lightweight scalar metadata required for persistence
       const totalPages = isWordDoc ? 0 : (extraction?.totalPages || 0);
       const extractionWarning = extraction?.warning;
@@ -252,10 +262,13 @@ export class IngestionService {
       console.log(`[Ingestion] Generated ${chunks.length} chunks (including Front-Matter chunk). Released extraction memory. Generating embeddings...`);
 
       // 3. Dense Embeddings Generation
+      const embeddingStartTime = performance.now();
       const chunkTexts = chunks.map((c) => c.embeddingText || c.text);
       const embeddings = await embeddingProvider.embedDocuments(chunkTexts);
       const modelName = embeddingProvider.getModelName();
       const dim = embeddingProvider.getDimension();
+      const embeddingDuration = Math.round(performance.now() - embeddingStartTime);
+      console.log(`[Ingestion:Timing] Embedding generation completed in ${embeddingDuration}ms (${embeddings.length} vectors, model: ${modelName}, dim: ${dim})`);
 
       // Validate embeddings before proceeding to database mutation
       if (!Array.isArray(embeddings) || embeddings.length !== chunks.length) {
@@ -293,6 +306,7 @@ export class IngestionService {
       }));
 
       // 5. Atomic or Safe Staged Replacement Strategy
+      const dbStartTime = performance.now();
       let session: mongoose.ClientSession | null = null;
       try {
         if (mongoose.connection.readyState === 1) {
@@ -364,6 +378,9 @@ export class IngestionService {
         await doc.save();
       }
 
+      const dbDuration = Math.round(performance.now() - dbStartTime);
+      console.log(`[Ingestion:Timing] MongoDB chunk insertion and commit completed in ${dbDuration}ms (${chunkDocs.length} chunks persisted)`);
+
       // Invalidate vector cache so fresh embeddings are loaded
       invalidateVectorCache(doc._id.toString());
 
@@ -371,6 +388,8 @@ export class IngestionService {
         console.warn(`[Ingestion] Warning for "${doc.originalName}": ${extractionWarning}`);
       }
 
+      const totalIngestionDuration = Math.round(performance.now() - ingestionStartTime);
+      console.log(`[Ingestion:Timing] Total ingestion for "${doc.originalName}" finished in ${totalIngestionDuration}ms (${(totalIngestionDuration / 1000).toFixed(2)}s) [status: ready]`);
       console.log(`[Ingestion] Successfully indexed "${doc.originalName}" with ${chunks.length} chunks (${modelName}, dim: ${dim}).`);
     } catch (err: any) {
       console.error(`[Ingestion] Error processing document "${doc.originalName}":`, err);

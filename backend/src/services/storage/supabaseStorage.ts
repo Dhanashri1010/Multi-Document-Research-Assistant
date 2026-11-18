@@ -28,6 +28,15 @@ function getSupabaseClient(): SupabaseClient | null {
 }
 
 export class StorageService {
+  private static isBucketVerified = false;
+
+  /**
+   * Resets the in-memory bucket verification cache (useful in tests).
+   */
+  static resetBucketCache(): void {
+    this.isBucketVerified = false;
+  }
+
   /**
    * Check if Supabase cloud storage is actively configured.
    */
@@ -36,15 +45,22 @@ export class StorageService {
   }
 
   /**
-   * Ensures the private Supabase storage bucket exists.
+   * Ensures the private Supabase storage bucket exists with in-memory caching.
+   * Caches successful verification so subsequent uploads skip redundant listBuckets() calls.
+   * Failures are never cached so subsequent attempts can re-try.
    */
   static async ensureBucket(): Promise<boolean> {
+    if (this.isBucketVerified) {
+      return true;
+    }
+
     const supabase = getSupabaseClient();
     if (!supabase) return false;
 
     try {
       const { data: buckets, error } = await supabase.storage.listBuckets();
       if (error) {
+        this.isBucketVerified = false;
         console.warn('[StorageService] Could not list Supabase buckets:', error.message);
         return false;
       }
@@ -58,14 +74,17 @@ export class StorageService {
           fileSizeLimit: config.maxFileSizeMB * 1024 * 1024,
         });
         if (createError) {
+          this.isBucketVerified = false;
           console.warn('[StorageService] Could not create bucket:', createError.message);
           return false;
         }
         console.log(`[StorageService] Created private bucket "${bucketName}".`);
       }
 
+      this.isBucketVerified = true;
       return true;
     } catch (err: any) {
+      this.isBucketVerified = false;
       console.warn('[StorageService] Bucket check failed:', err.message);
       return false;
     }
