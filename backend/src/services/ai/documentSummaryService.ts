@@ -154,26 +154,81 @@ export function formatSummaryAsMarkdown(summary: StructuredDocumentSummary, docT
   lines.push(summary.overview);
   lines.push('');
 
-  if (summary.keyFindings && summary.keyFindings.length > 0) {
-    lines.push('## Key Findings');
-    for (const f of summary.keyFindings) {
-      const pageTag = f.pageNumber ? ` *(Page ${f.pageNumber})*` : '';
-      lines.push(`- ${f.finding}${pageTag}`);
+  // Structured Academic/Research Paper Sections with verified page citations
+  if (summary.category === 'Research Paper' || summary.category === 'Academic Article') {
+    const findSection = (name: string) =>
+      summary.sections?.find((s) => s.title.toLowerCase().includes(name.toLowerCase()));
+
+    const objSec = findSection('objective') || findSection('purpose') || findSection('aim');
+    lines.push('## Objective');
+    lines.push(
+      objSec?.content ||
+        (objSec?.items && objSec.items.length > 0 ? objSec.items.join(' ') : null) ||
+        (summary.overview ? summary.overview.slice(0, 300) : 'Not found in the provided document')
+    );
+    lines.push('');
+
+    const methSec = findSection('method') || findSection('approach') || findSection('architecture');
+    lines.push('## Method');
+    lines.push(
+      summary.methodology ||
+        methSec?.content ||
+        (methSec?.items && methSec.items.length > 0 ? methSec.items.join(' ') : null) ||
+        'Not found in the provided document'
+    );
+    lines.push('');
+
+    const dataSec = findSection('dataset') || findSection('data') || findSection('corpus');
+    lines.push('## Dataset');
+    lines.push(
+      dataSec?.content ||
+        (dataSec?.items && dataSec.items.length > 0 ? dataSec.items.join(' ') : null) ||
+        'Not found in the provided document'
+    );
+    lines.push('');
+
+    lines.push('## Results');
+    if (summary.keyFindings && summary.keyFindings.length > 0) {
+      for (const f of summary.keyFindings) {
+        const pageTag = f.pageNumber ? ` *(Page ${f.pageNumber})*` : '';
+        lines.push(`- ${f.finding}${pageTag}`);
+      }
+    } else {
+      lines.push('Not found in the provided document');
     }
     lines.push('');
-  }
 
-  for (const s of summary.sections) {
-    lines.push(`## ${s.title}`);
-    if (s.content) {
-      lines.push(s.content);
+    lines.push('## Limitations');
+    lines.push(summary.limitations || 'Not found in the provided document');
+    lines.push('');
+
+    if (summary.conclusion) {
+      lines.push('## Conclusion');
+      lines.push(summary.conclusion);
       lines.push('');
     }
-    if (s.items && s.items.length > 0) {
-      for (const item of s.items) {
-        lines.push(`- ${item}`);
+  } else {
+    if (summary.keyFindings && summary.keyFindings.length > 0) {
+      lines.push('## Key Findings');
+      for (const f of summary.keyFindings) {
+        const pageTag = f.pageNumber ? ` *(Page ${f.pageNumber})*` : '';
+        lines.push(`- ${f.finding}${pageTag}`);
       }
       lines.push('');
+    }
+
+    for (const s of summary.sections) {
+      lines.push(`## ${s.title}`);
+      if (s.content) {
+        lines.push(s.content);
+        lines.push('');
+      }
+      if (s.items && s.items.length > 0) {
+        for (const item of s.items) {
+          lines.push(`- ${item}`);
+        }
+        lines.push('');
+      }
     }
   }
 
@@ -411,7 +466,8 @@ COMMUNICATION PRINCIPLES:
 2. Grounded accuracy: Synthesize ONLY from the provided document excerpts. Never invent metrics, findings, or conclusions.
 3. Concise & High-density: Avoid introductory fluff ("This paper provides...", "Here is a summary...", "In summary"). State findings and insights directly.
 4. Source Attribution: Where a finding, metric, or concept appears on a specific page, cite that page number using the integer provided in "[Page X]" markers.
-5. Structure Adaptation: Choose the single most accurate category from:
+5. Research Paper Sections: For research papers and academic articles, ensure sections explicitly cover Objective, Method, Dataset, Results, and Limitations. Each sentence must include a page citation from the text; if not mentioned in the excerpts, state "Not found in the provided document".
+6. Structure Adaptation: Choose the single most accurate category from:
    - "Research Paper"
    - "Academic Article"
    - "Technical Document"

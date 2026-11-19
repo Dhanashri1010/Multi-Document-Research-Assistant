@@ -91,6 +91,42 @@ export function findSupportingSpans(claim: string, chunkText: string): string[] 
   return qualified.map((q) => q.sentence);
 }
 
+/**
+ * Computes TF-IDF Cosine Similarity locally between claim and passage tokens.
+ * Zero external calls, zero API quota usage.
+ */
+function computeTfidfCosine(claimTokens: string[], chunkTokens: string[]): number {
+  if (claimTokens.length === 0 || chunkTokens.length === 0) return 0;
+  const vocab = Array.from(new Set([...claimTokens, ...chunkTokens]));
+
+  const tfClaim = new Map<string, number>();
+  for (const t of claimTokens) tfClaim.set(t, (tfClaim.get(t) || 0) + 1);
+
+  const tfChunk = new Map<string, number>();
+  for (const t of chunkTokens) tfChunk.set(t, (tfChunk.get(t) || 0) + 1);
+
+  let dotProduct = 0;
+  let normClaimSq = 0;
+  let normChunkSq = 0;
+
+  for (const term of vocab) {
+    const inClaim = tfClaim.has(term) ? 1 : 0;
+    const inChunk = tfChunk.has(term) ? 1 : 0;
+    const df = inClaim + inChunk;
+    const idf = Math.log(1 + 2 / (df || 1));
+
+    const wClaim = (tfClaim.get(term) || 0) * idf;
+    const wChunk = (tfChunk.get(term) || 0) * idf;
+
+    dotProduct += wClaim * wChunk;
+    normClaimSq += wClaim * wClaim;
+    normChunkSq += wChunk * wChunk;
+  }
+
+  if (normClaimSq === 0 || normChunkSq === 0) return 0;
+  return dotProduct / (Math.sqrt(normClaimSq) * Math.sqrt(normChunkSq));
+}
+
 export interface VerificationResult {
   isSupported: boolean;
   supportScore: number;
@@ -134,9 +170,11 @@ export class CitationVerifier {
       return { isSupported: true, supportScore: 1, matchedTokens: [], missingNumbers: [] };
     }
 
-    const chunkTokenSet = new Set(extractSalientTokens(chunkText));
+    const chunkTokens = extractSalientTokens(chunkText);
+    const chunkTokenSet = new Set(chunkTokens);
     const matchedTokens = claimTokens.filter((t) => chunkTokenSet.has(t));
     const lexicalContainment = matchedTokens.length / claimTokens.length;
+    const tfidfCosine = computeTfidfCosine(claimTokens, chunkTokens);
 
     // Strict numerical preservation check: all specific metrics in claim must exist in chunk
     const claimNumbers = extractNumbersAndCodes(claim);
@@ -146,7 +184,7 @@ export class CitationVerifier {
     if (missingNumbers.length > 0 && claimNumbers.length > 0) {
       return {
         isSupported: false,
-        supportScore: Math.round(lexicalContainment * 100) / 100,
+        supportScore: Math.round(Math.max(lexicalContainment, tfidfCosine) * 100) / 100,
         matchedTokens,
         missingNumbers,
         isContradiction: true,
@@ -172,20 +210,29 @@ export class CitationVerifier {
       };
     }
 
-    // Cross-encoder semantic scoring with lexical fallback calibration
+    /**
+     * LOCAL VERIFICATION THRESHOLD LOGIC:
+     * - Numerical & Metric Integrity: Checked above (zero tolerance for hallucinated numbers)
+     * - Semantic Grounding: Supported if TF-IDF cosine >= 0.20 OR lexical containment >= 0.22 OR (lexical >= 0.12 && >= 2 matched tokens)
+     */
+    const localSupported =
+      tfidfCosine >= 0.20 ||
+      lexicalContainment >= 0.22 ||
+      (lexicalContainment >= 0.12 && matchedTokens.length >= 2);
+    const localScore = Math.round(Math.max(lexicalContainment, tfidfCosine) * 100) / 100;
+
+    // Optional cross-encoder scoring if available locally
     try {
       const { tokenizer, model } = await getCrossEncoder();
       const inputs = await tokenizer(claim, { text_pair: chunkText.slice(0, 512) });
       const out = await model(inputs);
       const logit = out?.logits?.data?.[0] ?? 0;
       const score = 1 / (1 + Math.exp(-logit));
-
-      // Supported if cross-encoder semantic score is adequate OR lexical containment is high
-      const isSupported = logit >= -1.2 || lexicalContainment >= 0.12 || matchedTokens.length >= 2;
+      const isSupported = localSupported || logit >= -1.2;
 
       return {
         isSupported,
-        supportScore: Math.round(score * 100) / 100,
+        supportScore: Math.round(Math.max(localScore, score) * 100) / 100,
         matchedTokens,
         missingNumbers: [],
         highlightSpans: isSupported ? findSupportingSpans(claim, chunkText) : [],
@@ -194,15 +241,13 @@ export class CitationVerifier {
           : 'Evidence does not sufficiently support the associated claim.',
       };
     } catch {
-      // Robust fallback to lexical containment
-      const isSupported = lexicalContainment >= 0.12 || matchedTokens.length >= 2;
       return {
-        isSupported,
-        supportScore: Math.round(lexicalContainment * 100) / 100,
+        isSupported: localSupported,
+        supportScore: localScore,
         matchedTokens,
         missingNumbers: [],
-        highlightSpans: isSupported ? findSupportingSpans(claim, chunkText) : [],
-        reason: isSupported
+        highlightSpans: localSupported ? findSupportingSpans(claim, chunkText) : [],
+        reason: localSupported
           ? 'Supporting evidence found in the cited passage.'
           : 'Evidence does not sufficiently support the associated claim.',
       };

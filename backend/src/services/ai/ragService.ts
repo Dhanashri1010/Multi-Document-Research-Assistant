@@ -14,6 +14,7 @@ export interface RAGQueryOptions {
   documentIds: string[];
   sessionId?: string;
   userId?: string;
+  skipRegeneration?: boolean;
 }
 
 export interface RAGResponse {
@@ -816,10 +817,54 @@ Generate your JSON response now.`;
 
       // Accurate Claim-Level Citation Verification
       if (Array.isArray(extracted.claims) && extracted.claims.length > 0) {
-        const verifiedClaims = await CitationVerifier.verifyAllClaims(
+        let verifiedClaims = await CitationVerifier.verifyAllClaims(
           extracted.claims,
           indexedPassages
         );
+
+        // One-shot regeneration for unverified claims
+        const hasUnverified = verifiedClaims.some((vc) => !vc.isFullySupported);
+        if (hasUnverified && !options.skipRegeneration) {
+          try {
+            const unverifiedTexts = verifiedClaims
+              .filter((vc) => !vc.isFullySupported)
+              .map((vc) => `"${vc.claim}"`)
+              .join(', ');
+            const regenPrompt = `${userPrompt}\n\nREVISION REQUIREMENT: The prior response contained statement(s) unverified by the excerpts: ${unverifiedTexts}. Rewrite the answer so that EVERY statement is strictly grounded in the excerpts and supported by citations, or omit ungrounded assertions.`;
+
+            const regenRaw = await LLMService.generate(regenPrompt, {
+              systemPrompt,
+              temperature: 0.0,
+              timeoutMs: 35000,
+              maxRetries: 1,
+            });
+            const regenExtracted = extractCleanAnswer(regenRaw);
+            if (regenExtracted.answer && regenExtracted.claims.length > 0) {
+              const secondVerified = await CitationVerifier.verifyAllClaims(
+                regenExtracted.claims,
+                indexedPassages
+              );
+              const secondUnverified = secondVerified.filter((vc) => !vc.isFullySupported).length;
+              const firstUnverified = verifiedClaims.filter((vc) => !vc.isFullySupported).length;
+              if (secondUnverified <= firstUnverified) {
+                finalAnswer = regenExtracted.answer;
+                extracted.claims = regenExtracted.claims;
+                verifiedClaims = secondVerified;
+              }
+            }
+          } catch (regenErr) {
+            console.warn('[RAGService] Single-attempt claim regeneration skipped:', regenErr);
+          }
+        }
+
+        // Visibly flag any persistent unverified claims
+        for (const vc of verifiedClaims) {
+          if (!vc.isFullySupported && vc.claim && finalAnswer.includes(vc.claim)) {
+            if (!finalAnswer.includes('*(unverified)*')) {
+              finalAnswer = finalAnswer.replace(vc.claim, `${vc.claim} *(unverified)*`);
+            }
+          }
+        }
 
         const chunkEvaluations = new Map<
           number,
