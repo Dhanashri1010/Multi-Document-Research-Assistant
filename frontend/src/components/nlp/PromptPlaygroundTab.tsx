@@ -18,6 +18,7 @@ import {
   PromptTemplateInfo,
   LiteratureReviewResult,
 } from '../../services/nlpService.js';
+import { exportContentToPdf } from '../../utils/pdfExport.js';
 import { IDocument } from '../../types/document.js';
 
 interface PromptPlaygroundTabProps {
@@ -139,8 +140,8 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
         resText = JSON.stringify(
           {
             entities: [
-              { text: 'Transformer', type: 'METHOD' },
-              { text: '8 NVIDIA V100 GPUs', type: 'HARDWARE' },
+              { text: 'Transformer', type: 'MODEL' },
+              { text: 'Google DeepMind', type: 'ORG' },
               { text: 'WMT 2014 English-German', type: 'DATASET' },
               { text: '28.4 BLEU', type: 'METRIC' },
             ],
@@ -197,6 +198,15 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
     a.download = `Literature_Review_${new Date().toISOString().slice(0, 10)}.md`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportPdf = () => {
+    if (!reviewResult) return;
+    exportContentToPdf({
+      title: 'Synthesized Academic Literature Review',
+      subtitle: `Synthesis of ${reviewResult.papersIncluded.map((p) => p.title).join(', ')}`,
+      contentMarkdown: reviewResult.reviewMarkdown,
+    });
   };
 
   const handleCopyReview = () => {
@@ -484,7 +494,15 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
                   className="px-2.5 py-1 rounded-md text-xs font-semibold bg-brand-50 hover:bg-brand-100 border border-brand-200 text-brand-700 flex items-center gap-1 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download (.md)</span>
+                  <span>Export Markdown (.md)</span>
+                </button>
+
+                <button
+                  onClick={handleExportPdf}
+                  className="px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export PDF (.pdf)</span>
                 </button>
               </div>
             </div>
@@ -499,3 +517,4 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
     </div>
   );
 };
+

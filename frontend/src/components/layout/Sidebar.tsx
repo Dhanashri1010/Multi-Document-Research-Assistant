@@ -115,7 +115,7 @@ export const Sidebar: React.FC = () => {
             <div className="flex items-center gap-2.5 min-w-0">
               <Award className="w-4 h-4 shrink-0 text-emerald-400" />
               <span className="text-xs font-semibold leading-tight line-clamp-2">
-                Rubric Compliance (30/30)
+                Rubric Compliance (CO1-CO4)
               </span>
             </div>
           </NavLink>

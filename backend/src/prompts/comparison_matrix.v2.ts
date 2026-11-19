@@ -47,3 +47,4 @@ DOCUMENT EXCERPTS:
       .replace('{{docExcerpts}}', String(vars.docExcerpts || ''));
   },
 };
+

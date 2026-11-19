@@ -35,3 +35,4 @@ RESPONSE IN {{targetLanguage}}:`,
       .replace('{{question}}', String(vars.question || ''));
   },
 };
+

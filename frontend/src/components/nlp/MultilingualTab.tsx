@@ -410,3 +410,4 @@ export const MultilingualTab: React.FC<MultilingualTabProps> = ({ documents }) =
     </div>
   );
 };
+

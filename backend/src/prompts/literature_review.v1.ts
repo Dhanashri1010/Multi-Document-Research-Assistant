@@ -46,3 +46,4 @@ LITERATURE REVIEW:`,
       .replace('{{paperExcerpts}}', String(vars.paperExcerpts || ''));
   },
 };
+

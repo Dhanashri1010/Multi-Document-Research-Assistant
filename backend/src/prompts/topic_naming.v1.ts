@@ -28,3 +28,4 @@ Return ONLY valid JSON:`,
     return topicNamingPromptV1.template.replace('{{clusters}}', String(vars.clusters || ''));
   },
 };
+

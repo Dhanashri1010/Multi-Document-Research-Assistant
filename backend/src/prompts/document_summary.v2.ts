@@ -37,3 +37,4 @@ DOCUMENT TEXT:
       .replace('{{fullText}}', String(vars.fullText || ''));
   },
 };
+

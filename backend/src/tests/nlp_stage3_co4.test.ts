@@ -116,3 +116,4 @@ describe('CO4: Multi-Document Literature Review Generator', () => {
     expect(review.reviewMarkdown).toContain('Dense Retrieval Foundations');
   });
 });
+

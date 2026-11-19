@@ -12,23 +12,24 @@ export const entityExtractionPromptV1: PromptTemplateDefinition = {
     'Standard Spacy/NLTK NER models underperform on scientific papers (e.g. failing on algorithm names or dataset benchmarks). This few-shot prompt teaches the LLM the exact 7 entity definitions with positive/negative examples, outputting strict JSON.',
   template: `You are an expert scientific Named Entity Recognition (NER) model.
 Extract entities belonging to these 7 categories:
-1. METHOD: Algorithms, models, mathematical frameworks (e.g., "Transformer", "Adam optimizer", "BERT")
-2. DATASET: Benchmarks, corpora, collections (e.g., "SQuAD 2.0", "ImageNet", "WMT 2014")
-3. METRIC: Quantitative metrics (e.g., "BLEU score", "F1", "accuracy", "latency")
-4. TASK: Problem domains or objectives (e.g., "machine translation", "question answering")
-5. TOOL: Libraries, programming languages, platforms (e.g., "PyTorch", "Hugging Face", "CUDA")
-6. RESEARCHER: Authors, scientists, research groups (e.g., "Vaswani et al.", "Google Brain")
-7. HARDWARE: GPUs, TPUs, compute clusters (e.g., "NVIDIA A100", "TPU v3")
+1. PERSON: Human researchers, authors, inventors (e.g., "John Smith", "Vaswani")
+2. ORG: Research institutions, universities, corporations (e.g., "Google DeepMind", "Stanford University", "OpenAI")
+3. DATASET: Benchmarks, corpora, test sets (e.g., "SQuAD 2.0", "ImageNet", "WMT 2014")
+4. METRIC: Quantitative metrics (e.g., "BLEU score", "F1-score", "accuracy", "latency")
+5. MODEL: Architectures, algorithms, models (e.g., "Transformer", "BERT", "GPT-4")
+6. DATE: Publication years, calendar dates (e.g., "2020", "2023")
+7. LOCATION: Cities, countries, facilities (e.g., "California", "Cambridge")
 
 EXAMPLE 1:
-Input: "We trained our Transformer model on 8 NVIDIA V100 GPUs using the WMT 2014 English-German dataset, achieving a 28.4 BLEU score."
+Input: "In 2020, researchers at Google DeepMind trained BERT on the SQuAD dataset to optimize F1-score."
 Output:
 {
   "entities": [
-    { "text": "Transformer", "type": "METHOD" },
-    { "text": "8 NVIDIA V100 GPUs", "type": "HARDWARE" },
-    { "text": "WMT 2014 English-German", "type": "DATASET" },
-    { "text": "28.4 BLEU", "type": "METRIC" }
+    { "text": "2020", "type": "DATE" },
+    { "text": "Google DeepMind", "type": "ORG" },
+    { "text": "BERT", "type": "MODEL" },
+    { "text": "SQuAD", "type": "DATASET" },
+    { "text": "F1-score", "type": "METRIC" }
   ]
 }
 
@@ -40,3 +41,4 @@ Return ONLY valid JSON matching the format above:`,
     return entityExtractionPromptV1.template.replace('{{text}}', String(vars.text || ''));
   },
 };
+

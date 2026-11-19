@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Button } from '../common/Button.js';
+import { exportContentToPdf } from '../../utils/pdfExport.js';
 
 interface SummaryPanelProps {
   summaryData: DocumentSummary;
@@ -87,6 +88,45 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleExportPdf = () => {
+    let md = `# Executive Research Summary\n\n`;
+    if (documentTitle) {
+      md += `**Document**: ${documentTitle}\n\n`;
+    }
+    if (summaryData.category) {
+      md += `**Category**: ${summaryData.category}\n\n`;
+    }
+    md += `## 1. Overview\n${summaryData.overview || summaryData.summary || ''}\n\n`;
+
+    if (summaryData.keyFindings && summaryData.keyFindings.length > 0) {
+      md += `## 2. Key Findings & Insights\n`;
+      summaryData.keyFindings.forEach((f, idx) => {
+        const text = typeof f === 'string' ? f : f.finding;
+        const page = typeof f === 'object' && f.pageNumber ? ` (Page ${f.pageNumber})` : '';
+        md += `- ${text}${page}\n`;
+      });
+      md += `\n`;
+    }
+
+    if (summaryData.methodology) {
+      md += `## 3. Methodology & System Architecture\n${summaryData.methodology}\n\n`;
+    }
+
+    if (summaryData.limitations) {
+      md += `## 4. Limitations & Boundary Conditions\n${summaryData.limitations}\n\n`;
+    }
+
+    if (summaryData.conclusion) {
+      md += `## 5. Practical Significance & Takeaways\n${summaryData.conclusion}\n\n`;
+    }
+
+    exportContentToPdf({
+      title: documentTitle ? `Summary: ${documentTitle}` : 'Executive Research Summary',
+      subtitle: summaryData.category ? `Category: ${summaryData.category}` : undefined,
+      contentMarkdown: md,
+    });
+  };
+
   return (
     <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2">
       {/* Top Header & Actions Toolbar */}
@@ -132,6 +172,15 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export MD</span>
+          </button>
+
+          <button
+            onClick={handleExportPdf}
+            className="px-2.5 py-1 text-xs font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg flex items-center gap-1.5 transition-colors border border-purple-200"
+            title="Export formatted PDF"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export PDF</span>
           </button>
         </div>
       </div>

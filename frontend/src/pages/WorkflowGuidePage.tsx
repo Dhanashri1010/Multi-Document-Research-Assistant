@@ -1069,7 +1069,7 @@ export const WorkflowGuidePage: React.FC = () => {
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold mb-2">
                 <Award className="w-3.5 h-3.5" />
-                <span>Section 5 · 30 Marks Demonstration</span>
+                <span>Section 5 · Course Demonstration</span>
               </div>
               <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
                 NLP Course Outcomes Alignment (CO1 to CO4)
@@ -1083,7 +1083,7 @@ export const WorkflowGuidePage: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors shrink-0"
             >
               <Award className="w-4 h-4" />
-              <span>Open 30/30 Compliance Dashboard</span>
+              <span>Open Compliance Dashboard</span>
             </Link>
           </div>
 
