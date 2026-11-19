@@ -495,3 +495,4 @@ export const SentimentExtractionTab: React.FC<SentimentExtractionTabProps> = ({
     </div>
   );
 };
+

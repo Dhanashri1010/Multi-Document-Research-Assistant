@@ -67,3 +67,4 @@ Contains 21 scientific passages annotated with ground-truth entities. Each entry
 
 ## 3. Strict Separation from Algorithms
 None of the rule-based extractors, AFINN lexicons, or Gemini prompts have been tuned to or memorize these gold datasets. This guarantees that all metrics reported on the evaluation dashboard represent true, unbiased out-of-sample performance.
+

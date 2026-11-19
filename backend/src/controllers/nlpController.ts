@@ -167,3 +167,4 @@ export class NlpController {
     res.status(200).json({ success: true, data: status });
   }
 }
+

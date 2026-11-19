@@ -145,10 +145,10 @@ export class IngestionService {
       let extraction: ExtractionResult | null = isDocx
         ? await extractDocx(resolvedPath)
         : isDoc
-        ? await extractDoc(resolvedPath)
-        : isTxt
-        ? await extractTxt(resolvedPath)
-        : await extractPdf(resolvedPath);
+          ? await extractDoc(resolvedPath)
+          : isTxt
+            ? await extractTxt(resolvedPath)
+            : await extractPdf(resolvedPath);
 
       const hasReadableText = isWordDoc
         ? Boolean(extraction.blocks && extraction.blocks.length > 0 && extraction.fullText.trim().length > 0)
@@ -194,18 +194,18 @@ export class IngestionService {
       const embeddingProvider = getEmbeddingProvider();
       const rawChunks = isWordDoc && extraction.blocks
         ? chunkWordDocument(extraction.blocks, {
-            targetTokens: config.chunkTargetTokens,
-            overlapTokens: config.chunkOverlapTokens,
-            tokenCounter: estimateTokenCount,
-            docTitle: doc.title || doc.originalName,
-            format: isDocx ? 'docx' : 'doc',
-          })
+          targetTokens: config.chunkTargetTokens,
+          overlapTokens: config.chunkOverlapTokens,
+          tokenCounter: estimateTokenCount,
+          docTitle: doc.title || doc.originalName,
+          format: isDocx ? 'docx' : 'doc',
+        })
         : chunkPages(extraction.pages, {
-            targetTokens: config.chunkTargetTokens,
-            overlapTokens: config.chunkOverlapTokens,
-            tokenCounter: estimateTokenCount,
-            docTitle: doc.title || doc.originalName,
-          });
+          targetTokens: config.chunkTargetTokens,
+          overlapTokens: config.chunkOverlapTokens,
+          tokenCounter: estimateTokenCount,
+          docTitle: doc.title || doc.originalName,
+        });
 
       if (rawChunks.length === 0) {
         throw new Error('Document contained text but generated zero chunks after filtering.');
@@ -328,7 +328,7 @@ export class IngestionService {
           doc.embeddedChunkCount = currentEmbedded;
           doc.totalChunkCount = chunks.length;
           doc.processingMessage = msg || `Embedding ${currentEmbedded}/${chunks.length} chunks...`;
-          await doc.save().catch(() => {});
+          await doc.save().catch(() => { });
         };
 
         const batchVectors = await embeddingProvider.embedDocuments(batchTexts, onBatchProgress);
@@ -381,7 +381,7 @@ export class IngestionService {
           );
         } else {
           // Compatibility for unit tests where insertMany is spied/mocked
-          await DocumentChunkModel.insertMany(docsToPersist).catch(() => {});
+          await DocumentChunkModel.insertMany(docsToPersist).catch(() => { });
         }
 
         doc.embeddedChunkCount = existingChunkMap.size;

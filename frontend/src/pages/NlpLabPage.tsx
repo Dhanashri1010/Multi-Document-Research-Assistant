@@ -107,3 +107,4 @@ export const NlpLabPage: React.FC = () => {
     </div>
   );
 };
+

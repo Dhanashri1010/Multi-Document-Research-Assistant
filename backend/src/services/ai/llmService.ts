@@ -42,45 +42,20 @@ function isRetryableError(err: any): boolean {
   );
 }
 
-export function canonicalizeGeminiModel(rawName: string): string {
-  const trimmed = (rawName || '').trim().toLowerCase();
-  const validModels = [
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro',
-    'gemini-2.5-flash',
-  ];
-  if (validModels.includes(trimmed)) {
-    return trimmed;
-  }
-  // Safely auto-map typos or invalid variants (e.g. gemini-3.1-flash-lite -> gemini-2.0-flash-lite)
-  if (trimmed.includes('flash-lite')) {
-    return 'gemini-2.0-flash-lite';
-  }
-  if (trimmed.includes('flash')) {
-    return 'gemini-2.0-flash';
-  }
-  if (trimmed.includes('pro')) {
-    return 'gemini-1.5-pro';
-  }
-  return 'gemini-2.0-flash';
-}
-
 export function getGeminiFallbackModel(primaryModel: string, attempt: number = 1): string {
   const configuredFallback = (config.llmFallbackModel || '').trim();
-  const canonicalPrimary = canonicalizeGeminiModel(primaryModel);
-  const canonicalFallback = configuredFallback ? canonicalizeGeminiModel(configuredFallback) : '';
+  const trimmedPrimary = (primaryModel || '').trim();
 
-  if (attempt === 1 && canonicalFallback && canonicalFallback !== canonicalPrimary) {
-    return canonicalFallback;
+  // If user configured a distinct fallback model via LLM_FALLBACK_MODEL, honor it directly
+  if (configuredFallback && configuredFallback !== trimmedPrimary) {
+    return configuredFallback;
   }
-  // High-availability fallbacks: gemini-1.5-flash has the highest quota and lowest 503 overload rate
-  if (canonicalPrimary === 'gemini-1.5-flash') {
-    return 'gemini-2.0-flash';
+
+  // Default pairing
+  if (trimmedPrimary === 'gemini-3.1-flash-lite') {
+    return 'gemini-3.5-flash-lite';
   }
-  return 'gemini-1.5-flash';
+  return 'gemini-3.1-flash-lite';
 }
 
 export function isOverloadedError(err: any): boolean {
@@ -258,7 +233,7 @@ export class LLMService {
             httpOptions: { timeout: Math.max(10000, timeoutMs) },
           });
 
-          let targetModel = canonicalizeGeminiModel(model || 'gemini-2.0-flash');
+          let targetModel = (model || config.llmModel || 'gemini-3.1-flash-lite').trim();
 
           // Automatic model failover on 503 (high traffic/overloaded) or 429
           if (attempt > 0 && isOverloadedError(prevErr)) {
@@ -389,7 +364,7 @@ export class LLMService {
         apiKey,
         httpOptions: { timeout: Math.max(10000, options.timeoutMs ?? config.llmTimeoutMs) },
       });
-      const targetModel = canonicalizeGeminiModel(model || 'gemini-2.0-flash');
+      const targetModel = (model || config.llmModel || 'gemini-3.1-flash-lite').trim();
 
       const maxRetries = options.maxRetries ?? config.llmMaxRetries ?? 3;
       let responseStream: any = null;

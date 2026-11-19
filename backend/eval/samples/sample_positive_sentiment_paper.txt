@@ -15,3 +15,4 @@ Experimental results demonstrate remarkable gains across all evaluated metrics. 
 
 4. Conclusion
 HyperDense sets a new benchmark for scalable, high-accuracy document retrieval. Future work will extend this framework to multilingual and cross-lingual question answering.
+
