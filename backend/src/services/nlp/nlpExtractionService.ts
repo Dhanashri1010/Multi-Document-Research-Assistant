@@ -248,6 +248,23 @@ export class NlpExtractionService {
 
     let allEntities = [...ruleEntities];
 
+    // Populate structuredData fallback from ruleEntities if empty
+    if (structuredData.methods.length === 0) {
+      structuredData.methods = Array.from(new Set(ruleEntities.filter((e) => e.type === 'MODEL').map((e) => e.text)));
+    }
+    if (structuredData.datasets.length === 0) {
+      structuredData.datasets = Array.from(new Set(ruleEntities.filter((e) => e.type === 'DATASET').map((e) => e.text)));
+    }
+    if (structuredData.metrics.length === 0) {
+      structuredData.metrics = Array.from(new Set(ruleEntities.filter((e) => e.type === 'METRIC').map((e) => e.text)));
+    }
+    if (!structuredData.year) {
+      const yearEntity = ruleEntities.find((e) => e.type === 'DATE' && /^\d{4}$/.test(e.text));
+      if (yearEntity) {
+        structuredData.year = parseInt(yearEntity.text, 10);
+      }
+    }
+
     // 4. Gemini Structured NER and Paper Information Extraction
     if (runGemini) {
       try {

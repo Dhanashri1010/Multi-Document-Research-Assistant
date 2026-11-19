@@ -248,7 +248,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
     documentService.downloadFile(doc._id, doc.originalName);
   };
 
-  const runDeepInsights = async () => {
+  const runDeepInsights = useCallback(async () => {
     if (!doc?._id) return;
     setLoadingInsights(true);
     setInsightsError(null);
@@ -282,7 +282,13 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
       setLoadingInsights(false);
       setInsightsProgress('');
     }
-  };
+  }, [doc?._id]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'insights' && doc?._id && !insightsData && !loadingInsights) {
+      runDeepInsights();
+    }
+  }, [isOpen, activeTab, doc?._id, insightsData, loadingInsights, runDeepInsights]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
@@ -1071,34 +1077,70 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                         <FileText className="w-4 h-4 text-brand-600" />
                         Lexical & Vocabulary Statistics
                       </span>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                          <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Tokens</span>
-                          <span className="text-lg font-extrabold text-slate-800">
-                            {insightsData.preprocessing.stats?.totalTokens?.toLocaleString() ?? '—'}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                          <span className="text-[10px] text-slate-400 uppercase font-semibold block">Unique Vocabulary</span>
-                          <span className="text-lg font-extrabold text-slate-800">
-                            {insightsData.preprocessing.stats?.uniqueTokens?.toLocaleString() ?? '—'}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                          <span className="text-[10px] text-slate-400 uppercase font-semibold block">Lexical Diversity (TTR)</span>
-                          <span className="text-lg font-extrabold text-emerald-600">
-                            {insightsData.preprocessing.stats?.typeTokenRatio
-                              ? `${(insightsData.preprocessing.stats.typeTokenRatio * 100).toFixed(1)}%`
-                              : '—'}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                          <span className="text-[10px] text-slate-400 uppercase font-semibold block">Stopwords Removed</span>
-                          <span className="text-lg font-extrabold text-blue-600">
-                            {insightsData.preprocessing.stats?.stopwordsRemoved?.toLocaleString() ?? '—'}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const prep = insightsData.preprocessing;
+                        const totalTokens = prep.rawStats?.tokenCount || prep.rawStats?.wordCount || prep.stats?.totalTokens || 0;
+                        const uniqueTokens = prep.rawStats?.vocabSize || prep.cleanedStats?.vocabSize || prep.stats?.uniqueTokens || 0;
+                        const ttr = totalTokens > 0
+                          ? `${((uniqueTokens / totalTokens) * 100).toFixed(1)}%`
+                          : (prep.stats?.typeTokenRatio ? `${(prep.stats.typeTokenRatio * 100).toFixed(1)}%` : '—');
+                        const stopwordsRemoved = prep.stopwordsRemovedCount ?? prep.stats?.stopwordsRemoved ?? 0;
+
+                        return (
+                          <>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Tokens</span>
+                                <span className="text-lg font-extrabold text-slate-800">
+                                  {totalTokens > 0 ? totalTokens.toLocaleString() : '—'}
+                                </span>
+                              </div>
+                              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Unique Vocabulary</span>
+                                <span className="text-lg font-extrabold text-slate-800">
+                                  {uniqueTokens > 0 ? uniqueTokens.toLocaleString() : '—'}
+                                </span>
+                              </div>
+                              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Lexical Diversity (TTR)</span>
+                                <span className="text-lg font-extrabold text-emerald-600">
+                                  {ttr}
+                                </span>
+                              </div>
+                              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Stopwords Removed</span>
+                                <span className="text-lg font-extrabold text-blue-600">
+                                  {stopwordsRemoved.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+
+                            {prep.reductionRatioPercent > 0 && (
+                              <div className="text-[11px] text-slate-500 flex flex-wrap items-center justify-between pt-1 gap-2">
+                                <span>Preprocessing noise reduction: <strong>{prep.reductionRatioPercent.toFixed(1)}%</strong> of raw text eliminated</span>
+                                {prep.cleanedStats?.tokenCount && (
+                                  <span>Cleaned corpus: <strong>{prep.cleanedStats.tokenCount.toLocaleString()}</strong> content tokens</span>
+                                )}
+                              </div>
+                            )}
+
+                            {prep.topTerms && prep.topTerms.length > 0 && (
+                              <div className="pt-2">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1.5">
+                                  Most Frequent Content Terms
+                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {prep.topTerms.slice(0, 10).map((t: any, idx: number) => (
+                                    <span key={idx} className="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700 font-medium">
+                                      {t.term} <span className="text-slate-400 text-[10px]">({t.count})</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -1109,48 +1151,65 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                         <Smile className="w-4 h-4 text-emerald-600" />
                         Academic Tone & Sentiment
                       </span>
-                      <div className="flex flex-wrap items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500">Overall Polarity:</span>
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                              insightsData.sentiment.overallSentiment === 'positive'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : insightsData.sentiment.overallSentiment === 'negative'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-slate-100 text-slate-800'
-                            }`}
-                          >
-                            {insightsData.sentiment.overallSentiment || 'Neutral'}
-                          </span>
-                        </div>
+                      {(() => {
+                        const sent = insightsData.sentiment;
+                        const sentStats = sent.lexiconStats || sent.geminiStats;
+                        const overallPolarity = (sentStats?.overallLabel || sent.overallSentiment || 'neutral').toLowerCase();
+                        const overallScore = typeof sentStats?.overallScore === 'number'
+                          ? sentStats.overallScore
+                          : (typeof sent.score === 'number' ? sent.score : null);
+                        const posCount = sentStats?.positiveCount ?? sent.sentencePolarity?.positive ?? 0;
+                        const neuCount = sentStats?.neutralCount ?? sent.sentencePolarity?.neutral ?? 0;
+                        const negCount = sentStats?.negativeCount ?? sent.sentencePolarity?.negative ?? 0;
+                        const totalSent = sent.totalSentences || (posCount + neuCount + negCount);
 
-                        {typeof insightsData.sentiment.score === 'number' && (
-                          <div className="text-xs text-slate-600">
-                            Normalized Score: <strong className="font-mono">{insightsData.sentiment.score.toFixed(3)}</strong>
-                          </div>
-                        )}
+                        return (
+                          <>
+                            <div className="flex flex-wrap items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500">Overall Polarity:</span>
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                                    overallPolarity === 'positive'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : overallPolarity === 'negative'
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : 'bg-slate-100 text-slate-800'
+                                  }`}
+                                >
+                                  {overallPolarity}
+                                </span>
+                              </div>
 
-                        {typeof insightsData.sentiment.subjectivity === 'number' && (
-                          <div className="text-xs text-slate-600">
-                            Subjectivity: <strong className="font-mono">{insightsData.sentiment.subjectivity.toFixed(2)}</strong> (0 = Objective)
-                          </div>
-                        )}
-                      </div>
+                              {overallScore !== null && (
+                                <div className="text-xs text-slate-600">
+                                  Normalized Score: <strong className="font-mono">{overallScore > 0 ? `+${overallScore.toFixed(3)}` : overallScore.toFixed(3)}</strong> (-1.0 to +1.0)
+                                </div>
+                              )}
 
-                      {insightsData.sentiment.sentencePolarity && (
-                        <div className="grid grid-cols-3 gap-2 pt-2 text-center text-xs">
-                          <div className="p-2 rounded-lg bg-emerald-50 text-emerald-800 font-semibold">
-                            {insightsData.sentiment.sentencePolarity.positive || 0} Positive Sentences
-                          </div>
-                          <div className="p-2 rounded-lg bg-slate-50 text-slate-800 font-semibold">
-                            {insightsData.sentiment.sentencePolarity.neutral || 0} Neutral Sentences
-                          </div>
-                          <div className="p-2 rounded-lg bg-rose-50 text-rose-800 font-semibold">
-                            {insightsData.sentiment.sentencePolarity.negative || 0} Negative Sentences
-                          </div>
-                        </div>
-                      )}
+                              {totalSent > 0 && (
+                                <div className="text-xs text-slate-500">
+                                  Analyzed: <strong>{totalSent}</strong> sentences via academic AFINN lexicon
+                                </div>
+                              )}
+                            </div>
+
+                            {(posCount > 0 || neuCount > 0 || negCount > 0) && (
+                              <div className="grid grid-cols-3 gap-2 pt-2 text-center text-xs">
+                                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-800 font-semibold">
+                                  {posCount} Positive Sentences {totalSent > 0 && `(${Math.round((posCount / totalSent) * 100)}%)`}
+                                </div>
+                                <div className="p-2 rounded-lg bg-slate-50 text-slate-800 font-semibold">
+                                  {neuCount} Neutral Sentences {totalSent > 0 && `(${Math.round((neuCount / totalSent) * 100)}%)`}
+                                </div>
+                                <div className="p-2 rounded-lg bg-rose-50 text-rose-800 font-semibold">
+                                  {negCount} Negative Sentences {totalSent > 0 && `(${Math.round((negCount / totalSent) * 100)}%)`}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -1162,62 +1221,142 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                         Extracted Academic Entities & Key Concepts
                       </span>
 
-                      {/* Structured Paper Entities */}
-                      {insightsData.extraction.structuredData && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                          {insightsData.extraction.structuredData.methods?.length > 0 && (
-                            <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                              <span className="font-bold text-slate-700 block mb-1">Methods & Architectures</span>
-                              <div className="flex flex-wrap gap-1">
-                                {insightsData.extraction.structuredData.methods.map((m: string, idx: number) => (
-                                  <span key={idx} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
-                                    {m}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                      {/* Grouped Entities by Type */}
+                      {(() => {
+                        const ext = insightsData.extraction;
+                        const entities: any[] = ext.entities || [];
+                        const models = Array.from(new Set(entities.filter((e) => e.type === 'MODEL').map((e) => e.text)));
+                        const datasets = Array.from(new Set(entities.filter((e) => e.type === 'DATASET').map((e) => e.text)));
+                        const metrics = Array.from(new Set(entities.filter((e) => e.type === 'METRIC').map((e) => e.text)));
+                        const orgs = Array.from(new Set(entities.filter((e) => e.type === 'ORG').map((e) => e.text)));
+                        const persons = Array.from(new Set(entities.filter((e) => e.type === 'PERSON').map((e) => e.text)));
+                        const dates = Array.from(new Set(entities.filter((e) => e.type === 'DATE').map((e) => e.text)));
 
-                          {insightsData.extraction.structuredData.datasets?.length > 0 && (
-                            <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                              <span className="font-bold text-slate-700 block mb-1">Datasets</span>
-                              <div className="flex flex-wrap gap-1">
-                                {insightsData.extraction.structuredData.datasets.map((d: string, idx: number) => (
-                                  <span key={idx} className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-medium">
-                                    {d}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                        const structured = ext.structuredData || {};
+                        const methods = Array.from(new Set([...(structured.methods || []), ...models]));
+                        const evalDatasets = Array.from(new Set([...(structured.datasets || []), ...datasets]));
+                        const evalMetrics = Array.from(new Set([...(structured.metrics || []), ...metrics]));
 
-                          {insightsData.extraction.structuredData.metrics?.length > 0 && (
-                            <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                              <span className="font-bold text-slate-700 block mb-1">Evaluation Metrics</span>
-                              <div className="flex flex-wrap gap-1">
-                                {insightsData.extraction.structuredData.metrics.map((m: string, idx: number) => (
-                                  <span key={idx} className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-medium">
-                                    {m}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                        const hasAnyEntities = methods.length > 0 || evalDatasets.length > 0 || evalMetrics.length > 0 || orgs.length > 0 || persons.length > 0;
 
-                          {insightsData.extraction.structuredData.tasks?.length > 0 && (
-                            <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                              <span className="font-bold text-slate-700 block mb-1">Benchmark Tasks</span>
-                              <div className="flex flex-wrap gap-1">
-                                {insightsData.extraction.structuredData.tasks.map((t: string, idx: number) => (
-                                  <span key={idx} className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">
-                                    {t}
-                                  </span>
-                                ))}
-                              </div>
+                        return (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                              {methods.length > 0 && (
+                                <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-100">
+                                  <span className="font-bold text-blue-900 block mb-1">Methods & Architectures ({methods.length})</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {methods.map((m: string, idx: number) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-medium text-[11px]">
+                                        {m}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {evalDatasets.length > 0 && (
+                                <div className="p-3 rounded-lg bg-amber-50/60 border border-amber-100">
+                                  <span className="font-bold text-amber-900 block mb-1">Datasets & Benchmarks ({evalDatasets.length})</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {evalDatasets.map((d: string, idx: number) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-medium text-[11px]">
+                                        {d}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {evalMetrics.length > 0 && (
+                                <div className="p-3 rounded-lg bg-emerald-50/60 border border-emerald-100">
+                                  <span className="font-bold text-emerald-900 block mb-1">Evaluation Metrics ({evalMetrics.length})</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {evalMetrics.map((m: string, idx: number) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 font-medium text-[11px]">
+                                        {m}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {orgs.length > 0 && (
+                                <div className="p-3 rounded-lg bg-purple-50/60 border border-purple-100">
+                                  <span className="font-bold text-purple-900 block mb-1">Organizations & Institutions ({orgs.length})</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {orgs.map((o: string, idx: number) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded bg-purple-100 text-purple-900 font-medium text-[11px]">
+                                        {o}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {persons.length > 0 && (
+                                <div className="p-3 rounded-lg bg-indigo-50/60 border border-indigo-100">
+                                  <span className="font-bold text-indigo-900 block mb-1">Researchers & Authors ({persons.length})</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {persons.map((p: string, idx: number) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-900 font-medium text-[11px]">
+                                        {p}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {dates.length > 0 && (
+                                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                                  <span className="font-bold text-slate-700 block mb-1">Publication Dates & Years ({dates.length})</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {dates.map((dt: string, idx: number) => (
+                                      <span key={idx} className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
+                                        {dt}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      )}
+
+                            {/* Structured Findings if present */}
+                            {structured.keyFindings && structured.keyFindings.length > 0 && (
+                              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                                <span className="font-bold text-slate-700 block mb-1">Key Document Findings</span>
+                                <ul className="list-disc list-inside space-y-0.5 text-slate-600">
+                                  {structured.keyFindings.map((kf: string, idx: number) => (
+                                    <li key={idx}>{kf}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Keyphrases list */}
+                            {ext.keyphrases && ext.keyphrases.length > 0 && (
+                              <div className="pt-2">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1.5">
+                                  Extracted RAKE Keyphrases ({ext.keyphrases.length})
+                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {ext.keyphrases.map((kp: any, idx: number) => (
+                                    <span key={idx} className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                      #{kp.phrase || kp}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {!hasAnyEntities && (!ext.keyphrases || ext.keyphrases.length === 0) && (
+                              <p className="text-xs text-slate-400 italic">
+                                No distinct domain entities were detected with high confidence in the sample text.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
