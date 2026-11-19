@@ -23,12 +23,17 @@ import {
   ChevronRight,
   Database,
   ArrowRight,
+  BarChart3,
+  Hash,
+  Smile,
+  Loader2,
 } from 'lucide-react';
 import { IDocument, DocumentSummary, FindingWithPage } from '../../types/document.js';
 import { ProcessingStatusBadge } from './ProcessingStatus.js';
 import { Button } from '../common/Button.js';
 import { LoadingState } from '../common/LoadingState.js';
 import { documentService } from '../../services/documentService.js';
+import { NlpService } from '../../services/nlpService.js';
 
 interface DocumentDetailModalProps {
   document: IDocument | null;
@@ -36,7 +41,7 @@ interface DocumentDetailModalProps {
   onClose: () => void;
   onOpenResearch?: (id: string) => void;
   onReprocess?: (id: string) => Promise<void>;
-  initialTab?: 'summary' | 'pdf' | 'info';
+  initialTab?: 'summary' | 'pdf' | 'info' | 'insights';
   initialPage?: number;
 }
 
@@ -49,9 +54,19 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
   initialTab = 'summary',
   initialPage = 1,
 }) => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'pdf' | 'info'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'summary' | 'pdf' | 'info' | 'insights'>(initialTab);
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
+
+  // Insights panel state
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [insightsProgress, setInsightsProgress] = useState<string>('');
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [insightsData, setInsightsData] = useState<{
+    preprocessing?: any;
+    sentiment?: any;
+    extraction?: any;
+  } | null>(null);
 
   // Summary state
   const [summaryData, setSummaryData] = useState<DocumentSummary | null>(null);
@@ -233,6 +248,42 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
     documentService.downloadFile(doc._id, doc.originalName);
   };
 
+  const runDeepInsights = async () => {
+    if (!doc?._id) return;
+    setLoadingInsights(true);
+    setInsightsError(null);
+    try {
+      setInsightsProgress('1/3 Analyzing tokens and lexical statistics...');
+      const prepRes = await NlpService.preprocessText({ documentId: doc._id }).catch((e) => {
+        console.warn('Preprocess error:', e);
+        return null;
+      });
+
+      setInsightsProgress('2/3 Evaluating document tone & sentiment...');
+      const sentRes = await NlpService.analyzeSentiment(doc._id, { runGemini: false }).catch((e) => {
+        console.warn('Sentiment error:', e);
+        return null;
+      });
+
+      setInsightsProgress('3/3 Extracting academic entities & keyphrases...');
+      const extRes = await NlpService.extractInformation(doc._id, { runGemini: false }).catch((e) => {
+        console.warn('Extract error:', e);
+        return null;
+      });
+
+      setInsightsData({
+        preprocessing: prepRes,
+        sentiment: sentRes,
+        extraction: extRes,
+      });
+    } catch (err: any) {
+      setInsightsError(err.message || 'Failed to generate document insights.');
+    } finally {
+      setLoadingInsights(false);
+      setInsightsProgress('');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[94vh] flex flex-col border border-slate-200 overflow-hidden">
@@ -334,6 +385,18 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
             >
               <FileText className="w-4 h-4" />
               <span>Document Details</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('insights')}
+              className={`py-3 px-4 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 ${
+                activeTab === 'insights'
+                  ? 'border-brand-600 text-brand-600 bg-brand-50/50'
+                  : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Deep Insights</span>
             </button>
           </div>
 
@@ -912,6 +975,270 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* 4. Deep Insights Tab */}
+          {activeTab === 'insights' && (
+            <div className="flex-1 p-6 overflow-y-auto space-y-6">
+              {/* Header Card */}
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-brand-600" />
+                    Per-Document Linguistic & Semantic Insights
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Analyze academic tone, extract domain entities, calculate lexical diversity, and inspect keyphrases.
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={runDeepInsights}
+                  isLoading={loadingInsights}
+                  icon={<Sparkles className="w-3.5 h-3.5" />}
+                >
+                  {insightsData ? 'Re-run Deep Insights' : 'Run Deep Insights'}
+                </Button>
+              </div>
+
+              {/* Progress notice */}
+              {loadingInsights && (
+                <div className="p-4 rounded-xl bg-brand-50 border border-brand-200 text-brand-900 text-xs flex items-center gap-3 animate-pulse">
+                  <Loader2 className="w-4 h-4 animate-spin text-brand-600 shrink-0" />
+                  <span className="font-semibold">{insightsProgress || 'Analyzing document...'}</span>
+                </div>
+              )}
+
+              {/* Error notice */}
+              {insightsError && (
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{insightsError}</span>
+                </div>
+              )}
+
+              {/* Quick Metadata: Language & Pre-computed Keyphrases */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Detected Language
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-md text-xs font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                      {typeof doc.detectedLanguage === 'object' && doc.detectedLanguage
+                        ? `${doc.detectedLanguage.code} (${doc.detectedLanguage.name})`
+                        : (doc.detectedLanguage || 'EN (English)')}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      Auto-detected during ingestion via n-gram profile (franc)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Top Ingested Keyphrases
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {doc.keyphrases && doc.keyphrases.length > 0 ? (
+                      doc.keyphrases.map((kp, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-brand-50 text-brand-700 border border-brand-200"
+                        >
+                          #{kp}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">
+                        Run Deep Insights below to extract keyphrases.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Insights Results */}
+              {insightsData ? (
+                <div className="space-y-6">
+                  {/* Lexical Statistics */}
+                  {insightsData.preprocessing && (
+                    <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-3">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-brand-600" />
+                        Lexical & Vocabulary Statistics
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Tokens</span>
+                          <span className="text-lg font-extrabold text-slate-800">
+                            {insightsData.preprocessing.stats?.totalTokens?.toLocaleString() ?? '—'}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-semibold block">Unique Vocabulary</span>
+                          <span className="text-lg font-extrabold text-slate-800">
+                            {insightsData.preprocessing.stats?.uniqueTokens?.toLocaleString() ?? '—'}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-semibold block">Lexical Diversity (TTR)</span>
+                          <span className="text-lg font-extrabold text-emerald-600">
+                            {insightsData.preprocessing.stats?.typeTokenRatio
+                              ? `${(insightsData.preprocessing.stats.typeTokenRatio * 100).toFixed(1)}%`
+                              : '—'}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-semibold block">Stopwords Removed</span>
+                          <span className="text-lg font-extrabold text-blue-600">
+                            {insightsData.preprocessing.stats?.stopwordsRemoved?.toLocaleString() ?? '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sentiment & Tone */}
+                  {insightsData.sentiment && (
+                    <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-3">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Smile className="w-4 h-4 text-emerald-600" />
+                        Academic Tone & Sentiment
+                      </span>
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">Overall Polarity:</span>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                              insightsData.sentiment.overallSentiment === 'positive'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : insightsData.sentiment.overallSentiment === 'negative'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-800'
+                            }`}
+                          >
+                            {insightsData.sentiment.overallSentiment || 'Neutral'}
+                          </span>
+                        </div>
+
+                        {typeof insightsData.sentiment.score === 'number' && (
+                          <div className="text-xs text-slate-600">
+                            Normalized Score: <strong className="font-mono">{insightsData.sentiment.score.toFixed(3)}</strong>
+                          </div>
+                        )}
+
+                        {typeof insightsData.sentiment.subjectivity === 'number' && (
+                          <div className="text-xs text-slate-600">
+                            Subjectivity: <strong className="font-mono">{insightsData.sentiment.subjectivity.toFixed(2)}</strong> (0 = Objective)
+                          </div>
+                        )}
+                      </div>
+
+                      {insightsData.sentiment.sentencePolarity && (
+                        <div className="grid grid-cols-3 gap-2 pt-2 text-center text-xs">
+                          <div className="p-2 rounded-lg bg-emerald-50 text-emerald-800 font-semibold">
+                            {insightsData.sentiment.sentencePolarity.positive || 0} Positive Sentences
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-50 text-slate-800 font-semibold">
+                            {insightsData.sentiment.sentencePolarity.neutral || 0} Neutral Sentences
+                          </div>
+                          <div className="p-2 rounded-lg bg-rose-50 text-rose-800 font-semibold">
+                            {insightsData.sentiment.sentencePolarity.negative || 0} Negative Sentences
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Extracted Entities */}
+                  {insightsData.extraction && (
+                    <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Hash className="w-4 h-4 text-purple-600" />
+                        Extracted Academic Entities & Key Concepts
+                      </span>
+
+                      {/* Structured Paper Entities */}
+                      {insightsData.extraction.structuredData && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                          {insightsData.extraction.structuredData.methods?.length > 0 && (
+                            <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                              <span className="font-bold text-slate-700 block mb-1">Methods & Architectures</span>
+                              <div className="flex flex-wrap gap-1">
+                                {insightsData.extraction.structuredData.methods.map((m: string, idx: number) => (
+                                  <span key={idx} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
+                                    {m}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {insightsData.extraction.structuredData.datasets?.length > 0 && (
+                            <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                              <span className="font-bold text-slate-700 block mb-1">Datasets</span>
+                              <div className="flex flex-wrap gap-1">
+                                {insightsData.extraction.structuredData.datasets.map((d: string, idx: number) => (
+                                  <span key={idx} className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-medium">
+                                    {d}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {insightsData.extraction.structuredData.metrics?.length > 0 && (
+                            <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                              <span className="font-bold text-slate-700 block mb-1">Evaluation Metrics</span>
+                              <div className="flex flex-wrap gap-1">
+                                {insightsData.extraction.structuredData.metrics.map((m: string, idx: number) => (
+                                  <span key={idx} className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-medium">
+                                    {m}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {insightsData.extraction.structuredData.tasks?.length > 0 && (
+                            <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                              <span className="font-bold text-slate-700 block mb-1">Benchmark Tasks</span>
+                              <div className="flex flex-wrap gap-1">
+                                {insightsData.extraction.structuredData.tasks.map((t: string, idx: number) => (
+                                  <span key={idx} className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                !loadingInsights && (
+                  <div className="p-8 text-center rounded-2xl border-2 border-dashed border-slate-200 space-y-3">
+                    <BarChart3 className="w-10 h-10 text-slate-300 mx-auto" />
+                    <p className="text-xs text-slate-500 font-medium">
+                      No deep insights generated yet for this paper.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={runDeepInsights}
+                      icon={<Sparkles className="w-3.5 h-3.5" />}
+                    >
+                      Run Deep Insights
+                    </Button>
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>

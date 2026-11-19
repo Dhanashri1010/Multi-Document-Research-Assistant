@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { Send, Sparkles, Globe } from 'lucide-react';
 import { Button } from '../common/Button.js';
 
 interface ChatInputProps {
-  onSendMessage: (question: string) => void;
+  onSendMessage: (question: string, targetLanguage?: string) => void;
   isLoading: boolean;
   disabled?: boolean;
   selectedCount: number;
@@ -16,6 +16,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   selectedCount,
 }) => {
   const [question, setQuestion] = useState('');
+  const [answerLanguage, setAnswerLanguage] = useState<string>('auto');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const starterQuestions = [
@@ -36,7 +37,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!question.trim() || isLoading || disabled) return;
-    onSendMessage(question.trim());
+    const lang = answerLanguage !== 'auto' ? answerLanguage : undefined;
+    onSendMessage(question.trim(), lang);
     setQuestion('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -52,28 +54,52 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleSelectStarter = (starter: string) => {
     if (disabled || isLoading) return;
-    onSendMessage(starter);
+    const lang = answerLanguage !== 'auto' ? answerLanguage : undefined;
+    onSendMessage(starter, lang);
   };
 
   return (
     <div className="space-y-3">
-      {/* Starter prompts (shown when input is empty) */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 mr-1">
-          <Sparkles className="w-3 h-3 text-brand-500" />
-          Suggested:
-        </span>
-        {starterQuestions.map((prompt, idx) => (
-          <button
-            key={idx}
-            type="button"
+      {/* Starter prompts & Language Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 flex-1">
+          <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 mr-1">
+            <Sparkles className="w-3 h-3 text-brand-500" />
+            Suggested:
+          </span>
+          {starterQuestions.map((prompt, idx) => (
+            <button
+              key={idx}
+              type="button"
+              disabled={disabled || isLoading}
+              onClick={() => handleSelectStarter(prompt)}
+              className="text-xs px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200/80 text-slate-700 transition-colors border border-slate-200/60 disabled:opacity-40 disabled:cursor-not-allowed text-left truncate max-w-xs"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+
+        {/* Answer Language Selector */}
+        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+          <Globe className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-[11px] font-semibold text-slate-500">Answer:</span>
+          <select
+            value={answerLanguage}
+            onChange={(e) => setAnswerLanguage(e.target.value)}
             disabled={disabled || isLoading}
-            onClick={() => handleSelectStarter(prompt)}
-            className="text-xs px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200/80 text-slate-700 transition-colors border border-slate-200/60 disabled:opacity-40 disabled:cursor-not-allowed text-left truncate max-w-xs"
+            className="text-xs py-1 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer disabled:opacity-50"
+            title="Choose the response language. Questions in non-English are automatically answered in their native language by default."
           >
-            {prompt}
-          </button>
-        ))}
+            <option value="auto">Auto (match question)</option>
+            <option value="en">English</option>
+            <option value="hi">Hindi (हिन्दी)</option>
+            <option value="mr">Marathi (मराठी)</option>
+            <option value="es">Spanish (Español)</option>
+            <option value="fr">French (Français)</option>
+            <option value="de">German (Deutsch)</option>
+          </select>
+        </div>
       </div>
 
       {/* Input container */}

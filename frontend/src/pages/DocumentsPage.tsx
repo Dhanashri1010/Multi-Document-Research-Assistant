@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { documentService } from '../services/documentService.js';
 import { IDocument, WorkspaceStats } from '../types/document.js';
@@ -263,6 +264,23 @@ export const DocumentsPage: React.FC = () => {
             className="text-emerald-600 hover:text-emerald-800 font-bold ml-2"
           >
             ✕
+          </button>
+        </div>
+      )}
+
+      {readyCount >= 2 && (
+        <div className="p-3.5 bg-brand-50/70 border border-brand-200 rounded-xl flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-brand-900">
+            <Sparkles className="w-4 h-4 text-brand-600 shrink-0" />
+            <span>
+              <strong>{readyCount} papers indexed.</strong> Cross-document topic clustering and linguistic comparisons are ready.
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/insights')}
+            className="font-semibold text-brand-700 hover:text-brand-900 underline underline-offset-2 shrink-0 ml-3"
+          >
+            View Library Insights &rarr;
           </button>
         </div>
       )}

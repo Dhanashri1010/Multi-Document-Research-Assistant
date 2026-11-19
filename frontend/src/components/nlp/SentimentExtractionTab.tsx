@@ -109,7 +109,7 @@ export const SentimentExtractionTab: React.FC<SentimentExtractionTabProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h3 className="text-base font-bold text-slate-900">
-            CO2: Sentiment Analysis & Information Extraction
+            Sentiment Analysis & Information Extraction
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Compare lexicon (AFINN/VADER) vs LLM structured extraction across your documents.

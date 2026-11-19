@@ -40,6 +40,8 @@ export class LLMThrottleQueue {
   // Daily tracking keyed by YYYY-MM-DD (UTC)
   private static currentDayUtc = '';
   private static dailyCount = 0;
+  // Per-user daily tracking keyed by `${userId}:${YYYY-MM-DD}`
+  private static userDailyCounts: Map<string, number> = new Map();
 
   // Queue lock for sequential acquisition
   private static queueLock: Promise<void> = Promise.resolve();
@@ -49,6 +51,7 @@ export class LLMThrottleQueue {
     if (this.currentDayUtc !== today) {
       this.currentDayUtc = today;
       this.dailyCount = 0;
+      this.userDailyCounts.clear();
     }
   }
 
@@ -107,43 +110,77 @@ export class LLMThrottleQueue {
     this.pauseReason = '';
     this.currentDayUtc = new Date().toISOString().slice(0, 10);
     this.dailyCount = 0;
+    this.userDailyCounts.clear();
     this.queueLock = Promise.resolve();
   }
 
   /**
+   * Returns a user's daily usage status.
+   */
+  static getUserDailyUsage(userId: string): { used: number; limit: number; remaining: number } {
+    const today = new Date().toISOString().slice(0, 10);
+    this.checkAndResetDaily();
+    const userDailyCap = parseInt(process.env.USER_DAILY_AI_CAP || '30', 10);
+    const key = `${userId}:${today}`;
+    const used = this.userDailyCounts.get(key) || 0;
+    return {
+      used,
+      limit: userDailyCap,
+      remaining: Math.max(0, userDailyCap - used),
+    };
+  }
+
+  /**
    * Acquires capacity to dispatch one generative LLM request.
-   * Throws if daily quota of 500 requests is exhausted.
+   * Throws if daily quota of 500 requests is exhausted or if user exceeds USER_DAILY_AI_CAP.
    */
   static async acquire(
+    userIdOrOnWaiting?: string | ((waitSec: number, reason: string) => Promise<void> | void),
     onWaiting?: (waitSec: number, reason: string) => Promise<void> | void
   ): Promise<void> {
+    const userId = typeof userIdOrOnWaiting === 'string' ? userIdOrOnWaiting : undefined;
+    const waitHandler = typeof userIdOrOnWaiting === 'function' ? userIdOrOnWaiting : onWaiting;
+
     const unlock = await this.acquireLock();
     try {
       while (true) {
         const now = Date.now();
         this.checkAndResetDaily(new Date(now));
 
-        // 1. Check daily hard limit
+        // 1. Check user-specific daily cap (default 30/day)
+        const today = new Date(now).toISOString().slice(0, 10);
+        const userDailyCap = parseInt(process.env.USER_DAILY_AI_CAP || '30', 10);
+        const userKey = userId ? `${userId}:${today}` : null;
+        if (userKey) {
+          const userCount = this.userDailyCounts.get(userKey) || 0;
+          if (userCount >= userDailyCap) {
+            throw new Error(
+              `Daily AI limit reached for today (${userDailyCap} requests). Document search and cached results remain fully available.`
+            );
+          }
+        }
+
+        // 2. Check global daily hard limit
         if (this.dailyCount >= this.DAILY_LIMIT) {
           throw new Error(
             `Gemini daily free-tier limit reached (${this.dailyCount}/${this.DAILY_LIMIT} requests). Quota resets at midnight UTC.`
           );
         }
 
-        // 2. Check if globally paused on 429
+        // 3. Check if globally paused on 429
         if (now < this.pauseUntilTimestamp) {
           const waitMs = this.pauseUntilTimestamp - now;
           const waitSec = Math.ceil(waitMs / 1000);
           const reason = this.pauseReason || 'Rate limit cooldown';
           console.log(`[LLMThrottleQueue] Paused: waiting ${waitSec}s (${reason})...`);
-          if (onWaiting) {
-            await onWaiting(waitSec, reason);
+          if (waitHandler) {
+            await waitHandler(waitSec, reason);
           }
           await new Promise((r) => setTimeout(r, waitMs + 100));
           continue;
         }
 
-        // 3. Check minimum call spacing (skip in fast unit tests)
+        // 4. Check minimum call spacing (skip in fast unit tests)
         const minSpacing = process.env.NODE_ENV === 'test' ? 5 : this.MIN_CALL_SPACING_MS;
         const timeSinceLast = now - this.lastCallTimestamp;
         if (timeSinceLast < minSpacing) {
@@ -152,7 +189,7 @@ export class LLMThrottleQueue {
           continue;
         }
 
-        // 4. Check sliding 60-second window capacity
+        // 5. Check sliding 60-second window capacity
         this.pruneHistory(now);
         const hasHistory = this.history.length > 0;
         if (hasHistory && this.history.length >= this.MAX_RPM) {
@@ -162,8 +199,8 @@ export class LLMThrottleQueue {
           const reason = `RPM rate limit (${this.history.length}/${this.MAX_RPM} RPM)`;
 
           console.log(`[LLMThrottleQueue] Rate limit reached: waiting ${waitSec}s...`);
-          if (onWaiting) {
-            await onWaiting(waitSec, reason);
+          if (waitHandler) {
+            await waitHandler(waitSec, reason);
           }
           await new Promise((r) => setTimeout(r, timeToWait));
           continue;
@@ -173,6 +210,9 @@ export class LLMThrottleQueue {
         this.history.push({ timestamp: Date.now() });
         this.lastCallTimestamp = Date.now();
         this.dailyCount++;
+        if (userKey) {
+          this.userDailyCounts.set(userKey, (this.userDailyCounts.get(userKey) || 0) + 1);
+        }
         break;
       }
     } finally {

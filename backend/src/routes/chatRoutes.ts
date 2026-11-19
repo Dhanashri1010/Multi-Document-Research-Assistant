@@ -14,6 +14,7 @@ const askBodySchema = z.object({
   question: z.string().trim().min(1, 'Question cannot be empty.'),
   documentIds: z.array(z.string().min(1)).min(1, 'Please select at least one document to research.'),
   sessionId: z.string().optional(),
+  targetLanguage: z.string().optional(),
 });
 
 const sessionParamSchema = z.object({

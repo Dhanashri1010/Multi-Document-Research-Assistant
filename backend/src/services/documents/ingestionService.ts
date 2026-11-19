@@ -9,6 +9,8 @@ import { chunkPages, chunkWordDocument, estimateTokenCount } from './chunker.js'
 import { getEmbeddingProvider } from '../ai/embeddingService.js';
 import { invalidateVectorCache } from '../ai/vectorStore.js';
 import { detectDocumentCategory } from '../ai/documentSummaryService.js';
+import { NlpMultilingualService } from '../nlp/nlpMultilingualService.js';
+import { NlpExtractionService } from '../nlp/nlpExtractionService.js';
 import { StorageService } from '../storage/supabaseStorage.js';
 import { config } from '../../config/env.js';
 
@@ -188,6 +190,32 @@ export class IngestionService {
         doc.abstract
       );
       doc.category = detectedCategory;
+
+      // Auto-detect language via franc n-gram analysis
+      try {
+        const langResult = NlpMultilingualService.detectLanguage(sampleText || doc.title || doc.originalName);
+        if (langResult && langResult.iso639_1 !== 'und') {
+          doc.detectedLanguage = {
+            code: langResult.iso639_1.toUpperCase(),
+            name: langResult.name,
+            confidence: langResult.confidence,
+          };
+        } else {
+          doc.detectedLanguage = { code: 'EN', name: 'English', confidence: 0.95 };
+        }
+      } catch {
+        doc.detectedLanguage = { code: 'EN', name: 'English', confidence: 0.95 };
+      }
+
+      // Auto-extract top 3-4 keyphrases via local RAKE
+      try {
+        const keyphrases = NlpExtractionService.extractKeyphrases(sampleText);
+        if (Array.isArray(keyphrases) && keyphrases.length > 0) {
+          doc.keyphrases = keyphrases.slice(0, 4).map((k) => k.phrase);
+        }
+      } catch {
+        doc.keyphrases = [];
+      }
 
       // 2. Chunking with format adaptation
       const chunkingStartTime = performance.now();

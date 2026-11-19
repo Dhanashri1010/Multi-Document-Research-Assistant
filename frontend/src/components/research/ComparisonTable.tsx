@@ -11,7 +11,12 @@ import {
   ChevronUp,
   Download,
   RotateCcw,
+  Globe,
+  Loader2,
+  FileDown,
 } from 'lucide-react';
+import { NlpService } from '../../services/nlpService.js';
+import { exportContentToPdf } from '../../utils/pdfExport.js';
 
 export function sanitizeDegradedReason(reason?: string): string {
   if (!reason) {
@@ -38,8 +43,12 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison, on
   >('matrix');
 
   const [expandedExcerpt, setExpandedExcerpt] = useState<number | null>(null);
+  const [targetLang, setTargetLang] = useState<string>('');
+  const [translating, setTranslating] = useState<boolean>(false);
+  const [translationProvider, setTranslationProvider] = useState<string | null>(null);
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
 
-  const exportComparisonMarkdown = () => {
+  const buildMarkdownReport = () => {
     let md = `# Cross-Document Comparative Analysis\n\n`;
     if (comparison.focusTopic) {
       md += `**Focus Topic**: ${comparison.focusTopic}\n\n`;
@@ -109,6 +118,11 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison, on
       });
     }
 
+    return md;
+  };
+
+  const exportComparisonMarkdown = () => {
+    const md = buildMarkdownReport();
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -116,6 +130,49 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison, on
     a.download = `comparison_analysis_${Date.now()}.md`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportComparisonPdf = () => {
+    const md = buildMarkdownReport();
+    exportContentToPdf({
+      title: comparison.focusTopic ? `Comparison: ${comparison.focusTopic}` : 'Cross-Document Comparative Analysis',
+      subtitle: `Comparing ${comparison.documents.length} research papers`,
+      contentMarkdown: md,
+    });
+  };
+
+  const handleTranslate = async (lang: string) => {
+    setTargetLang(lang);
+    if (!lang) {
+      setTranslatedText(null);
+      setTranslationProvider(null);
+      return;
+    }
+    setTranslating(true);
+    try {
+      const summaryToTranslate = [
+        `Key Findings:\n${comparison.keyFindings.map((f, i) => `${i + 1}. ${f}`).join('\n')}`,
+        `Similarities:\n${comparison.similarities.map((s, i) => `${i + 1}. ${s}`).join('\n')}`,
+        `Differences:\n${comparison.differences.map((d, i) => `${i + 1}. ${d}`).join('\n')}`,
+      ].join('\n\n');
+
+      const res = await NlpService.translateText({
+        text: summaryToTranslate,
+        targetLanguage: lang,
+      });
+      setTranslatedText(res.translatedText);
+      setTranslationProvider(
+        res.provider === 'google_cloud'
+          ? 'Google Cloud Translation'
+          : res.provider === 'gemini'
+          ? 'Gemini Multilingual'
+          : 'Local dictionary translation'
+      );
+    } catch (err: any) {
+      console.error('Comparison translation failed:', err);
+    } finally {
+      setTranslating(false);
+    }
   };
 
   const tabs = [
@@ -179,6 +236,39 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison, on
             <span>Export MD</span>
           </button>
 
+          <button
+            type="button"
+            onClick={exportComparisonPdf}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition-colors shrink-0 shadow-2xs"
+            title="Export formatted comparison PDF"
+          >
+            <FileDown className="w-3.5 h-3.5 text-purple-600" />
+            <span>Export PDF</span>
+          </button>
+
+          {/* Translation selector */}
+          <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+            {translating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" />
+            ) : (
+              <Globe className="w-3.5 h-3.5 text-slate-500" />
+            )}
+            <select
+              value={targetLang}
+              onChange={(e) => handleTranslate(e.target.value)}
+              disabled={translating}
+              className="bg-transparent text-slate-700 font-medium focus:outline-none cursor-pointer"
+              title="Translate comparison findings to another language"
+            >
+              <option value="">Translate...</option>
+              <option value="hi">Hindi (हिन्दी)</option>
+              <option value="mr">Marathi (मराठी)</option>
+              <option value="es">Spanish (Español)</option>
+              <option value="fr">French (Français)</option>
+              <option value="de">German (Deutsch)</option>
+            </select>
+          </div>
+
           {/* Tab Navigation Pills */}
           <div className="flex flex-wrap items-center gap-1 bg-slate-200/70 p-1 rounded-xl">
             {tabs.map((tab) => {
@@ -211,6 +301,37 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({ comparison, on
           </div>
         </div>
       </div>
+
+      {/* Translation Overlay Card */}
+      {translatedText && (
+        <div className="mx-6 mt-4 p-4 rounded-xl bg-purple-50/60 border border-purple-200 text-xs">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-purple-100">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-purple-600" />
+              <span className="font-bold text-purple-900">
+                Translated Findings ({targetLang.toUpperCase()})
+              </span>
+              {translationProvider && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">
+                  {translationProvider}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setTranslatedText(null);
+                setTargetLang('');
+              }}
+              className="text-purple-600 hover:text-purple-800 font-semibold"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="whitespace-pre-line text-slate-700 leading-relaxed max-h-48 overflow-y-auto">
+            {translatedText}
+          </div>
+        </div>
+      )}
 
       {/* Tab Panels */}
       <div className="p-6">

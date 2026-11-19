@@ -121,7 +121,7 @@ export const MultilingualTab: React.FC<MultilingualTabProps> = ({ documents }) =
         <div className="flex items-center gap-2 mb-1">
           <Globe className="w-5 h-5 text-brand-600" />
           <h3 className="text-base font-bold text-slate-800">
-            Multilingual NLP & Cross-Lingual Synthesis (CO3)
+            Multilingual Translation & Cross-Lingual Research
           </h3>
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
             Cloud + Local Services

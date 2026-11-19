@@ -23,6 +23,7 @@ import { IDocument } from '../../types/document.js';
 
 interface PromptPlaygroundTabProps {
   documents: IDocument[];
+  section?: 'literature' | 'studio' | 'all';
 }
 
 const STRATEGY_STYLES: Record<string, { label: string; badge: string; border: string }> = {
@@ -139,7 +140,7 @@ const FALLBACK_PROMPTS: PromptTemplateInfo[] = [
   },
 ];
 
-export const PromptPlaygroundTab: React.FC<PromptPlaygroundTabProps> = ({ documents }) => {
+export const PromptPlaygroundTab: React.FC<PromptPlaygroundTabProps> = ({ documents, section = 'all' }) => {
   // Playground State
   const [prompts, setPrompts] = useState<PromptTemplateInfo[]>(FALLBACK_PROMPTS);
   const [selectedPromptId, setSelectedPromptId] = useState<string>('rag_qa.v2');
@@ -310,33 +311,37 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
   return (
     <div className="space-y-8">
       {/* Overview Banner */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <Sparkles className="w-5 h-5 text-brand-600" />
-          <h3 className="text-base font-bold text-slate-800">
-            Generative AI, Prompt Engineering & Multi-Document Synthesis (CO4)
-          </h3>
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-            8 Versioned Templates
-          </span>
+      {/* Top Banner (only when viewing all or studio) */}
+      {section === 'all' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles className="w-5 h-5 text-brand-600" />
+            <h3 className="text-base font-bold text-slate-800">
+              Prompt Studio & Literature Synthesis
+            </h3>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+              8 Versioned Templates
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 max-w-3xl">
+            Experiment with advanced prompt engineering strategies (Zero-Shot, Few-Shot, Chain-of-Thought, and Structured JSON Schemas) with architectural rationales, or synthesize multi-document literature reviews with citation grounding.
+          </p>
         </div>
-        <p className="text-xs text-slate-500 max-w-3xl">
-          Demonstrates advanced prompt engineering strategies (Zero-Shot, Few-Shot, Chain-of-Thought, and Structured JSON Schemas) with architectural rationales, plus automated multi-document literature review synthesis contrasting findings across papers with page citations.
-        </p>
-      </div>
+      )}
 
       {/* Part 1: Prompt Engineering Library & Playground */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6 space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          <div>
-            <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-brand-600" />
-              <span>1. Prompt Engineering Library & Strategy Comparison</span>
-            </h4>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Select a versioned prompt template to inspect its architectural rationale and execute with customizable inference parameters.
-            </p>
-          </div>
+      {section !== 'literature' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-brand-600" />
+                <span>Prompt Engineering Library & Strategy Comparison</span>
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Select a versioned prompt template to inspect its architectural rationale and test customizable inference parameters.
+              </p>
+            </div>
 
           {/* Template Selector Dropdown */}
           <div className="flex items-center gap-2">
@@ -490,14 +495,16 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
           </div>
         )}
       </div>
+      )}
 
       {/* Part 2: Multi-Document Literature Review Generator */}
+      {section !== 'studio' && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-brand-600" />
-              <span>2. Multi-Document Literature Review & Gap Synthesis</span>
+              <span>Multi-Document Literature Review & Gap Synthesis</span>
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
               Select 2 to 5 research papers to synthesize into a structured literature review contrasting findings, identifying contradictions, and proposing follow-up questions with page citations.
@@ -605,6 +612,7 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

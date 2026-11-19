@@ -14,9 +14,13 @@ import {
   History,
   RotateCcw,
   Loader2,
+  Layers,
+  Network,
+  Tag,
 } from 'lucide-react';
 import { documentService } from '../services/documentService.js';
 import { researchService } from '../services/researchService.js';
+import { NlpService } from '../services/nlpService.js';
 import { WorkspaceStats, IDocument } from '../types/document.js';
 import { IResearchSession } from '../types/research.js';
 import { ProcessingStatusBadge } from '../components/documents/ProcessingStatus.js';
@@ -37,6 +41,8 @@ export const DashboardPage: React.FC = () => {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [retryingDocId, setRetryingDocId] = useState<string | null>(null);
   const [selectedErrorDoc, setSelectedErrorDoc] = useState<IDocument | null>(null);
+  const [themes, setThemes] = useState<any[]>([]);
+  const [similarPairs, setSimilarPairs] = useState<{ docA: string; docB: string; score: number }[]>([]);
 
   const navigate = useNavigate();
   const { selectAllDocs, setSelectedDocIds, refreshDocuments } = useWorkspace();
@@ -52,6 +58,35 @@ export const DashboardPage: React.FC = () => {
       setStats(statsData.stats);
       setRecentDocs(statsData.recentDocuments);
       setRecentSessions(sessionsData.slice(0, 5));
+
+      // Asynchronously load themes & similarities if >= 2 ready documents
+      const readyDocs = statsData.recentDocuments.filter((d: IDocument) => d.status === 'ready');
+      if (readyDocs.length >= 2) {
+        const readyIds = readyDocs.map((d: IDocument) => d._id);
+        NlpService.getTopics({ documentIds: readyIds, sampleMax: 60 })
+          .then((topicRes: any) => {
+            if (topicRes?.topics) {
+              setThemes(topicRes.topics.slice(0, 4));
+            }
+          })
+          .catch(() => {});
+
+        NlpService.vectorizeDocuments(readyIds)
+          .then((vecRes: any) => {
+            if (vecRes?.matrix) {
+              const pairs = vecRes.matrix
+                .filter((m: any) => m.docAId !== m.docBId && m.denseSimilarity > 0.5)
+                .slice(0, 4)
+                .map((m: any) => ({
+                  docA: m.docATitle,
+                  docB: m.docBTitle,
+                  score: Math.round(m.denseSimilarity * 100),
+                }));
+              setSimilarPairs(pairs);
+            }
+          })
+          .catch(() => {});
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load dashboard metrics.');
     } finally {
@@ -473,6 +508,98 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Cross-Document Themes & Semantic Clusters Card (when >= 2 documents) */}
+      {(themes.length > 0 || similarPairs.length > 0) && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-brand-600" />
+                Library Themes & Document Relationships
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Automatically discovered research clusters and semantic similarity across your indexed documents.
+              </p>
+            </div>
+            <Link
+              to="/insights"
+              className="text-xs font-semibold text-brand-600 hover:text-brand-800 flex items-center gap-1 transition-colors shrink-0"
+            >
+              Explore Insights & Clusters <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+            {/* Discovered Themes */}
+            {themes.length > 0 && (
+              <div className="space-y-3">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Discovered Research Themes
+                </span>
+                <div className="space-y-2">
+                  {themes.map((t, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-slate-50/70 border border-slate-100 hover:border-slate-200 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-800">
+                          {t.title || `Theme ${t.id + 1}`}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          {t.size} passage{t.size === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {t.keywords?.slice(0, 4).map((kw: string, kidx: number) => (
+                          <span
+                            key={kidx}
+                            className="px-2 py-0.5 rounded text-[10px] font-medium bg-brand-50 text-brand-700"
+                          >
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Semantic Document Similarities */}
+            {similarPairs.length > 0 && (
+              <div className="space-y-3">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Top Document Connections
+                </span>
+                <div className="space-y-2">
+                  {similarPairs.map((pair, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-800 truncate" title={pair.docA}>
+                          {pair.docA}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate" title={pair.docB}>
+                          <span className="text-slate-400">↔</span> {pair.docB}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {pair.score}% match
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Upload Modal */}
       <Modal

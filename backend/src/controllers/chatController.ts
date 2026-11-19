@@ -26,7 +26,7 @@ export class ChatController {
    */
   static async ask(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { question, documentIds, sessionId } = req.body;
+      const { question, documentIds, sessionId, targetLanguage } = req.body;
       const userId = req.user?.userId;
 
       if (!question || typeof question !== 'string') {
@@ -64,6 +64,7 @@ export class ChatController {
         documentIds,
         sessionId,
         userId,
+        targetLanguage,
       });
 
       res.json({
@@ -80,7 +81,7 @@ export class ChatController {
    */
   static async askStream(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { question, documentIds, sessionId } = req.body;
+      const { question, documentIds, sessionId, targetLanguage } = req.body;
       const userId = req.user?.userId;
 
       if (!question || typeof question !== 'string') {
@@ -121,9 +122,12 @@ export class ChatController {
         (res as any).flushHeaders();
       }
 
-      await RAGService.askStream({ question, documentIds, sessionId, userId }, (event) => {
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-      });
+      await RAGService.askStream(
+        { question, documentIds, sessionId, userId, targetLanguage },
+        (event) => {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        }
+      );
 
       res.end();
     } catch (err) {

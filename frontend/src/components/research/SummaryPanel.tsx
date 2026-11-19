@@ -11,9 +11,12 @@ import {
   Download,
   Database,
   RefreshCw,
+  Globe,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '../common/Button.js';
 import { exportContentToPdf } from '../../utils/pdfExport.js';
+import { NlpService } from '../../services/nlpService.js';
 
 interface SummaryPanelProps {
   summaryData: DocumentSummary;
@@ -31,6 +34,40 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
   isRegenerating = false,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [targetLang, setTargetLang] = useState<string>('');
+  const [translating, setTranslating] = useState<boolean>(false);
+  const [translatedOverview, setTranslatedOverview] = useState<string | null>(null);
+  const [translateProvider, setTranslateProvider] = useState<string | null>(null);
+
+  const handleTranslate = async (lang: string) => {
+    setTargetLang(lang);
+    if (!lang) {
+      setTranslatedOverview(null);
+      setTranslateProvider(null);
+      return;
+    }
+    const textToTranslate = summaryData.overview || summaryData.summary || '';
+    if (!textToTranslate) return;
+
+    setTranslating(true);
+    try {
+      const res = await NlpService.translateText({
+        text: textToTranslate,
+        targetLanguage: lang,
+      });
+      setTranslatedOverview(res.translatedText);
+      const provMap: Record<string, string> = {
+        google_cloud: 'Google Cloud Translation (REST)',
+        gemini: 'Gemini 3.1 Flash Lite',
+        local: 'Local Lexicon',
+      };
+      setTranslateProvider(provMap[res.provider] || res.provider);
+    } catch (err) {
+      console.warn('Translation failed:', err);
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const handleCopy = () => {
     const text = summaryData.overview || summaryData.summary || '';
@@ -182,6 +219,29 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
             <Download className="w-3.5 h-3.5" />
             <span>Export PDF</span>
           </button>
+
+          {/* Translate control */}
+          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5">
+            {translating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" />
+            ) : (
+              <Globe className="w-3.5 h-3.5 text-slate-400" />
+            )}
+            <select
+              value={targetLang}
+              onChange={(e) => handleTranslate(e.target.value)}
+              disabled={translating}
+              className="text-xs bg-transparent text-slate-700 font-medium focus:outline-none cursor-pointer py-0.5"
+              title="Translate summary to another language"
+            >
+              <option value="">Translate to...</option>
+              <option value="hi">Hindi (हिन्दी)</option>
+              <option value="mr">Marathi (मराठी)</option>
+              <option value="es">Spanish (Español)</option>
+              <option value="fr">French (Français)</option>
+              <option value="de">German (Deutsch)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -211,9 +271,27 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
           <BookOpen className="w-3.5 h-3.5 text-brand-600" />
           Executive Overview
         </h4>
-        <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-200/80">
-          {summaryData.overview || summaryData.summary || 'Summary generated from document text.'}
-        </p>
+        {translatedOverview ? (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-slate-500">
+              <span className="font-semibold text-brand-700 flex items-center gap-1">
+                <Globe className="w-3 h-3 text-brand-500" /> Translated ({targetLang.toUpperCase()})
+              </span>
+              {translateProvider && (
+                <span className="text-[10px] text-slate-400">
+                  via {translateProvider}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-700 leading-relaxed bg-brand-50/40 p-4 rounded-xl border border-brand-200">
+              {translatedOverview}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+            {summaryData.overview || summaryData.summary || 'Summary generated from document text.'}
+          </p>
+        )}
       </div>
 
       {/* 2. Key Findings & Insights */}

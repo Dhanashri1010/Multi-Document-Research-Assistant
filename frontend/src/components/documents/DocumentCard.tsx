@@ -16,6 +16,7 @@ import {
   Briefcase,
   GraduationCap,
   Wrench,
+  Globe,
 } from 'lucide-react';
 import { IDocument } from '../../types/document.js';
 import { ProcessingStatusBadge } from './ProcessingStatus.js';
@@ -219,6 +220,16 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               {fileExt}
             </span>
 
+            {document.detectedLanguage && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"
+                title={`Language: ${document.detectedLanguage.name} (${Math.round((document.detectedLanguage.confidence || 0) * 100)}% confidence)`}
+              >
+                <Globe className="w-3 h-3 text-indigo-500" />
+                <span>{document.detectedLanguage.code}</span>
+              </span>
+            )}
+
             <div className="flex items-center gap-1">
               <Folder className="w-3 h-3 text-slate-400 shrink-0" />
               {isEditingCollection ? (
@@ -255,6 +266,21 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-3">
               {document.abstract}
             </p>
+          )}
+
+          {/* Keyphrase Chips */}
+          {document.keyphrases && document.keyphrases.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+              {document.keyphrases.slice(0, 3).map((kp, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200 truncate max-w-[150px]"
+                  title={kp}
+                >
+                  #{kp}
+                </span>
+              ))}
+            </div>
           )}
 
           {/* Low text density warning chip */}

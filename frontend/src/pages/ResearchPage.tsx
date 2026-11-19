@@ -141,7 +141,7 @@ export const ResearchPage: React.FC = () => {
   };
 
   // Send question via RAG streaming
-  const handleAsk = async (question: string) => {
+  const handleAsk = async (question: string, targetLanguage?: string) => {
     if (!question.trim() || selectedDocIds.length === 0) return;
 
     setApiError(null);
@@ -165,6 +165,7 @@ export const ResearchPage: React.FC = () => {
           question,
           documentIds: selectedDocIds,
           sessionId,
+          targetLanguage,
         },
         {
           onStart: (data) => {
@@ -234,6 +235,7 @@ export const ResearchPage: React.FC = () => {
                 question,
                 documentIds: selectedDocIds,
                 sessionId,
+                targetLanguage,
               });
               setSessionId(res.sessionId);
               setMessages((prev) => [

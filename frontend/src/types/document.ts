@@ -88,6 +88,12 @@ export interface IDocument {
   title?: string;
   authors?: string[];
   abstract?: string;
+  detectedLanguage?: {
+    code: string;
+    name: string;
+    confidence: number;
+  };
+  keyphrases?: string[];
   createdAt: string;
   updatedAt: string;
 }

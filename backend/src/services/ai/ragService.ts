@@ -7,6 +7,7 @@ import { VectorStore } from './vectorStore.js';
 import { LLMService, formatSafeErrorMessage } from './llmService.js';
 import { StructuredRAGAnswerSchema } from './schemas.js';
 import { CitationVerifier } from './citationVerifier.js';
+import { NlpMultilingualService } from '../nlp/nlpMultilingualService.js';
 import { config } from '../../config/env.js';
 
 export interface RAGQueryOptions {
@@ -15,6 +16,7 @@ export interface RAGQueryOptions {
   sessionId?: string;
   userId?: string;
   skipRegeneration?: boolean;
+  targetLanguage?: string;
 }
 
 export interface RAGResponse {
@@ -520,6 +522,51 @@ STANDALONE SEARCH QUERY:`;
       );
     }
 
+    // Multilingual Detection & Cross-Lingual Query Translation
+    let detectedLang = { iso639_1: 'en', name: 'English', confidence: 1 };
+    try {
+      const detected = NlpMultilingualService.detectLanguage(question);
+      if (detected) {
+        detectedLang = {
+          iso639_1: detected.iso639_1,
+          name: detected.name,
+          confidence: detected.confidence,
+        };
+      }
+    } catch {
+      detectedLang = { iso639_1: 'en', name: 'English', confidence: 1 };
+    }
+
+    const requestedLang = options.targetLanguage && options.targetLanguage !== 'auto'
+      ? options.targetLanguage
+      : (detectedLang.iso639_1 !== 'und' ? detectedLang.iso639_1 : 'en');
+
+    const LANG_NAMES: Record<string, string> = {
+      en: 'English',
+      hi: 'Hindi (हिन्दी)',
+      mr: 'Marathi (मराठी)',
+      es: 'Spanish (Español)',
+      fr: 'French (Français)',
+      de: 'German (Deutsch)',
+    };
+    const targetLangName = LANG_NAMES[requestedLang] || requestedLang;
+
+    // If query is in non-English, translate retrievalQuery to English for maximum passage recall
+    if (detectedLang.iso639_1 !== 'en' && detectedLang.iso639_1 !== 'und') {
+      try {
+        const transRes = await NlpMultilingualService.translateText({
+          text: retrievalQuery,
+          targetLanguage: 'en',
+          sourceLanguage: detectedLang.iso639_1,
+        });
+        if (transRes?.translatedText && transRes.translatedText.trim().length > 0) {
+          retrievalQuery = transRes.translatedText;
+        }
+      } catch (transErr) {
+        console.warn('[RAGService] Cross-lingual query translation to English skipped:', transErr);
+      }
+    }
+
     const embeddingProvider = getEmbeddingProvider();
     const queryEmbedding = await embeddingProvider.embedQuery(retrievalQuery);
 
@@ -702,6 +749,14 @@ STRICT FACTUAL GROUNDING & REFUSAL DIRECTIVES:
   "claims": [
     { "claim": "Statement 1...", "sourceIndices": [1] }
   ]
+}
+${
+  requestedLang !== 'en'
+    ? `\nOUTPUT LANGUAGE REQUIREMENT:
+You MUST write the ENTIRE "answer" field in ${targetLangName}.
+Translate explanations and findings accurately while keeping academic terms in English in parentheses where appropriate.
+Preserve all citation bracket markers [n] attached to their translated sentences.`
+    : ''
 }`;
 
     const userPrompt = `RESEARCH QUESTION:

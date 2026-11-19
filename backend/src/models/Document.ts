@@ -27,6 +27,12 @@ export interface IDocument extends MongooseDoc {
   category?: string;
   summaryData?: any;
   summaryText?: string;
+  detectedLanguage?: {
+    code: string;
+    name: string;
+    confidence: number;
+  };
+  keyphrases?: string[];
   warning?: string;
   isLowTextDensity?: boolean;
   errorDetails?: string;
@@ -81,6 +87,12 @@ const DocumentSchema = new Schema<IDocument>(
     },
     summaryData: { type: Schema.Types.Mixed },
     summaryText: { type: String },
+    detectedLanguage: {
+      code: { type: String },
+      name: { type: String },
+      confidence: { type: Number },
+    },
+    keyphrases: { type: [String], default: [] },
     warning: { type: String },
     isLowTextDensity: { type: Boolean, default: false },
     status: {

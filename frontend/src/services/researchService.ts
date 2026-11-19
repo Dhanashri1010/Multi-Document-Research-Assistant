@@ -6,6 +6,7 @@ export const researchService = {
     question: string;
     documentIds: string[];
     sessionId?: string;
+    targetLanguage?: string;
   }): Promise<{
     sessionId: string;
     answer: string;
@@ -31,6 +32,7 @@ export const researchService = {
       question: string;
       documentIds: string[];
       sessionId?: string;
+      targetLanguage?: string;
     },
     callbacks: {
       onStart?: (data: { sessionId: string; citations: ICitation[] }) => void;

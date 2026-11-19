@@ -133,7 +133,7 @@ export const PreprocessingTab: React.FC<PreprocessingTabProps> = ({
           <div>
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Layers className="w-5 h-5 text-brand-600" />
-              CO1: Text Preprocessing & Cleaning Pipeline
+              Text Preprocessing & Cleaning Pipeline
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               Select pipeline cleaning operations to execute on unstructured research text.

@@ -7,6 +7,7 @@ export interface LLMGenerateOptions {
   maxTokens?: number;
   timeoutMs?: number;
   maxRetries?: number;
+  userId?: string;
 }
 
 function isRetryableError(err: any): boolean {
@@ -257,7 +258,7 @@ export class LLMService {
             targetModel = fallback;
           }
 
-          await LLMThrottleQueue.acquire();
+          await LLMThrottleQueue.acquire(options.userId);
 
           try {
             const response = await ai.models.generateContent({
@@ -396,7 +397,7 @@ export class LLMService {
             );
           }
 
-          await LLMThrottleQueue.acquire();
+          await LLMThrottleQueue.acquire(options.userId);
           responseStream = await ai.models.generateContentStream({
             model: activeModel,
             contents: prompt,

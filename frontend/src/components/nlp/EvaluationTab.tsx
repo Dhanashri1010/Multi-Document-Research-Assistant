@@ -90,7 +90,7 @@ export const EvaluationTab: React.FC = () => {
           <div className="flex items-center gap-2">
             <Award className="w-5 h-5 text-brand-600" />
             <h3 className="text-base font-bold text-slate-900">
-              CO2 Empirical Evaluation Benchmark
+              Empirical Quality Benchmark
             </h3>
             {report && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -449,7 +449,7 @@ export const EvaluationTab: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-3">
             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-brand-600" />
-              How to Review & Correct Gold Dataset Annotations (Course Rubric)
+              How to Review & Correct Gold Dataset Annotations
             </h4>
             <div className="text-xs text-slate-600 space-y-2 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-200">
               <p>

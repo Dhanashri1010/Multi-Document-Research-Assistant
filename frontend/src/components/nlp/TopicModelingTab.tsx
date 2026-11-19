@@ -86,7 +86,7 @@ export const TopicModelingTab: React.FC<TopicModelingTabProps> = ({ documents })
             <div className="flex items-center gap-2">
               <Layers className="w-5 h-5 text-brand-600" />
               <h3 className="text-base font-bold text-slate-800">
-                Cross-Document Topic Modeling (CO3)
+                Cross-Document Topic Modeling & Themes
               </h3>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
                 K-Means + c-TF-IDF + PCA

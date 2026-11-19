@@ -29,7 +29,7 @@ export class NlpController {
   static async preprocess(req: Request, res: Response): Promise<void> {
     try {
       const { documentId, steps, rawText: customText, useCache = true } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
 
       let textToProcess = customText || '';
       let docId = documentId || 'ad_hoc';
@@ -86,7 +86,7 @@ export class NlpController {
   static async vectorize(req: Request, res: Response): Promise<void> {
     try {
       const { documentIds, useCache = true } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
 
       if (!Array.isArray(documentIds) || documentIds.length === 0) {
         res.status(400).json({
@@ -137,7 +137,7 @@ export class NlpController {
   static async sentiment(req: Request, res: Response): Promise<void> {
     try {
       const { documentId, runGemini = true, sampleSize = 35, useCache = true } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
 
       if (!documentId) {
         res.status(400).json({
@@ -184,7 +184,7 @@ export class NlpController {
   static async extract(req: Request, res: Response): Promise<void> {
     try {
       const { documentId, runGemini = true, useCache = true } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
 
       if (!documentId) {
         res.status(400).json({
@@ -277,7 +277,7 @@ export class NlpController {
   static async topics(req: Request, res: Response): Promise<void> {
     try {
       const { documentIds, k, sampleMax, generateAiTitles, forceRefresh } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
 
       if (documentIds && documentIds.length > 0 && userId) {
         const count = await DocumentModel.countDocuments({ _id: { $in: documentIds }, userId });
@@ -377,7 +377,7 @@ export class NlpController {
   static async askMultilingual(req: Request, res: Response): Promise<void> {
     try {
       const { question, documentIds, targetLanguage } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
 
       if (!question) {
         res.status(400).json({
@@ -452,7 +452,7 @@ export class NlpController {
   static async literatureReview(req: Request, res: Response): Promise<void> {
     try {
       const { documentIds, forceRefresh } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
 
       if (!Array.isArray(documentIds) || documentIds.length < 2) {
         res.status(400).json({
@@ -497,7 +497,7 @@ export class NlpController {
    */
   static async warmCache(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
       const docQuery: any = { status: 'ready' };
       if (userId) docQuery.userId = userId;
 
