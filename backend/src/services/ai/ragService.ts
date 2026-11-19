@@ -796,8 +796,8 @@ Generate your JSON response now.`;
       const rawResponse = await LLMService.generate(userPrompt, {
         systemPrompt,
         temperature: 0.0,
-        timeoutMs: 25000,
-        maxRetries: 1,
+        timeoutMs: 35000,
+        maxRetries: 2,
       });
 
       const extracted = extractCleanAnswer(rawResponse);

@@ -78,7 +78,7 @@ async function withRetry<T>(
           serverDelayMs = 15000;
         }
 
-        const delay = serverDelayMs || (Math.min(300 * Math.pow(2, attempt), 2000) + Math.floor(Math.random() * 80));
+        const delay = serverDelayMs || (Math.min(1500 * Math.pow(2, attempt), 6000) + Math.floor(Math.random() * 250));
         console.warn(`[LLMService] Retryable error encountered (attempt ${attempt + 1}/${maxRetries}): ${err.message}. Retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         attempt++;
@@ -322,15 +322,35 @@ export class LLMService {
       });
       const targetModel = (model || '').trim();
 
-      const responseStream = await ai.models.generateContentStream({
-        model: targetModel,
-        contents: prompt,
-        config: {
-          systemInstruction: options.systemPrompt,
-          temperature: options.temperature ?? 0.15,
-          maxOutputTokens: options.maxTokens ?? 2048,
-        },
-      });
+      const maxRetries = options.maxRetries ?? config.llmMaxRetries ?? 2;
+      let responseStream: any = null;
+      let streamAttempt = 0;
+
+      while (streamAttempt <= maxRetries) {
+        try {
+          responseStream = await ai.models.generateContentStream({
+            model: targetModel,
+            contents: prompt,
+            config: {
+              systemInstruction: options.systemPrompt,
+              temperature: options.temperature ?? 0.15,
+              maxOutputTokens: options.maxTokens ?? 2048,
+            },
+          });
+          break;
+        } catch (streamInitErr: any) {
+          if (streamAttempt < maxRetries && isRetryableError(streamInitErr)) {
+            const delay = Math.min(1500 * Math.pow(2, streamAttempt), 6000) + Math.floor(Math.random() * 250);
+            console.warn(
+              `[LLMService] Gemini streaming initiation failed (${streamInitErr.message}). Retrying attempt ${streamAttempt + 1}/${maxRetries} in ${delay}ms...`
+            );
+            await new Promise((r) => setTimeout(r, delay));
+            streamAttempt++;
+          } else {
+            throw streamInitErr;
+          }
+        }
+      }
 
       let fullText = '';
       for await (const chunk of responseStream) {
