@@ -109,11 +109,11 @@ export const Sidebar: React.FC = () => {
         <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-brand-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm shadow-brand-500/20">
-              {user.name.charAt(0).toUpperCase()}
+              {(user.name || user.email || 'U').charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-white truncate" title={user.name}>
-                {user.name}
+              <p className="text-xs font-semibold text-white truncate" title={user.name || user.email}>
+                {user.name || user.email || 'User'}
               </p>
               <p className="text-[10px] text-slate-400 truncate" title={user.email}>
                 {user.email}

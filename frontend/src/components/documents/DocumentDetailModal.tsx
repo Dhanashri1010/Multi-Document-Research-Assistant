@@ -68,8 +68,12 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
     extraction?: any;
   } | null>(null);
 
-  // Summary state
-  const [summaryData, setSummaryData] = useState<DocumentSummary | null>(null);
+  // Summary state - initialize with doc summaryData if available
+  const [summaryData, setSummaryData] = useState<DocumentSummary | null>(() => {
+    return doc?.summaryData && (doc.summaryData.overview || doc.summaryData.summary)
+      ? doc.summaryData
+      : null;
+  });
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -134,6 +138,12 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
   const loadSummary = useCallback(
     async (regenerate: boolean = false) => {
       if (!doc) return;
+      if (doc.status !== 'ready') {
+        setSummaryError(
+          `Document is currently "${doc.status}". Please wait until status is "Ready" to view its summary.`
+        );
+        return;
+      }
       try {
         if (regenerate) {
           setIsRegenerating(true);
@@ -143,7 +153,13 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
         setSummaryError(null);
 
         const data = await documentService.summarize(doc._id, regenerate);
-        setSummaryData(data);
+        if (data && (data.summary || data.overview || (data.keyFindings && data.keyFindings.length > 0))) {
+          setSummaryData(data);
+        } else if ((data as any)?.error) {
+          setSummaryError((data as any).error);
+        } else {
+          setSummaryData(data);
+        }
       } catch (err: any) {
         console.warn('[DocumentDetailModal] Summary fetch error:', err);
         setSummaryError(err.message || 'Unable to generate summary at this moment.');
@@ -161,8 +177,20 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
       setCurrentPage(initialPage || 1);
       setZoomLevel(100);
 
-      // Load summary
-      loadSummary(false);
+      // Check if doc already has valid cached summary
+      if (doc.summaryData && (doc.summaryData.overview || doc.summaryData.summary)) {
+        setSummaryData(doc.summaryData);
+        setLoadingSummary(false);
+        setSummaryError(null);
+      } else if (doc.status === 'ready') {
+        loadSummary(false);
+      } else {
+        setSummaryData(null);
+        setLoadingSummary(false);
+        setSummaryError(
+          `Document is currently "${doc.status}". Please wait until document status is "Ready" to generate its summary.`
+        );
+      }
 
       // If Word document, load chunks for in-app preview
       if (isWordDoc) {
@@ -529,14 +557,48 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                 </div>
               )}
 
-              {summaryError && (
-                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center justify-between">
-                  <span>{summaryError}</span>
-                  <Button size="sm" variant="outline" onClick={() => loadSummary(true)}>
-                    Retry
-                  </Button>
+              {summaryError && !loadingSummary && (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{summaryError}</span>
+                  </div>
+                  {doc.status === 'ready' && (
+                    <Button size="sm" variant="outline" onClick={() => loadSummary(true)}>
+                      Retry
+                    </Button>
+                  )}
                 </div>
               )}
+
+              {/* Empty / Unsummarized State */}
+              {!loadingSummary &&
+                !summaryError &&
+                (!summaryData ||
+                  (!summaryData.overview &&
+                    !summaryData.summary &&
+                    (!summaryData.keyFindings || summaryData.keyFindings.length === 0))) && (
+                  <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-2xs text-center space-y-4 max-w-lg mx-auto">
+                    <div className="w-12 h-12 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-slate-800">Summary Not Yet Generated</h4>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        An adaptive AI summary has not been generated for this document yet. Click below to synthesize an overview, key findings, and data metrics.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => loadSummary(true)}
+                      isLoading={isRegenerating || loadingSummary}
+                      icon={<Sparkles className="w-3.5 h-3.5" />}
+                    >
+                      Generate Summary Now
+                    </Button>
+                  </div>
+                )}
 
               {summaryData && !loadingSummary && (
                 <div className="space-y-6">
@@ -552,29 +614,39 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   )}
 
                   {/* Overview Section */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-brand-600" />
-                      <span>Overview</span>
-                    </h3>
-                    <p className="text-sm text-slate-800 leading-relaxed">
-                      {summaryData.overview || summaryData.summary}
-                    </p>
-                  </div>
+                  {(summaryData.overview || summaryData.summary) && (
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-brand-600" />
+                        <span>Overview</span>
+                      </h3>
+                      <p className="text-sm text-slate-800 leading-relaxed">
+                        {summaryData.overview || summaryData.summary}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Key Findings Section */}
-                  {summaryData.keyFindings && summaryData.keyFindings.length > 0 && (
+                  {Array.isArray(summaryData.keyFindings) && summaryData.keyFindings.length > 0 && (
                     <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                         <Check className="w-4 h-4 text-emerald-600" />
                         <span>Key Findings & Insights</span>
                       </h3>
                       <div className="space-y-2.5">
-                        {summaryData.keyFindings.map((findingItem, index) => {
+                        {summaryData.keyFindings.filter(Boolean).map((findingItem, index) => {
                           const findingText =
-                            typeof findingItem === 'string' ? findingItem : findingItem.finding;
+                            typeof findingItem === 'string'
+                              ? findingItem
+                              : (findingItem && typeof findingItem === 'object'
+                                  ? (findingItem as any).finding || (findingItem as any).text || ''
+                                  : '');
                           const pageNum =
-                            typeof findingItem === 'object' ? (findingItem as FindingWithPage).pageNumber : undefined;
+                            findingItem && typeof findingItem === 'object'
+                              ? (findingItem as FindingWithPage).pageNumber
+                              : undefined;
+
+                          if (!findingText) return null;
 
                           return (
                             <div
@@ -606,7 +678,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   )}
 
                   {/* Quantitative Data / Metrics Table */}
-                  {summaryData.importantData && summaryData.importantData.length > 0 && (
+                  {Array.isArray(summaryData.importantData) && summaryData.importantData.length > 0 && (
                     <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                         <Database className="w-4 h-4 text-indigo-600" />
@@ -622,33 +694,35 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {summaryData.importantData.map((d, i) => (
-                              <tr key={i} className="hover:bg-slate-50/80">
-                                <td className="py-2.5 pr-4 font-medium text-slate-800">
-                                  {d.metric}
-                                  {d.context && (
-                                    <span className="block text-[11px] text-slate-400 font-normal">
-                                      {d.context}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-4 font-bold text-brand-700 font-mono">
-                                  {d.value}
-                                </td>
-                                <td className="py-2.5 pl-4 text-right">
-                                  {d.pageNumber ? (
-                                    <button
-                                      onClick={() => handleJumpToPage(d.pageNumber!)}
-                                      className="px-2 py-0.5 bg-slate-100 hover:bg-brand-50 text-slate-600 hover:text-brand-700 rounded text-[10px] font-semibold transition-colors cursor-pointer"
-                                    >
-                                      Page {d.pageNumber}
-                                    </button>
-                                  ) : (
-                                    <span className="text-slate-400">—</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
+                            {summaryData.importantData
+                              .filter((d) => d && typeof d === 'object')
+                              .map((d, i) => (
+                                <tr key={i} className="hover:bg-slate-50/80">
+                                  <td className="py-2.5 pr-4 font-medium text-slate-800">
+                                    {d.metric || 'Metric'}
+                                    {d.context && (
+                                      <span className="block text-[11px] text-slate-400 font-normal">
+                                        {d.context}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-4 font-bold text-brand-700 font-mono">
+                                    {d.value || '—'}
+                                  </td>
+                                  <td className="py-2.5 pl-4 text-right">
+                                    {d.pageNumber ? (
+                                      <button
+                                        onClick={() => handleJumpToPage(d.pageNumber!)}
+                                        className="px-2 py-0.5 bg-slate-100 hover:bg-brand-50 text-slate-600 hover:text-brand-700 rounded text-[10px] font-semibold transition-colors cursor-pointer"
+                                      >
+                                        Page {d.pageNumber}
+                                      </button>
+                                    ) : (
+                                      <span className="text-slate-400">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
                           </tbody>
                         </table>
                       </div>
@@ -656,44 +730,46 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   )}
 
                   {/* Adaptive Domain Sections */}
-                  {summaryData.sections && summaryData.sections.length > 0 && (
+                  {Array.isArray(summaryData.sections) && summaryData.sections.length > 0 && (
                     <div className="space-y-4">
-                      {summaryData.sections.map((section, sIdx) => (
-                        <div
-                          key={sIdx}
-                          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5"
-                        >
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                              {section.title}
-                            </h3>
-                            {section.pageNumber && (
-                              <button
-                                onClick={() => handleJumpToPage(section.pageNumber!)}
-                                className="text-[10px] text-brand-600 hover:underline"
-                              >
-                                Source: Page {section.pageNumber}
-                              </button>
+                      {summaryData.sections
+                        .filter((s) => s && typeof s === 'object')
+                        .map((section, sIdx) => (
+                          <div
+                            key={sIdx}
+                            className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                {section.title || 'Section'}
+                              </h3>
+                              {section.pageNumber && (
+                                <button
+                                  onClick={() => handleJumpToPage(section.pageNumber!)}
+                                  className="text-[10px] text-brand-600 hover:underline"
+                                >
+                                  Source: Page {section.pageNumber}
+                                </button>
+                              )}
+                            </div>
+
+                            {section.content && (
+                              <p className="text-xs text-slate-700 leading-relaxed">
+                                {section.content}
+                              </p>
+                            )}
+
+                            {Array.isArray(section.items) && section.items.length > 0 && (
+                              <ul className="space-y-1.5 pl-4 list-disc text-xs text-slate-700">
+                                {section.items.filter(Boolean).map((it, itemIdx) => (
+                                  <li key={itemIdx} className="leading-relaxed">
+                                    {it}
+                                  </li>
+                                ))}
+                              </ul>
                             )}
                           </div>
-
-                          {section.content && (
-                            <p className="text-xs text-slate-700 leading-relaxed">
-                              {section.content}
-                            </p>
-                          )}
-
-                          {section.items && section.items.length > 0 && (
-                            <ul className="space-y-1.5 pl-4 list-disc text-xs text-slate-700">
-                              {section.items.map((it, itemIdx) => (
-                                <li key={itemIdx} className="leading-relaxed">
-                                  {it}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   )}
 
@@ -746,37 +822,39 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   )}
 
                   {/* Citations List */}
-                  {summaryData.citations && summaryData.citations.length > 0 && (
+                  {Array.isArray(summaryData.citations) && summaryData.citations.length > 0 && (
                     <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-slate-500" />
                         <span>Referenced Document Passages ({summaryData.citations.length})</span>
                       </h4>
                       <div className="space-y-2">
-                        {summaryData.citations.map((c, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => {
-                              if (isWordDoc) {
-                                setActiveTab('pdf');
-                              } else if (c.pageNumber) {
-                                handleJumpToPage(c.pageNumber);
-                              }
-                            }}
-                            className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-slate-700 space-y-1 cursor-pointer transition-colors"
-                            title={c.pageNumber ? `Jump to Page ${c.pageNumber}` : 'View section in document'}
-                          >
-                            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
-                              <span className="truncate">{c.documentName}</span>
-                              <span className="px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-mono text-[10px] border border-brand-200">
-                                {c.pageNumber
-                                  ? `Page ${c.pageNumber}`
-                                  : c.heading || c.section || 'Passage'}
-                              </span>
+                        {summaryData.citations
+                          .filter((c) => c && typeof c === 'object')
+                          .map((c, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                if (isWordDoc) {
+                                  setActiveTab('pdf');
+                                } else if (c.pageNumber) {
+                                  handleJumpToPage(c.pageNumber);
+                                }
+                              }}
+                              className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs text-slate-700 space-y-1 cursor-pointer transition-colors"
+                              title={c.pageNumber ? `Jump to Page ${c.pageNumber}` : 'View section in document'}
+                            >
+                              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                                <span className="truncate">{c.documentName || 'Document'}</span>
+                                <span className="px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-mono text-[10px] border border-brand-200">
+                                  {c.pageNumber
+                                    ? `Page ${c.pageNumber}`
+                                    : c.heading || c.section || 'Passage'}
+                                </span>
+                              </div>
+                              {c.excerpt && <p className="text-slate-500 italic line-clamp-2">"{c.excerpt}"</p>}
                             </div>
-                            <p className="text-slate-500 italic line-clamp-2">"{c.excerpt}"</p>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
                   )}

@@ -77,7 +77,7 @@ export const documentService = {
     const response = await apiClient.post<DocumentSummary & { success: boolean }>(
       `/documents/${id}/summarize`,
       { regenerate },
-      { timeout: 30000 }
+      { timeout: 90000 }
     );
     return response.data;
   },

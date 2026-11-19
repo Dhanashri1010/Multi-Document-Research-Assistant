@@ -605,6 +605,20 @@ export const ResearchPage: React.FC = () => {
             isRegenerating={isRegeneratingSummary}
           />
         )}
+
+        {!summaryData && !loadingSummary && !summaryError && (
+          <div className="p-8 text-center space-y-3">
+            <p className="text-xs text-slate-500">No summary has been generated for this document yet.</p>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => summaryDocId && handleQuickSummarize(summaryDocId, true)}
+              isLoading={isRegeneratingSummary}
+            >
+              Generate Summary Now
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   );
