@@ -41,16 +41,17 @@ function isRetryableError(err: any): boolean {
   );
 }
 
-export function getGeminiFallbackModel(primaryModel: string): string {
+export function getGeminiFallbackModel(primaryModel: string, attempt: number = 1): string {
   const configuredFallback = (config.llmFallbackModel || '').trim();
   const trimmed = (primaryModel || '').trim();
-  if (configuredFallback && configuredFallback !== trimmed) {
+  if (attempt === 1 && configuredFallback && configuredFallback !== trimmed) {
     return configuredFallback;
   }
-  if (trimmed === 'gemini-3.1-flash-lite') return 'gemini-3.5-flash-lite';
-  if (trimmed === 'gemini-3.5-flash-lite') return 'gemini-3.1-flash-lite';
-  if (trimmed.startsWith('gemini-2.0')) return 'gemini-1.5-flash';
-  return 'gemini-3.5-flash-lite';
+  // High-availability fallbacks: gemini-1.5-flash has the highest quota and lowest 503 overload rate
+  if (trimmed === 'gemini-1.5-flash') {
+    return 'gemini-2.5-flash';
+  }
+  return 'gemini-1.5-flash';
 }
 
 export function isOverloadedError(err: any): boolean {
@@ -103,6 +104,9 @@ async function withRetry<T>(
         }
         if (!serverDelayMs && (msg.includes('429') || msg.includes('resource_exhausted') || msg.includes('rate limit'))) {
           serverDelayMs = 15000;
+        }
+        if (!serverDelayMs && (msg.includes('503') || msg.includes('overloaded') || msg.includes('service unavailable'))) {
+          serverDelayMs = Math.round(2500 * Math.pow(1.5, attempt));
         }
 
         const delay = serverDelayMs || (Math.min(1500 * Math.pow(2, attempt), 6000) + Math.floor(Math.random() * 250));
@@ -229,7 +233,7 @@ export class LLMService {
 
           // Automatic model failover on 503 (high traffic/overloaded) or 429
           if (attempt > 0 && isOverloadedError(prevErr)) {
-            const fallback = getGeminiFallbackModel(targetModel);
+            const fallback = getGeminiFallbackModel(targetModel, attempt);
             console.log(`[LLMService] Gemini model "${targetModel}" overloaded. Attempt ${attempt + 1}: failing over to "${fallback}".`);
             targetModel = fallback;
           }
@@ -365,7 +369,7 @@ export class LLMService {
         try {
           const activeModel =
             streamAttempt > 0 && isOverloadedError(lastStreamErr)
-              ? getGeminiFallbackModel(targetModel)
+              ? getGeminiFallbackModel(targetModel, streamAttempt)
               : targetModel;
 
           responseStream = await ai.models.generateContentStream({

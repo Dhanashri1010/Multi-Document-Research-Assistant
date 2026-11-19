@@ -31,8 +31,8 @@ const envSchema = z.object({
   EMBEDDING_API_KEY: z.string().optional(),
 
   LLM_PROVIDER: z.enum(['gemini', 'openai', 'ollama', 'mock']).default('gemini'),
-  LLM_MODEL: z.string().default('gemini-3.1-flash-lite'),
-  LLM_FALLBACK_MODEL: z.string().default('gemini-3.5-flash-lite'),
+  LLM_MODEL: z.string().default('gemini-2.5-flash'),
+  LLM_FALLBACK_MODEL: z.string().default('gemini-1.5-flash'),
   LLM_API_KEY: z.string().optional(),
   OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
 

@@ -31,6 +31,9 @@ export interface IDocument extends MongooseDoc {
   isLowTextDensity?: boolean;
   errorDetails?: string;
   ingestAttempts?: number;
+  embeddedChunkCount?: number;
+  totalChunkCount?: number;
+  processingMessage?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -88,6 +91,9 @@ const DocumentSchema = new Schema<IDocument>(
     },
     errorDetails: { type: String },
     ingestAttempts: { type: Number, default: 0 },
+    embeddedChunkCount: { type: Number, default: 0 },
+    totalChunkCount: { type: Number, default: 0 },
+    processingMessage: { type: String },
   },
   {
     timestamps: true,

@@ -327,7 +327,12 @@ export const DashboardPage: React.FC = () => {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
-                          <ProcessingStatusBadge status={doc.status} />
+                          <ProcessingStatusBadge
+                            status={doc.status}
+                            message={doc.processingMessage}
+                            embeddedChunkCount={doc.embeddedChunkCount}
+                            totalChunkCount={doc.totalChunkCount}
+                          />
                           {doc.status === 'failed' && doc.errorDetails && (
                             <button
                               onClick={() => setSelectedErrorDoc(doc)}
@@ -358,9 +363,20 @@ export const DashboardPage: React.FC = () => {
                             <span>Retry</span>
                           </button>
                         ) : doc.status === 'processing' ? (
-                          <span className="inline-flex items-center gap-1 text-blue-600 font-medium italic">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>Preparing...</span>
+                          <span
+                            className="inline-flex items-center gap-1 text-blue-600 font-medium text-xs italic"
+                            title={doc.processingMessage || undefined}
+                          >
+                            <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                            <span>
+                              {doc.processingMessage
+                                ? doc.processingMessage.length > 24
+                                  ? doc.processingMessage.slice(0, 22) + '...'
+                                  : doc.processingMessage
+                                : doc.totalChunkCount
+                                ? `Embedding ${doc.embeddedChunkCount || 0}/${doc.totalChunkCount}`
+                                : 'Preparing...'}
+                            </span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-amber-600 font-medium italic">

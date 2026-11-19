@@ -82,6 +82,9 @@ export interface IDocument {
   warning?: string;
   isLowTextDensity?: boolean;
   errorDetails?: string;
+  embeddedChunkCount?: number;
+  totalChunkCount?: number;
+  processingMessage?: string;
   title?: string;
   authors?: string[];
   abstract?: string;

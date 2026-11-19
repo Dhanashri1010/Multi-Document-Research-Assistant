@@ -141,7 +141,12 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             </label>
 
             <div className="flex items-center gap-1.5">
-              <ProcessingStatusBadge status={document.status} />
+              <ProcessingStatusBadge
+                status={document.status}
+                message={document.processingMessage}
+                embeddedChunkCount={document.embeddedChunkCount}
+                totalChunkCount={document.totalChunkCount}
+              />
 
               {document.status === 'failed' && (
                 <button
@@ -345,9 +350,17 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           )}
 
           {document.status === 'processing' && (
-            <div className="flex-1 py-1 px-3 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 border border-amber-200">
-              <RefreshCw className="w-3 h-3 animate-spin" />
-              <span>Preparing...</span>
+            <div
+              className="flex-1 py-1 px-3 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 border border-blue-200"
+              title={document.processingMessage || undefined}
+            >
+              <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+              <span className="truncate">
+                {document.processingMessage ||
+                  (document.totalChunkCount
+                    ? `Embedding ${document.embeddedChunkCount || 0}/${document.totalChunkCount}`
+                    : 'Preparing...')}
+              </span>
             </div>
           )}
         </div>

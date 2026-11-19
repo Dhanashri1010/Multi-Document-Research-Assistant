@@ -1,8 +1,13 @@
 import { config } from '../../config/env.js';
+import { EmbeddingThrottleQueue } from './embeddingThrottleQueue.js';
+
+export interface EmbeddingProgressCallback {
+  (embeddedCount: number, totalCount: number, statusMsg?: string): Promise<void> | void;
+}
 
 export interface EmbeddingProvider {
   embedQuery(text: string): Promise<number[]>;
-  embedDocuments(texts: string[]): Promise<number[][]>;
+  embedDocuments(texts: string[], onProgress?: EmbeddingProgressCallback): Promise<number[][]>;
   getDimension(): number;
   getModelName(): string;
   countTokens?(text: string): Promise<number>;
@@ -60,7 +65,7 @@ class LocalEmbeddingProvider implements EmbeddingProvider {
     return Array.from(output.data);
   }
 
-  async embedDocuments(texts: string[]): Promise<number[][]> {
+  async embedDocuments(texts: string[], onProgress?: EmbeddingProgressCallback): Promise<number[][]> {
     const extractor = await this.getExtractor();
     const results: number[][] = [];
     const total = texts.length;
@@ -80,6 +85,10 @@ class LocalEmbeddingProvider implements EmbeddingProvider {
         );
       }
       results.push(vector);
+
+      if (onProgress && ((i + 1) % 5 === 0 || i + 1 === total)) {
+        await onProgress(i + 1, total, `Embedding ${i + 1}/${total} chunks...`);
+      }
 
       // Lightweight diagnostic logging every 10 processed chunks and on final chunk
       if ((i + 1) % 10 === 0 || i + 1 === total) {
@@ -168,11 +177,41 @@ export function isGeminiRetryableError(err: any): boolean {
   );
 }
 
+export function extractGeminiRetryDelayMs(err: any): number {
+  if (!err) return 0;
+
+  // 1. Check Google RPC RetryInfo in error details
+  const retryInfo = err?.details?.find?.(
+    (d: any) => typeof d === 'object' && d['@type']?.includes('RetryInfo')
+  );
+  if (retryInfo?.retryDelay) {
+    const s = parseFloat(String(retryInfo.retryDelay).replace('s', ''));
+    if (!isNaN(s) && s > 0) return Math.ceil(s * 1000);
+  }
+
+  // 2. Check error message for "retry in ~30s" or "retry after 30s"
+  const msg = String(err?.message || '');
+  const match = msg.match(/retry\s+(?:in|after)\s*~?\s*(\d+(?:\.\d+)?)\s*s/i);
+  if (match && match[1]) {
+    const s = parseFloat(match[1]);
+    if (!isNaN(s) && s > 0) return Math.ceil(s * 1000);
+  }
+
+  // 3. Status 429 default to 30 seconds
+  const status = err?.status || err?.statusCode || err?.response?.status;
+  if (status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return 30_000;
+  }
+
+  return 0;
+}
+
 export async function withGeminiRetry<T>(
   fn: () => Promise<T>,
   operationName: string,
-  maxRetries: number = 3,
-  baseDelayMs: number = 2000
+  maxRetries: number = 5,
+  baseDelayMs: number = 2000,
+  onProgress?: (msg: string) => Promise<void> | void
 ): Promise<T> {
   let attempt = 0;
   while (true) {
@@ -183,13 +222,38 @@ export async function withGeminiRetry<T>(
         throw err;
       }
       attempt++;
-      // Exponential backoff: ~2s, ~4s, ~8s with random jitter (0 to 500ms)
-      const delay = Math.round(baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500);
+
+      const serverDelayMs = extractGeminiRetryDelayMs(err);
+      const isRateLimit = err?.status === 429 || String(err?.message || '').includes('429') || serverDelayMs > 0;
+
+      let delayMs: number;
+      if (isRateLimit) {
+        if (baseDelayMs <= 100 || process.env.NODE_ENV === 'test') {
+          delayMs = baseDelayMs;
+        } else {
+          const base = serverDelayMs > 0 ? serverDelayMs : 30_000;
+          delayMs = base + Math.floor(Math.random() * 2000);
+          // Pause the global throttle queue so concurrent uploads/queries back off
+          EmbeddingThrottleQueue.pause(delayMs, 'Gemini 429 rate limit backoff');
+        }
+      } else {
+        delayMs = Math.round(baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500);
+      }
+
+      const waitSec = Math.ceil(delayMs / 1000);
       const safeErrorMsg = sanitizeErrorMessage(err?.message || String(err));
       console.warn(
-        `[GeminiEmbeddingProvider] ${operationName} failed (attempt ${attempt}/${maxRetries}): ${safeErrorMsg}. Retrying in ${delay}ms...`
+        `[GeminiEmbeddingProvider] ${operationName} failed (attempt ${attempt}/${maxRetries}): ${safeErrorMsg}. Retrying in ${waitSec}s...`
       );
-      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+
+      if (onProgress) {
+        const msg = isRateLimit
+          ? `Waiting for Gemini rate limit, retrying in ${waitSec}s...`
+          : `AI service temporarily unavailable, retrying in ${waitSec}s (attempt ${attempt}/${maxRetries})...`;
+        await onProgress(msg);
+      }
+
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }
@@ -208,16 +272,20 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
   ) {
     this.apiKey = apiKey;
     this.model = model || 'gemini-embedding-001';
-    this.maxRetries = options?.maxRetries ?? 3;
+    this.maxRetries = options?.maxRetries ?? 5;
     this.baseDelayMs = options?.baseDelayMs ?? 2000;
   }
 
   async embedQuery(text: string): Promise<number[]> {
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
+    const tokenEstimate = EmbeddingThrottleQueue.estimateTokens(text);
 
     return withGeminiRetry(
       async () => {
+        // Enforce global rate limit / queue spacing
+        await EmbeddingThrottleQueue.acquire(tokenEstimate);
+
         const result = await ai.models.embedContent({
           model: this.model,
           contents: text,
@@ -241,22 +309,43 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
     );
   }
 
-  async embedDocuments(texts: string[]): Promise<number[][]> {
+  async embedDocuments(texts: string[], onProgress?: EmbeddingProgressCallback): Promise<number[][]> {
     if (texts.length === 0) return [];
 
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
 
     const results: number[][] = [];
-    const batchSize = 64; // Batch requests to avoid one HTTP call per chunk
+    const batchSize = 30; // Max 30 chunks per call (~10k tokens) to stay well under the 20K TPM limit
+    const total = texts.length;
 
-    for (let i = 0; i < texts.length; i += batchSize) {
+    for (let i = 0; i < total; i += batchSize) {
       const batch = texts.slice(i, i + batchSize);
       const batchIndex = Math.floor(i / batchSize) + 1;
-      const totalBatches = Math.ceil(texts.length / batchSize);
+      const totalBatches = Math.ceil(total / batchSize);
+      const tokenEstimate = EmbeddingThrottleQueue.estimateTokens(batch);
 
       const batchVectors = await withGeminiRetry(
         async () => {
+          // Acquire capacity from global throttle queue
+          await EmbeddingThrottleQueue.acquire(tokenEstimate, async (waitSec, reason) => {
+            if (onProgress) {
+              await onProgress(
+                results.length,
+                total,
+                `Waiting for Gemini rate limit (${reason}), resuming in ${waitSec}s...`
+              );
+            }
+          });
+
+          if (onProgress) {
+            await onProgress(
+              results.length,
+              total,
+              `Embedding ${results.length}/${total} chunks...`
+            );
+          }
+
           const res = await ai.models.embedContent({
             model: this.model,
             contents: batch,
@@ -287,11 +376,24 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
         },
         `embedDocuments batch ${batchIndex}/${totalBatches}`,
         this.maxRetries,
-        this.baseDelayMs
+        this.baseDelayMs,
+        async (msg: string) => {
+          if (onProgress) {
+            await onProgress(results.length, total, msg);
+          }
+        }
       );
 
       for (const vec of batchVectors) {
         results.push(vec);
+      }
+
+      if (onProgress) {
+        await onProgress(
+          results.length,
+          total,
+          `Embedding ${results.length}/${total} chunks...`
+        );
       }
     }
 
