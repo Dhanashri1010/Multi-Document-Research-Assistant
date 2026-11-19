@@ -5,7 +5,7 @@ export type DocumentFileType = 'pdf' | 'docx' | 'doc' | 'txt';
 
 export interface IDocument extends MongooseDoc {
   userId?: mongoose.Types.ObjectId;
-  storageProvider?: 'local' | 'supabase';
+  storageProvider?: 'local' | 'supabase' | 'gridfs';
   storagePath?: string;
   filename: string;
   originalName: string;
@@ -37,7 +37,7 @@ export interface IDocument extends MongooseDoc {
 const DocumentSchema = new Schema<IDocument>(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
-    storageProvider: { type: String, enum: ['local', 'supabase'], default: 'local' },
+    storageProvider: { type: String, enum: ['local', 'supabase', 'gridfs'], default: 'local' },
     storagePath: { type: String },
     filename: { type: String, required: true },
     originalName: { type: String, required: true },

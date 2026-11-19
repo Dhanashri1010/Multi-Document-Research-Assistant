@@ -3,6 +3,7 @@ import path from 'path';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../../config/env.js';
 import { IDocument } from '../../models/Document.js';
+import { uploadToGridFS, downloadFromGridFS, deleteFromGridFS } from './gridfsStorage.js';
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -91,7 +92,7 @@ export class StorageService {
   }
 
   /**
-   * Saves an uploaded document buffer to Supabase (if configured) and/or local disk.
+   * Saves an uploaded document buffer to Supabase (if configured), MongoDB GridFS (durable), or local disk.
    */
   static async saveDocumentFile(
     fileBuffer: Buffer,
@@ -99,7 +100,7 @@ export class StorageService {
     userId: string,
     documentId: string,
     mimeType: string
-  ): Promise<{ storageProvider: 'supabase' | 'local'; storagePath: string; localPath: string }> {
+  ): Promise<{ storageProvider: 'supabase' | 'local' | 'gridfs'; storagePath: string; localPath: string }> {
     const uploadDir = path.resolve(process.cwd(), config.uploadDir);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -109,50 +110,66 @@ export class StorageService {
     const localFilename = `${Date.now()}-${documentId}-${sanitized}`;
     const localPath = path.join(uploadDir, localFilename);
 
-    // Always write to local path for extraction worker
+    // Always write to local path for immediate extraction worker
     await fs.promises.writeFile(localPath, fileBuffer);
 
-    const isCloudRequired = config.storageProvider === 'supabase' || config.nodeEnv === 'production';
     const supabase = getSupabaseClient();
 
-    if (supabase) {
-      try {
-        await this.ensureBucket();
-        const cloudPath = `${userId}/${documentId}-${sanitized}`;
+    // 1. Supabase Storage (if configured)
+    if (config.storageProvider === 'supabase') {
+      if (supabase) {
+        try {
+          await this.ensureBucket();
+          const cloudPath = `${userId}/${documentId}-${sanitized}`;
 
-        const { error } = await supabase.storage
-          .from(config.supabaseBucket)
-          .upload(cloudPath, fileBuffer, {
-            contentType: mimeType,
-            upsert: true,
-          });
+          const { error } = await supabase.storage
+            .from(config.supabaseBucket)
+            .upload(cloudPath, fileBuffer, {
+              contentType: mimeType,
+              upsert: true,
+            });
 
-        if (!error) {
-          console.log(`[StorageService] Uploaded document to Supabase Storage: "${cloudPath}"`);
-          return {
-            storageProvider: 'supabase',
-            storagePath: cloudPath,
-            localPath,
-          };
-        } else {
-          console.warn(`[StorageService] Supabase upload error: ${error.message}.`);
-          if (isCloudRequired) {
+          if (!error) {
+            console.log(`[StorageService] Uploaded document to Supabase Storage: "${cloudPath}"`);
+            return {
+              storageProvider: 'supabase',
+              storagePath: cloudPath,
+              localPath,
+            };
+          } else {
+            console.warn(`[StorageService] Supabase upload error: ${error.message}.`);
             await fs.promises.unlink(localPath).catch(() => {});
-            throw new Error(`Persistent cloud storage upload failed: ${error.message}. Cloud storage is required in production to prevent ephemeral file loss.`);
+            throw new Error(`Persistent cloud storage upload failed: ${error.message}.`);
           }
-        }
-      } catch (cloudErr: any) {
-        console.warn(`[StorageService] Supabase storage exception: ${cloudErr.message}.`);
-        if (isCloudRequired) {
+        } catch (cloudErr: any) {
+          console.warn(`[StorageService] Supabase storage exception: ${cloudErr.message}.`);
           await fs.promises.unlink(localPath).catch(() => {});
           throw cloudErr;
         }
+      } else {
+        await fs.promises.unlink(localPath).catch(() => {});
+        throw new Error(
+          'Cloud storage is required in production (SUPABASE_URL and SUPABASE_SERVICE_KEY). Ephemeral disk fallback is disabled to prevent data loss.'
+        );
       }
-    } else if (isCloudRequired) {
-      await fs.promises.unlink(localPath).catch(() => {});
-      throw new Error(
-        'Cloud storage is required in production (SUPABASE_URL and SUPABASE_SERVICE_KEY). Ephemeral disk fallback is disabled to prevent data loss.'
-      );
+    }
+
+    // 2. MongoDB GridFS (durable storage across Render container restarts, zero extra credentials)
+    if (config.storageProvider === 'gridfs') {
+      try {
+        const gridFsId = await uploadToGridFS(
+          `${documentId}-${sanitized}`,
+          fileBuffer,
+          mimeType
+        );
+        return {
+          storageProvider: 'gridfs',
+          storagePath: gridFsId,
+          localPath,
+        };
+      } catch (gridErr: any) {
+        console.warn(`[StorageService] GridFS upload error: ${gridErr.message}. Falling back to local disk.`);
+      }
     }
 
     return {
@@ -171,7 +188,16 @@ export class StorageService {
       return fs.promises.readFile(doc.filePath);
     }
 
-    // 2. Fetch from Supabase if stored in cloud
+    // 2. Fetch from MongoDB GridFS if stored in database
+    if (doc.storageProvider === 'gridfs' && doc.storagePath) {
+      try {
+        return await downloadFromGridFS(doc.storagePath);
+      } catch (gridErr: any) {
+        console.warn(`[StorageService] GridFS download failed for ${doc.originalName}: ${gridErr.message}`);
+      }
+    }
+
+    // 3. Fetch from Supabase if stored in cloud
     if (doc.storageProvider === 'supabase' && doc.storagePath) {
       const supabase = getSupabaseClient();
       if (supabase) {
@@ -187,13 +213,18 @@ export class StorageService {
       }
     }
 
-    throw new Error(`Document file not found on disk or cloud storage (${doc.originalName}).`);
+    throw new Error(`Document file not found on disk, GridFS, or cloud storage (${doc.originalName}).`);
   }
 
   /**
-   * Deletes a document file from cloud storage and local disk.
+   * Deletes a document file from cloud storage, GridFS, and local disk.
    */
   static async deleteDocumentFile(doc: IDocument): Promise<void> {
+    // Delete from MongoDB GridFS
+    if (doc.storageProvider === 'gridfs' && doc.storagePath) {
+      await deleteFromGridFS(doc.storagePath);
+    }
+
     // Delete from Supabase
     if (doc.storageProvider === 'supabase' && doc.storagePath) {
       const supabase = getSupabaseClient();

@@ -3,21 +3,27 @@ import { connectDB, disconnectDB } from './config/db.js';
 import { config } from './config/env.js';
 import { getEmbeddingProvider } from './services/ai/embeddingService.js';
 import { DocumentModel } from './models/Document.js';
+import { IngestionService } from './services/documents/ingestionService.js';
 
 async function startServer() {
   await connectDB();
 
-  // Reset any zombie ingestion states from previous crashes or restarts
+  // Auto-recover and resume any interrupted document ingestion from previous crashes or restarts
   try {
-    const updated = await DocumentModel.updateMany(
-      { status: 'processing' },
-      { status: 'failed', errorDetails: 'Server restarted while processing. Please retry ingestion.' }
-    );
-    if (updated.modifiedCount > 0) {
-      console.log(`[Server] Reset ${updated.modifiedCount} zombie processing document(s) to failed.`);
+    const interruptedDocs = await DocumentModel.find({ status: 'processing' });
+    if (interruptedDocs.length > 0) {
+      console.log(`[Server] Found ${interruptedDocs.length} interrupted document(s). Auto-resuming ingestion queue...`);
+      for (const doc of interruptedDocs) {
+        doc.status = 'uploaded';
+        doc.errorDetails = undefined;
+        await doc.save();
+        IngestionService.queueDocument(doc._id).catch((err) => {
+          console.error(`[Server] Auto-resume failed for document ${doc._id}:`, err);
+        });
+      }
     }
   } catch (cleanErr) {
-    console.warn('[Server] Failed to clean up zombie processing documents:', cleanErr);
+    console.warn('[Server] Failed to recover interrupted processing documents:', cleanErr);
   }
 
   const app = createApp();

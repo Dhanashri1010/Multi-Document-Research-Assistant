@@ -20,8 +20,8 @@ const envSchema = z.object({
   // User Authentication
   JWT_SECRET: z.string().default('multi-doc-assistant-secure-jwt-secret-key-2026'),
 
-  // Cloud Storage (Supabase)
-  STORAGE_PROVIDER: z.enum(['local', 'supabase']).default('local'),
+  // Storage (Local, Supabase, or MongoDB GridFS for persistent free storage)
+  STORAGE_PROVIDER: z.enum(['local', 'supabase', 'gridfs']).default('gridfs'),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_KEY: z.string().optional(),
   SUPABASE_BUCKET: z.string().default('documents'),
@@ -31,15 +31,16 @@ const envSchema = z.object({
   EMBEDDING_API_KEY: z.string().optional(),
 
   LLM_PROVIDER: z.enum(['gemini', 'openai', 'ollama', 'mock']).default('gemini'),
-  LLM_MODEL: z.string().default('gemini-3.5-flash-lite'),
+  LLM_MODEL: z.string().default('gemini-3.1-flash-lite'),
+  LLM_FALLBACK_MODEL: z.string().default('gemini-3.5-flash-lite'),
   LLM_API_KEY: z.string().optional(),
   OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
 
   CHUNK_TARGET_TOKENS: z.coerce.number().int().positive().default(380),
   CHUNK_OVERLAP_TOKENS: z.coerce.number().int().nonnegative().default(60),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
-  LLM_MAX_RETRIES: z.coerce.number().int().nonnegative().default(2),
-  COMPARE_TIMEOUT_MS: z.coerce.number().int().positive().default(65000),
+  LLM_MAX_RETRIES: z.coerce.number().int().nonnegative().default(3),
+  COMPARE_TIMEOUT_MS: z.coerce.number().int().positive().default(75000),
   PRE_LLM_COSINE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.28),
   RERANKER: z.enum(['on', 'off']).default('off'),
 }).refine(
@@ -101,6 +102,7 @@ export const config = {
 
   llmProvider: env.LLM_PROVIDER,
   llmModel: env.LLM_MODEL,
+  llmFallbackModel: env.LLM_FALLBACK_MODEL,
   llmApiKey: env.LLM_API_KEY || '',
   ollamaBaseUrl: env.OLLAMA_BASE_URL,
 

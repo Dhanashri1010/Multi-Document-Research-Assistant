@@ -97,30 +97,45 @@ export class IngestionService {
 
       console.log(`[Ingestion] Starting ingestion for: "${doc.originalName}" (${doc._id}) [reprocessing=${isReprocessing}]`);
 
-      // If local file is missing but exists in cloud storage (e.g. after container restart / redeploy on Render), restore from storage
-      if ((!doc.filePath || !fs.existsSync(doc.filePath)) && doc.storageProvider === 'supabase' && doc.storagePath) {
-        try {
-          console.log(`[Ingestion] Local file missing for "${doc.originalName}". Restoring buffer from cloud storage...`);
-          const downloadStartTime = performance.now();
-          const buffer = await StorageService.getDocumentBuffer(doc);
-          const uploadDir = path.resolve(process.cwd(), config.uploadDir);
-          if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-          }
-          const restoredName = `${Date.now()}-${doc._id}-${doc.originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-          const restoredPath = path.join(uploadDir, restoredName);
-          await fs.promises.writeFile(restoredPath, buffer);
-          doc.filePath = restoredPath;
+      // Locate physical file on disk, resolve relative upload paths, or restore from storage
+      const uploadDir = path.resolve(process.cwd(), config.uploadDir);
+      let resolvedPath = doc.filePath || '';
+
+      if (!resolvedPath || !fs.existsSync(resolvedPath)) {
+        const candidate1 = doc.filePath ? path.join(uploadDir, path.basename(doc.filePath)) : '';
+        const candidate2 = doc.filename ? path.join(uploadDir, doc.filename) : '';
+        if (candidate1 && fs.existsSync(candidate1)) {
+          resolvedPath = candidate1;
+          doc.filePath = resolvedPath;
           await doc.save();
-          const downloadDuration = Math.round(performance.now() - downloadStartTime);
-          console.log(`[Ingestion:Timing] Supabase download completed in ${downloadDuration}ms (${buffer.length} bytes)`);
-        } catch (restoreErr: any) {
-          console.warn(`[Ingestion] Could not restore buffer from storage: ${restoreErr.message}`);
+        } else if (candidate2 && fs.existsSync(candidate2)) {
+          resolvedPath = candidate2;
+          doc.filePath = resolvedPath;
+          await doc.save();
+        } else if ((doc.storageProvider === 'gridfs' || doc.storageProvider === 'supabase') && doc.storagePath) {
+          try {
+            console.log(`[Ingestion] Local file missing for "${doc.originalName}". Restoring buffer from ${doc.storageProvider}...`);
+            const downloadStartTime = performance.now();
+            const buffer = await StorageService.getDocumentBuffer(doc);
+            if (!fs.existsSync(uploadDir)) {
+              fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            const restoredName = `${Date.now()}-${doc._id}-${doc.originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+            const restoredPath = path.join(uploadDir, restoredName);
+            await fs.promises.writeFile(restoredPath, buffer);
+            resolvedPath = restoredPath;
+            doc.filePath = restoredPath;
+            await doc.save();
+            const downloadDuration = Math.round(performance.now() - downloadStartTime);
+            console.log(`[Ingestion:Timing] ${doc.storageProvider} download completed in ${downloadDuration}ms (${buffer.length} bytes)`);
+          } catch (restoreErr: any) {
+            console.warn(`[Ingestion] Could not restore buffer from storage: ${restoreErr.message}`);
+          }
         }
       }
 
       // 1. Text Extraction (Route by format: DOCX, DOC, TXT, PDF)
-      const ext = path.extname(doc.filePath).toLowerCase();
+      const ext = path.extname(resolvedPath).toLowerCase();
       const isDocx = ext === '.docx' || doc.fileType === 'docx';
       const isDoc = ext === '.doc' || doc.fileType === 'doc';
       const isWordDoc = isDocx || isDoc;
@@ -128,12 +143,12 @@ export class IngestionService {
 
       const extractionStartTime = performance.now();
       let extraction: ExtractionResult | null = isDocx
-        ? await extractDocx(doc.filePath)
+        ? await extractDocx(resolvedPath)
         : isDoc
-        ? await extractDoc(doc.filePath)
+        ? await extractDoc(resolvedPath)
         : isTxt
-        ? await extractTxt(doc.filePath)
-        : await extractPdf(doc.filePath);
+        ? await extractTxt(resolvedPath)
+        : await extractPdf(resolvedPath);
 
       const hasReadableText = isWordDoc
         ? Boolean(extraction.blocks && extraction.blocks.length > 0 && extraction.fullText.trim().length > 0)

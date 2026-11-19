@@ -41,8 +41,35 @@ function isRetryableError(err: any): boolean {
   );
 }
 
+export function getGeminiFallbackModel(primaryModel: string): string {
+  const configuredFallback = (config.llmFallbackModel || '').trim();
+  const trimmed = (primaryModel || '').trim();
+  if (configuredFallback && configuredFallback !== trimmed) {
+    return configuredFallback;
+  }
+  if (trimmed === 'gemini-3.1-flash-lite') return 'gemini-3.5-flash-lite';
+  if (trimmed === 'gemini-3.5-flash-lite') return 'gemini-3.1-flash-lite';
+  if (trimmed.startsWith('gemini-2.0')) return 'gemini-1.5-flash';
+  return 'gemini-3.5-flash-lite';
+}
+
+export function isOverloadedError(err: any): boolean {
+  if (!err) return false;
+  const status = err.status || err.statusCode || err.response?.status;
+  const msg = String(err.message || '').toLowerCase();
+  return (
+    status === 503 ||
+    status === 429 ||
+    msg.includes('503') ||
+    msg.includes('overloaded') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('rate limit') ||
+    msg.includes('temporarily unavailable')
+  );
+}
+
 async function withRetry<T>(
-  fn: () => Promise<T>,
+  fn: (attempt: number, prevErr: any) => Promise<T>,
   timeoutMs: number,
   maxRetries: number
 ): Promise<T> {
@@ -58,7 +85,7 @@ async function withRetry<T>(
         }, timeoutMs);
       });
 
-      const result = await Promise.race([fn(), timeoutPromise]);
+      const result = await Promise.race([fn(attempt, lastError), timeoutPromise]);
       if (timer) clearTimeout(timer);
       return result;
     } catch (err: any) {
@@ -187,7 +214,7 @@ export class LLMService {
     }
 
     return withRetry(
-      async () => {
+      async (attempt: number, prevErr: any) => {
         if (provider === 'gemini') {
           const { GoogleGenAI } = await import('@google/genai');
           const ai = new GoogleGenAI({
@@ -195,9 +222,16 @@ export class LLMService {
             httpOptions: { timeout: Math.max(10000, timeoutMs) },
           });
 
-          const targetModel = (model || '').trim();
+          let targetModel = (model || '').trim();
           if (!targetModel) {
             throw new Error('LLM_MODEL is not configured in backend/.env.');
+          }
+
+          // Automatic model failover on 503 (high traffic/overloaded) or 429
+          if (attempt > 0 && isOverloadedError(prevErr)) {
+            const fallback = getGeminiFallbackModel(targetModel);
+            console.log(`[LLMService] Gemini model "${targetModel}" overloaded. Attempt ${attempt + 1}: failing over to "${fallback}".`);
+            targetModel = fallback;
           }
 
           try {
@@ -322,14 +356,20 @@ export class LLMService {
       });
       const targetModel = (model || '').trim();
 
-      const maxRetries = options.maxRetries ?? config.llmMaxRetries ?? 2;
+      const maxRetries = options.maxRetries ?? config.llmMaxRetries ?? 3;
       let responseStream: any = null;
       let streamAttempt = 0;
+      let lastStreamErr: any = null;
 
       while (streamAttempt <= maxRetries) {
         try {
+          const activeModel =
+            streamAttempt > 0 && isOverloadedError(lastStreamErr)
+              ? getGeminiFallbackModel(targetModel)
+              : targetModel;
+
           responseStream = await ai.models.generateContentStream({
-            model: targetModel,
+            model: activeModel,
             contents: prompt,
             config: {
               systemInstruction: options.systemPrompt,
@@ -339,6 +379,7 @@ export class LLMService {
           });
           break;
         } catch (streamInitErr: any) {
+          lastStreamErr = streamInitErr;
           if (streamAttempt < maxRetries && isRetryableError(streamInitErr)) {
             const delay = Math.min(1500 * Math.pow(2, streamAttempt), 6000) + Math.floor(Math.random() * 250);
             console.warn(
