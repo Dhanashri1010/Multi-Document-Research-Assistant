@@ -12,6 +12,7 @@ import { ResearchPage } from './pages/ResearchPage.js';
 import { ComparePage } from './pages/ComparePage.js';
 import { WorkflowGuidePage } from './pages/WorkflowGuidePage.js';
 import { NlpLabPage } from './pages/NlpLabPage.js';
+import { RubricCoveragePage } from './pages/RubricCoveragePage.js';
 
 export function App() {
   return (
@@ -67,6 +68,8 @@ export function App() {
               />
               {/* Technical Workflow & Architecture Guide (Public for mentors and evaluators) */}
               <Route path="/workflow-guide" element={<WorkflowGuidePage />} />
+              {/* Comprehensive NLP Course Rubric Coverage Dashboard */}
+              <Route path="/rubric-coverage" element={<RubricCoveragePage />} />
 
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

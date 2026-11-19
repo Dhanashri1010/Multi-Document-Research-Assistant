@@ -19,6 +19,9 @@ import {
   Zap,
   BookOpen,
   FileCheck2,
+  Award,
+  Globe,
+  Network,
 } from 'lucide-react';
 
 export const WorkflowGuidePage: React.FC = () => {
@@ -36,6 +39,7 @@ export const WorkflowGuidePage: React.FC = () => {
     { id: 'workflow', label: '2. Workflow & Pipeline', icon: Layers },
     { id: 'technologies', label: '3. Tech Stack & Uses', icon: Cpu },
     { id: 'algorithms', label: '4. Algorithms & NLP', icon: Binary },
+    { id: 'rubric-alignment', label: '5. NLP Rubric (CO1-CO4)', icon: Award },
   ];
 
   return (
@@ -1052,6 +1056,115 @@ export const WorkflowGuidePage: React.FC = () => {
                     Context: [Doc1, P.4: F1 was 92.1%] ... Output: F1 was 92.1% [Doc1, P.4]&quot;
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================== */}
+        {/* SECTION 5: NLP COURSE RUBRIC ALIGNMENT (CO1 - CO4) */}
+        {/* ========================================== */}
+        <section id="rubric-alignment" className="scroll-mt-32">
+          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold mb-2">
+                <Award className="w-3.5 h-3.5" />
+                <span>Section 5 · 30 Marks Demonstration</span>
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                NLP Course Outcomes Alignment (CO1 to CO4)
+              </h2>
+              <p className="text-sm text-slate-600 mt-1 max-w-3xl">
+                Demonstrable mapping of all 4 NLP Course Demonstration rubric requirements with real, working algorithms and interactive telemetry in the NLP Laboratory.
+              </p>
+            </div>
+            <Link
+              to="/rubric-coverage"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors shrink-0"
+            >
+              <Award className="w-4 h-4" />
+              <span>Open 30/30 Compliance Dashboard</span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* CO1 Card */}
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                  CO1 (7 Marks)
+                </span>
+                <span className="text-xs font-semibold text-emerald-600">Verified & Working</span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Text Extraction, Preprocessing, Cleaning & Vectorization
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Extracts PDF, DOCX, and TXT with low-density scanned document warning (<20 chars/page). Features an 8-step selectable preprocessing pipeline with character and token reduction metrics, alongside TF-IDF term frequency and pairwise cosine similarity matrices.
+              </p>
+              <div className="text-[11px] font-mono text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                UI: NLP Lab → Preprocessing & Vectorization<br />
+                Backend: nlpPreprocessingService.ts, nlpVectorizationService.ts
+              </div>
+            </div>
+
+            {/* CO2 Card */}
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold px-2.5 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                  CO2 (8 Marks)
+                </span>
+                <span className="text-xs font-semibold text-emerald-600">Verified & Working</span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Sentiment Analysis, Information Extraction & Evaluation
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Dual-method sentiment analysis comparing AFINN-165 rule-based lexicon vs Gemini 3.1 Flash Lite. 7-entity scientific NER with RAKE keyphrases. Evaluated against gold-standard datasets reporting Accuracy, Macro P/R/F1, and custom 3x3 Confusion Matrices.
+              </p>
+              <div className="text-[11px] font-mono text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                UI: NLP Lab → Sentiment & Extraction & Evaluation<br />
+                Backend: nlpSentimentService.ts, nlpEvaluationService.ts
+              </div>
+            </div>
+
+            {/* CO3 Card */}
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold px-2.5 py-1 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                  CO3 (7 Marks)
+                </span>
+                <span className="text-xs font-semibold text-emerald-600">BOTH Implemented (Topic Modeling + Multilingual)</span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Topic Modeling & Multilingual NLP (Cloud + Local)
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                K-Means clustering on existing 768d embeddings with Silhouette auto-k selection, c-TF-IDF keyword extraction, and 2D PCA scatter plot. Multilingual franc language identification (distinguishing Marathi vs Hindi), Google Cloud Translation REST API, and cross-lingual grounded QA.
+              </p>
+              <div className="text-[11px] font-mono text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                UI: NLP Lab → Topic Modeling & Multilingual NLP<br />
+                Backend: nlpTopicService.ts, nlpMultilingualService.ts
+              </div>
+            </div>
+
+            {/* CO4 Card */}
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  CO4 (8 Marks)
+                </span>
+                <span className="text-xs font-semibold text-emerald-600">Verified & Working</span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Generative AI, Prompt Engineering & Multi-Doc Synthesis
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Versioned Prompt Engineering Library (8 templates with rationales). Prompt Playground comparing Zero-Shot vs Few-Shot vs Chain-of-Thought with token and latency tracking. Multi-document literature review generator synthesizing contradictions across papers with page citations.
+              </p>
+              <div className="text-[11px] font-mono text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                UI: NLP Lab → Prompt Playground & Research Workspace<br />
+                Backend: prompts/index.ts, nlpLiteratureReviewService.ts
               </div>
             </div>
           </div>

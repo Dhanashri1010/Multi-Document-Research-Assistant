@@ -8,6 +8,7 @@ import {
   FlaskConical,
   BookOpenCheck,
   GraduationCap,
+  Award,
   LogOut,
   LogIn,
 } from 'lucide-react';
@@ -97,14 +98,31 @@ export const Sidebar: React.FC = () => {
         ))}
 
         {/* Project Workflow & Technology Guide Link */}
-        <div className="pt-4">
+        <div className="pt-4 space-y-1">
           <div className="px-3 mb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            Documentation
+            Evaluation & Guide
           </div>
+          <NavLink
+            to="/rubric-coverage"
+            className={({ isActive }) =>
+              `flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30 font-semibold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`
+            }
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Award className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span className="text-xs font-semibold leading-tight line-clamp-2">
+                Rubric Compliance (30/30)
+              </span>
+            </div>
+          </NavLink>
           <NavLink
             to="/workflow-guide"
             className={({ isActive }) =>
-              `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              `flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 isActive
                   ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30 font-semibold'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -114,7 +132,7 @@ export const Sidebar: React.FC = () => {
             <div className="flex items-center gap-2.5 min-w-0">
               <GraduationCap className="w-4 h-4 shrink-0 text-brand-400" />
               <span className="text-xs font-semibold leading-tight line-clamp-2">
-                Project Workflow & Technology Guide
+                Project Workflow & Architecture
               </span>
             </div>
           </NavLink>

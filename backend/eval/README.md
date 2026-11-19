@@ -1,12 +1,12 @@
-# NLP Course Benchmark Gold Datasets: Review & Correction Guide
+# NLP Course Benchmark Gold Datasets: Evaluator Audit & Review Guide
 
-This directory contains the hand-labeled gold standard datasets used to compute empirical evaluation metrics (Accuracy, Macro Precision, Macro Recall, Macro F1, and 3x3 Confusion Matrices) for **Course Outcome 2 (CO2)**.
+This directory contains the hand-labeled gold standard datasets used to compute empirical evaluation metrics (Accuracy, Macro Precision, Macro Recall, Macro F1, and 3x3 Confusion Matrices) for **Course Outcome 2 (CO2)** of the NLP Course Demonstration.
 
 ---
 
 ## 1. Sentiment Gold Dataset (`backend/eval/sentiment_gold.json`)
 
-### File Format
+### File Format & Construction
 Contains 52 balanced research and scientific sentences. Each entry has:
 ```json
 {
@@ -17,23 +17,24 @@ Contains 52 balanced research and scientific sentences. Each entry has:
 ```
 
 ### Labeling Criteria
-- **`positive`**: Sentences expressing breakthrough results, state-of-the-art accuracy, significant speedups, impressive memory reduction, or successful validation.
+- **`positive`**: Sentences expressing breakthrough results, state-of-the-art accuracy, significant speedups, impressive memory reduction, or successful experimental validation.
 - **`neutral`**: Factual statements describing experimental setups, parameters, datasets, numbers of GPUs, preprocessing steps, or architectural diagrams without emotional valence.
 - **`negative`**: Sentences reporting failure modes, Out-Of-Memory crashes, high latency, prompt-injection vulnerabilities, hallucinations, severe bias, or catastrophic errors.
 
-### How to Review and Correct
-1. Open `backend/eval/sentiment_gold.json`.
-2. Inspect any sentence whose label you disagree with.
-3. Change the `"gold"` field to `"positive"`, `"neutral"`, or `"negative"`.
-4. Save the file.
-5. In the UI under `/nlp-lab` -> **Evaluation Benchmark**, click **"Run Evaluation"** to re-compute the confusion matrices and metrics against your revised annotations.
+### Evaluation Metrics Calculated
+1. **Accuracy**: Total correct predictions divided by 52 test sentences.
+2. **Macro Precision**: Unweighted mean of precision across Positive, Neutral, and Negative classes.
+3. **Macro Recall**: Unweighted mean of recall across Positive, Neutral, and Negative classes.
+4. **Macro F1**: Harmonic mean of Macro Precision and Macro Recall:
+   $$\text{Macro } F_1 = 2 \cdot \frac{\text{Macro Precision} \cdot \text{Macro Recall}}{\text{Macro Precision} + \text{Macro Recall}}$$
+5. **3x3 Confusion Matrix**: Full distribution grid displaying True Positive, False Positive, and False Negative counts for each pairwise class transition.
 
 ---
 
 ## 2. Named Entity Recognition (NER) Gold Dataset (`backend/eval/entities_gold.json`)
 
-### File Format
-Contains 21 scientific passages annotated with ground-truth entities. Each entry has:
+### File Format & Construction
+Contains 21 scientific passages annotated with ground-truth scientific entities:
 ```json
 {
   "id": 1,
@@ -48,23 +49,33 @@ Contains 21 scientific passages annotated with ground-truth entities. Each entry
 }
 ```
 
-### Allowed Entity Types
-- `PERSON`: Human researchers, authors, inventors (e.g. *John Smith*, *Alice Brown*).
-- `ORG`: Universities, corporations, institutes, consortia (e.g. *Google DeepMind*, *Stanford*, *MIT*, *OpenAI*).
-- `DATASET`: Benchmarks, corpora, test sets (e.g. *SQuAD*, *GLUE*, *ImageNet*, *MS MARCO*).
-- `METRIC`: Quantitative evaluation measurements (e.g. *Accuracy*, *F1-score*, *BLEU*, *Perplexity*, *Latency*).
-- `MODEL`: Architectures and algorithms (e.g. *BERT*, *Transformer*, *GPT-4*, *LLaMA*, *ResNet*).
-- `DATE`: Publication years, calendar dates, months (e.g. *2024*, *2020*).
+### 7 Scientific Entity Types
+- `PERSON`: Human researchers, authors, inventors (e.g. *Vaswani*, *LeCun*).
+- `ORG`: Universities, corporations, institutes (e.g. *Google DeepMind*, *Stanford*, *MIT*).
+- `DATASET`: Benchmarks, corpora, test sets (e.g. *SQuAD*, *GLUE*, *ImageNet*, *WMT 2014*).
+- `METRIC`: Quantitative measurements (e.g. *Accuracy*, *F1-score*, *BLEU*, *Latency*).
+- `MODEL`: Architectures and algorithms (e.g. *BERT*, *Transformer*, *GPT-4*, *BM25*).
+- `DATE`: Publication years, calendar dates (e.g. *2024*, *2017*).
 - `LOCATION`: Cities, countries, facilities (e.g. *California*, *Cambridge*).
 
-### How to Review and Correct
-1. Open `backend/eval/entities_gold.json`.
-2. Check that the `"text"` field matches the substring in `"passage"` exactly.
-3. Add or remove any entity tags that you consider valid or invalid.
-4. Save the file and re-run evaluation in the web interface to view the updated exact and partial overlap F1 scores.
+### Exact vs. Partial Match Criteria
+- **Exact Match**: The extracted entity text and type must match the gold annotation byte-for-byte:
+  $$\text{Exact Match} \iff \text{text}_{\text{pred}} = \text{text}_{\text{gold}} \land \text{type}_{\text{pred}} = \text{type}_{\text{gold}}$$
+- **Partial Match**: Requires matching entity type and a character/token Jaccard overlap $\ge 0.5$ between the predicted and gold boundaries.
 
 ---
 
-## 3. Strict Separation from Algorithms
-None of the rule-based extractors, AFINN lexicons, or Gemini prompts have been tuned to or memorize these gold datasets. This guarantees that all metrics reported on the evaluation dashboard represent true, unbiased out-of-sample performance.
+## 3. Sample Documents Available for Live Viva
+Located in `backend/eval/samples/`:
+1. `sample_positive_sentiment_paper.txt`: Breakthrough paper reporting high accuracy and state-of-the-art benchmarks.
+2. `sample_limitations_negative_paper.txt`: Critical paper discussing edge cases, memory limits, and security vulnerabilities.
+3. `sample_multilingual_paper.txt`: Multilingual paper written in Marathi and Hindi discussing cross-lingual RAG and language identification.
 
+---
+
+## 4. How an External Evaluator Audits or Runs the Benchmarks
+1. Open `backend/eval/sentiment_gold.json` or `entities_gold.json`.
+2. Inspect or modify any label in a standard text editor.
+3. In the live web UI at `/nlp-lab`, navigate to the **Evaluation Benchmark** tab.
+4. Click **"Run Evaluation Benchmark"**.
+5. The system dynamically executes the AFINN lexicon, rule-based NER, and Gemini models against the file, generating fresh confusion matrices and F1 scores in real time without hardcoding.
