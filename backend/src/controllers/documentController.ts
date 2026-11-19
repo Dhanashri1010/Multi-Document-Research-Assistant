@@ -349,6 +349,7 @@ export class DocumentController {
 
       doc.status = 'processing';
       doc.errorDetails = undefined;
+      doc.ingestAttempts = 0;
       await doc.save();
 
       IngestionService.queueDocument(doc._id).catch((err) => {

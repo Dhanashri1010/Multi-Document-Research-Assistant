@@ -12,14 +12,26 @@ async function startServer() {
   try {
     const interruptedDocs = await DocumentModel.find({ status: 'processing' });
     if (interruptedDocs.length > 0) {
-      console.log(`[Server] Found ${interruptedDocs.length} interrupted document(s). Auto-resuming ingestion queue...`);
+      console.log(`[Server] Found ${interruptedDocs.length} interrupted document(s). Checking ingestion retry attempts...`);
       for (const doc of interruptedDocs) {
-        doc.status = 'uploaded';
-        doc.errorDetails = undefined;
-        await doc.save();
-        IngestionService.queueDocument(doc._id).catch((err) => {
-          console.error(`[Server] Auto-resume failed for document ${doc._id}:`, err);
-        });
+        const attempts = (doc.ingestAttempts || 0) + 1;
+        doc.ingestAttempts = attempts;
+
+        // Prevent OOM crash loops: auto-resume at most 2 times
+        if (attempts > 2) {
+          doc.status = 'failed';
+          doc.errorDetails = `Document processing interrupted repeatedly (${attempts} attempts). The file may exceed available server memory (512MB RAM). Please retry or upload a smaller file.`;
+          await doc.save();
+          console.warn(`[Server] Document "${doc.originalName}" (${doc._id}) reached max auto-resume attempts (${attempts}). Marked as failed.`);
+        } else {
+          doc.status = 'uploaded';
+          doc.errorDetails = undefined;
+          await doc.save();
+          console.log(`[Server] Auto-resuming document "${doc.originalName}" (${doc._id}) [attempt ${attempts}/2]...`);
+          IngestionService.queueDocument(doc._id).catch((err) => {
+            console.error(`[Server] Auto-resume failed for document ${doc._id}:`, err);
+          });
+        }
       }
     }
   } catch (cleanErr) {

@@ -354,6 +354,7 @@ export class IngestionService {
           doc.warning = extractionWarning;
           doc.isLowTextDensity = isLowTextDensity;
           doc.errorDetails = undefined;
+          doc.ingestAttempts = 0;
           doc.summaryData = undefined;
           doc.summaryText = undefined;
           await doc.save({ session });
@@ -388,6 +389,7 @@ export class IngestionService {
         doc.warning = extractionWarning;
         doc.isLowTextDensity = isLowTextDensity;
         doc.errorDetails = undefined;
+        doc.ingestAttempts = 0;
         doc.summaryData = undefined;
         doc.summaryText = undefined;
         await doc.save();

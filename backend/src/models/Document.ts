@@ -30,6 +30,7 @@ export interface IDocument extends MongooseDoc {
   warning?: string;
   isLowTextDensity?: boolean;
   errorDetails?: string;
+  ingestAttempts?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -86,6 +87,7 @@ const DocumentSchema = new Schema<IDocument>(
       index: true,
     },
     errorDetails: { type: String },
+    ingestAttempts: { type: Number, default: 0 },
   },
   {
     timestamps: true,
