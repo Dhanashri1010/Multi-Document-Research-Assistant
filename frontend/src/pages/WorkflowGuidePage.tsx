@@ -36,7 +36,6 @@ export const WorkflowGuidePage: React.FC = () => {
     { id: 'workflow', label: '2. Workflow & Pipeline', icon: Layers },
     { id: 'technologies', label: '3. Tech Stack & Uses', icon: Cpu },
     { id: 'algorithms', label: '4. Algorithms & NLP', icon: Binary },
-    { id: 'boundaries', label: '5. Assessment Gaps & Boundaries', icon: AlertTriangle },
   ];
 
   return (
@@ -1052,112 +1051,6 @@ export const WorkflowGuidePage: React.FC = () => {
                     Prompt: &quot;Answer using ONLY the retrieved chunks below. Cite [Doc, Page].<br />
                     Context: [Doc1, P.4: F1 was 92.1%] ... Output: F1 was 92.1% [Doc1, P.4]&quot;
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ======================================================== */}
-        {/* SECTION 5: IMPLEMENTATION BOUNDARIES & ASSESSMENT GAPS */}
-        {/* ======================================================== */}
-        <section id="boundaries" className="scroll-mt-32">
-          <div className="mb-6">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold mb-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              <span>Section 5</span>
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Implementation Boundaries & Assessment Gap Analysis</h2>
-            <p className="text-sm text-slate-600 mt-1 max-w-3xl">
-              Academic integrity disclosure of implemented capabilities, architectural boundaries, and known limitations. Evaluators and project mentors can review how the actual implementation maps to project goals.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Card 1: Text Extraction & Scanned PDF OCR */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">Document Processing</span>
-                  <span className="text-[11px] font-mono text-slate-400">PDF, DOCX, DOC, TXT</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 mb-2">1. Document Extraction & OCR Boundaries</h3>
-                <div className="space-y-2 text-xs text-slate-600">
-                  <p>
-                    <strong>Implemented:</strong> Digital text extraction across PDF, DOCX, DOC, and TXT files with layout-aware section headings, paragraph preservation, and page-level metadata extraction.
-                  </p>
-                  <p>
-                    <strong>Known Limitation (No OCR):</strong> Scanned image PDFs without selectable text layers cannot be read by <code>pdf-parse</code>. The system detects low text density and displays a warning chip, but does not falsely claim OCR integration.
-                  </p>
-                  <p>
-                    <strong>Capacity Limits:</strong> Maximum file size is strictly capped at 25MB per document. Target chunk size is 380 tokens with a 60-token sliding overlap.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Multi-User Isolation & Security */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">Security Boundary</span>
-                  <span className="text-[11px] font-mono text-slate-400">Single-Workspace</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 mb-2">2. Multi-User Isolation & Auth Blocker</h3>
-                <div className="space-y-2 text-xs text-slate-600">
-                  <p>
-                    <strong>Current State:</strong> Single-workspace architecture designed for a local researcher or single research team. All documents and chat dialogues are stored globally.
-                  </p>
-                  <p>
-                    <strong>Deployment Prerequisite:</strong> The application does not currently segregate records by user ID or JWT authentication. This is an explicit deployment blocker for public multi-tenant SaaS deployment, requiring an authentication layer (e.g. Auth0, Supabase Auth, or custom JWT) before public multi-user release.
-                  </p>
-                  <p>
-                    <strong>Security Protections Implemented:</strong> Filename sanitization, path traversal prevention, magic-byte verification, and server-side API key protection.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Non-Claims & Scope Focus */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Scope Discipline</span>
-                  <span className="text-[11px] font-mono text-slate-400">Grounded RAG</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 mb-2">3. Factual Scope & Explicit Non-Claims</h3>
-                <div className="space-y-2 text-xs text-slate-600">
-                  <p>
-                    <strong>Target Purpose:</strong> Academic question-answering, multi-document cross-comparison across 10 dimensions, and verified citation validation.
-                  </p>
-                  <p>
-                    <strong>Explicit Non-Claims:</strong> The project does <em>not</em> claim sentiment analysis, topic modeling (LDA), or multilingual translation. The prompt boundaries strictly prevent hallucination and return &quot;Not Enough Information Found&quot; when document evidence is lacking.
-                  </p>
-                  <p>
-                    <strong>Transparent Citation States:</strong> Citations report verified, unverified, or not checked statuses rather than asserting blind verification.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4: Local Compute & Free-Tier Resilience */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800">Compute Efficiency</span>
-                  <span className="text-[11px] font-mono text-slate-400">Low-Cost Ready</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 mb-2">4. Compute Efficiency & Provider Resilience</h3>
-                <div className="space-y-2 text-xs text-slate-600">
-                  <p>
-                    <strong>Zero-Cost Embeddings:</strong> Dense 384d embeddings run via local ONNX runtime (<code>all-MiniLM-L6-v2</code>), requiring no paid third-party embedding API.
-                  </p>
-                  <p>
-                    <strong>Serial FIFO Ingestion:</strong> Ingestion tasks are executed through a concurrency-1 queue, ensuring low-memory CPU environments (e.g. 512MB free tiers) do not crash from memory spikes.
-                  </p>
-                  <p>
-                    <strong>Graceful Fallback Mode:</strong> If cloud LLM providers encounter 429 rate limits or 503 service outages, the system automatically falls back to grounded excerpts and preserves full comparison matrices.
-                  </p>
                 </div>
               </div>
             </div>
