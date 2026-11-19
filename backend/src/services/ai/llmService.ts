@@ -120,18 +120,28 @@ async function withRetry<T>(
           const s = parseInt(String(retryInfo.retryDelay).replace('s', ''), 10);
           if (!isNaN(s) && s > 0) serverDelayMs = (s + 1) * 1000;
         }
-        if (!serverDelayMs && (msg.includes('429') || msg.includes('resource_exhausted') || msg.includes('rate limit'))) {
-          serverDelayMs = 15000;
-        }
-        if (!serverDelayMs && (msg.includes('503') || msg.includes('overloaded') || msg.includes('service unavailable'))) {
-          serverDelayMs = Math.round(2500 * Math.pow(1.5, attempt));
+
+        // On first attempt (attempt === 0), we immediately fail over to the fallback model (e.g. gemini-3.5-flash-lite).
+        // Since the fallback model has its own distinct quota pool, do NOT delay for 15s or pause the queue.
+        let delay = 0;
+        if (attempt === 0) {
+          delay = 500 + Math.floor(Math.random() * 250);
+          console.warn(`[LLMService] Attempt 1 failed (${err.message}). Fast-failing over to fallback model in ${delay}ms...`);
+        } else {
+          if (!serverDelayMs && (msg.includes('429') || msg.includes('resource_exhausted') || msg.includes('rate limit'))) {
+            serverDelayMs = 15000;
+          }
+          if (!serverDelayMs && (msg.includes('503') || msg.includes('overloaded') || msg.includes('service unavailable'))) {
+            serverDelayMs = Math.round(2500 * Math.pow(1.5, attempt));
+          }
+
+          delay = serverDelayMs || (Math.min(1500 * Math.pow(2, attempt), 6000) + Math.floor(Math.random() * 250));
+          if (msg.includes('429') || msg.includes('rate limit') || msg.includes('resource_exhausted')) {
+            LLMThrottleQueue.pause(delay, 'Gemini 429 rate limit backoff');
+          }
+          console.warn(`[LLMService] Retryable error encountered (attempt ${attempt + 1}/${maxRetries}): ${err.message}. Retrying in ${delay}ms...`);
         }
 
-        const delay = serverDelayMs || (Math.min(1500 * Math.pow(2, attempt), 6000) + Math.floor(Math.random() * 250));
-        if (msg.includes('429') || msg.includes('rate limit') || msg.includes('resource_exhausted')) {
-          LLMThrottleQueue.pause(delay, 'Gemini 429 rate limit backoff');
-        }
-        console.warn(`[LLMService] Retryable error encountered (attempt ${attempt + 1}/${maxRetries}): ${err.message}. Retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         attempt++;
       } else {
@@ -382,7 +392,7 @@ export class LLMService {
       });
       const targetModel = (model || config.llmModel || 'gemini-3.1-flash-lite').trim();
 
-      const maxRetries = options.maxRetries ?? config.llmMaxRetries ?? 3;
+      const maxRetries = options.maxRetries ?? 1;
       let responseStream: any = null;
       let streamAttempt = 0;
       let lastStreamErr: any = null;
@@ -411,7 +421,7 @@ export class LLMService {
         } catch (streamInitErr: any) {
           lastStreamErr = streamInitErr;
           if (streamAttempt < maxRetries && isRetryableError(streamInitErr)) {
-            const delay = Math.min(1500 * Math.pow(2, streamAttempt), 6000) + Math.floor(Math.random() * 250);
+            const delay = streamAttempt === 0 ? 500 : Math.min(1500 * Math.pow(2, streamAttempt), 4000);
             console.warn(
               `[LLMService] Gemini streaming initiation failed (${streamInitErr.message}). Retrying attempt ${streamAttempt + 1}/${maxRetries} in ${delay}ms...`
             );
@@ -424,14 +434,32 @@ export class LLMService {
       }
 
       let fullText = '';
-      for await (const chunk of responseStream) {
-        const text = chunk.text || '';
-        if (text) {
-          fullText += text;
-          onToken(text);
+      const streamTimeoutMs = options.timeoutMs || 22000;
+
+      const consumeStream = async () => {
+        for await (const chunk of responseStream) {
+          const text = chunk.text || '';
+          if (text) {
+            fullText += text;
+            onToken(text);
+          }
         }
+        return fullText;
+      };
+
+      let timer: NodeJS.Timeout | null = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`Stream chunk reading timed out after ${streamTimeoutMs}ms`));
+        }, streamTimeoutMs);
+      });
+
+      try {
+        const result = await Promise.race([consumeStream(), timeoutPromise]);
+        return result;
+      } finally {
+        if (timer) clearTimeout(timer);
       }
-      return fullText;
     }
 
     if (provider === 'openai') {

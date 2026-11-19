@@ -158,6 +158,7 @@ export const ResearchPage: React.FC = () => {
     setIsLoading(true);
 
     let streamStarted = false;
+    let tokensReceived = 0;
 
     try {
       await researchService.askStream(
@@ -183,6 +184,7 @@ export const ResearchPage: React.FC = () => {
             ]);
           },
           onToken: (token) => {
+            tokensReceived += token.length;
             setMessages((prev) => {
               if (prev.length === 0) return prev;
               const last = prev[prev.length - 1];
@@ -230,28 +232,40 @@ export const ResearchPage: React.FC = () => {
           },
           onError: async (streamErr) => {
             console.warn('Streaming error, falling back to standard ask:', streamErr);
-            if (!streamStarted) {
-              const res = await researchService.ask({
-                question,
-                documentIds: selectedDocIds,
-                sessionId,
-                targetLanguage,
-              });
-              setSessionId(res.sessionId);
-              setMessages((prev) => [
-                ...prev,
-                {
-                  sessionId: res.sessionId,
-                  role: 'assistant',
-                  content: res.answer,
-                  citations: res.citations,
-                  hasInsufficientEvidence: res.hasInsufficientEvidence,
-                  degraded: res.degraded,
-                  degradedReason: res.degradedReason,
-                  createdAt: new Date().toISOString(),
-                },
-              ]);
-              fetchSessions();
+            // If no response tokens arrived yet, fall back cleanly to standard ask()
+            if (tokensReceived === 0) {
+              try {
+                // Remove the empty assistant placeholder if present
+                setMessages((prev) => {
+                  if (prev.length > 0 && prev[prev.length - 1].role === 'assistant' && !prev[prev.length - 1].content) {
+                    return prev.slice(0, -1);
+                  }
+                  return prev;
+                });
+                const res = await researchService.ask({
+                  question,
+                  documentIds: selectedDocIds,
+                  sessionId,
+                  targetLanguage,
+                });
+                setSessionId(res.sessionId);
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    sessionId: res.sessionId,
+                    role: 'assistant',
+                    content: res.answer,
+                    citations: res.citations,
+                    hasInsufficientEvidence: res.hasInsufficientEvidence,
+                    degraded: res.degraded,
+                    degradedReason: res.degradedReason,
+                    createdAt: new Date().toISOString(),
+                  },
+                ]);
+                fetchSessions();
+              } catch (askFallbackErr: any) {
+                setApiError(askFallbackErr.message || 'Error communicating with research assistant.');
+              }
             } else {
               setApiError(streamErr.message || 'Stream error');
             }

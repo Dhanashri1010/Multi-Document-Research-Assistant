@@ -393,6 +393,21 @@ export function formatInsufficientEvidenceMessage(docCount: number, docName?: st
 
 export class RAGService {
   /**
+   * Checks whether a follow-up question actually requires reformulation
+   * (e.g. contains ambiguous pronouns, follow-up conjunctions, or is 4 words or fewer).
+   */
+  static needsQueryReformulation(question: string): boolean {
+    if (!question) return false;
+    const trimmed = question.trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    if (words.length <= 4) return true;
+
+    // Check for ambiguous references, pronouns, or follow-up sentence starters
+    const followUpRegex = /\b(it|its|this|that|these|those|they|them|their|the same|he|him|his|she|her|former|latter|above|previous|earlier|such|again|also|and|how about|what about|compare with)\b/i;
+    return followUpRegex.test(trimmed);
+  }
+
+  /**
    * Rewrites a follow-up user question into a standalone query resolving pronouns and conversational context.
    */
   static async rewriteQuery(question: string, history: { role: string; content: string }[]): Promise<string> {
@@ -417,7 +432,7 @@ STANDALONE SEARCH QUERY:`;
       const rewritten = await LLMService.generate(rewritePrompt, {
         temperature: 0.0,
         systemPrompt: 'You are an expert search query reformer. Output only the standalone question.',
-        timeoutMs: 6000,
+        timeoutMs: 4000,
         maxRetries: 0,
       });
 
@@ -425,7 +440,7 @@ STANDALONE SEARCH QUERY:`;
         return rewritten.trim().replace(/^["']|["']$/g, '');
       }
     } catch (err) {
-      console.warn('[RAGService] Query rewrite failed, using original query:', err);
+      console.warn('[RAGService] Query rewrite skipped or timed out, using original query:', err);
     }
 
     return question;
@@ -513,9 +528,9 @@ STANDALONE SEARCH QUERY:`;
       });
     }
 
-    // Question Reformulation
+    // Question Reformulation (fast-path: only call LLM if question contains pronouns/contextual references)
     let retrievalQuery = question;
-    if (priorMessages.length > 0) {
+    if (priorMessages.length > 0 && RAGService.needsQueryReformulation(question)) {
       retrievalQuery = await this.rewriteQuery(
         question,
         priorMessages.map((m) => ({ role: m.role, content: m.content }))
@@ -852,8 +867,8 @@ Generate your JSON response now.`;
       const rawResponse = await LLMService.generate(userPrompt, {
         systemPrompt,
         temperature: 0.0,
-        timeoutMs: 35000,
-        maxRetries: 2,
+        timeoutMs: 25000,
+        maxRetries: 1,
       });
 
       const extracted = extractCleanAnswer(rawResponse);
@@ -877,9 +892,9 @@ Generate your JSON response now.`;
           indexedPassages
         );
 
-        // One-shot regeneration for unverified claims
+        // One-shot regeneration for unverified claims (only if explicitly enabled)
         const hasUnverified = verifiedClaims.some((vc) => !vc.isFullySupported);
-        if (hasUnverified && !options.skipRegeneration) {
+        if (hasUnverified && !options.skipRegeneration && (options as any).forceRegeneration) {
           try {
             const unverifiedTexts = verifiedClaims
               .filter((vc) => !vc.isFullySupported)
@@ -890,8 +905,8 @@ Generate your JSON response now.`;
             const regenRaw = await LLMService.generate(regenPrompt, {
               systemPrompt,
               temperature: 0.0,
-              timeoutMs: 35000,
-              maxRetries: 1,
+              timeoutMs: 15000,
+              maxRetries: 0,
             });
             const regenExtracted = extractCleanAnswer(regenRaw);
             if (regenExtracted.answer && regenExtracted.claims.length > 0) {
@@ -1163,26 +1178,44 @@ Generate your JSON response now.`;
     };
 
     try {
-      accumulatedText = await LLMService.generateStream(userPrompt, { systemPrompt }, (token) => {
-        streamTokenHandler(token);
-      });
+      accumulatedText = await LLMService.generateStream(
+        userPrompt,
+        { systemPrompt, timeoutMs: 22000, maxRetries: 1 },
+        (token) => {
+          streamTokenHandler(token);
+        }
+      );
     } catch (streamErr: any) {
-      console.error('[RAGService] Streaming failed, falling back to grounded synthesis (full details logged):', streamErr);
-      isDegraded = true;
-      degradedReason = formatSafeErrorMessage(streamErr);
+      console.warn('[RAGService] Streaming failed, attempting direct generative synthesis fallback:', streamErr);
+      try {
+        // Direct non-streaming generation fallback with rapid model failover
+        accumulatedText = await LLMService.generate(userPrompt, {
+          systemPrompt,
+          temperature: 0.15,
+          timeoutMs: 22000,
+          maxRetries: 1,
+        });
+        const directExtracted = extractCleanAnswer(accumulatedText);
+        const textToStream = directExtracted.answer || accumulatedText;
+        onEvent({ type: 'token', data: { token: textToStream } });
+      } catch (fallbackErr: any) {
+        console.error('[RAGService] Both streaming and direct LLM generation failed:', fallbackErr);
+        isDegraded = true;
+        degradedReason = formatSafeErrorMessage(fallbackErr);
 
-      accumulatedText =
-        `**AI-generated summary is temporarily unavailable. Here are the relevant passages found in your documents:**\n\n` +
-        citations
-          .map((c) => {
-            const loc = c.pageNumber
-              ? `Page ${c.pageNumber}`
-              : `Section: ${c.heading || c.section || 'Body'}${c.paragraphNumber ? `, Para ${c.paragraphNumber}` : ''}`;
-            return `- **${c.documentName}** (${loc}): "${c.excerpt}"`;
-          })
-          .join('\n\n');
+        accumulatedText =
+          `**AI-generated summary is temporarily unavailable. Here are the relevant passages found in your documents:**\n\n` +
+          citations
+            .map((c) => {
+              const loc = c.pageNumber
+                ? `Page ${c.pageNumber}`
+                : `Section: ${c.heading || c.section || 'Body'}${c.paragraphNumber ? `, Para ${c.paragraphNumber}` : ''}`;
+              return `- **${c.documentName}** (${loc}): "${c.excerpt}"`;
+            })
+            .join('\n\n');
 
-      onEvent({ type: 'token', data: { token: accumulatedText } });
+        onEvent({ type: 'token', data: { token: accumulatedText } });
+      }
     }
 
     const extracted = extractCleanAnswer(accumulatedText);

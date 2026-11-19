@@ -28,7 +28,7 @@ export interface LLMQuotaStatus {
 export class LLMThrottleQueue {
   private static readonly WINDOW_MS = 60_000;
   private static readonly MAX_RPM = 10;
-  private static readonly MIN_CALL_SPACING_MS = 4_500;
+  private static readonly MIN_CALL_SPACING_MS = 2_000;
   private static readonly DAILY_LIMIT = 500;
   private static readonly NEAR_LIMIT_THRESHOLD = 450;
 
