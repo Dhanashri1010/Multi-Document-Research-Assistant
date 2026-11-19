@@ -241,3 +241,4 @@ flowchart TD
 
 **Q15: What happens when an LLM call fails or times out during cross-document comparison?**  
 *Answer*: The system gracefully degrades to a deterministic passage-grounded fallback mode. It extracts representative passages from each paper across the 10 academic dimensions, sanitizes error reasons so technical stack traces are never shown to the user, and presents an actionable Retry button.
+

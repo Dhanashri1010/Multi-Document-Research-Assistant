@@ -102,7 +102,7 @@ const FALLBACK_PROMPTS: PromptTemplateInfo[] = [
     purpose: 'Extracts entities across 7 validated types (PERSON, ORG, DATASET, METRIC, MODEL, DATE, LOCATION).',
     strategy: 'few-shot',
     variables: ['text'],
-    rationale: 'Enforces schema compliance for downstream academic metadata extraction.',
+    rationale: 'Enforces schema adherence for downstream academic metadata extraction.',
     template: 'Extract all entities from the text into typed JSON categories:\n{{text}}',
   },
   {
@@ -215,7 +215,7 @@ export const PromptPlaygroundTab: React.FC<PromptPlaygroundTabProps> = ({ docume
     setRunning(true);
     setPlaygroundError(null);
     try {
-      // In Prompt Playground, we simulate prompt execution against current documents or return the structured evaluation
+      // In Prompt Studio, we simulate prompt execution against current documents or return the structured evaluation
       const t0 = performance.now();
       await new Promise((r) => setTimeout(r, 600));
 

@@ -52,9 +52,18 @@ healthRouter.get('/', async (_req: Request, res: Response) => {
       memoryMB,
       llmProvider: config.llmProvider,
       llmModel: config.llmModel,
+      llmFallbackModel: config.llmFallbackModel,
       embeddingProvider: config.embeddingProvider,
       embeddingModel: config.embeddingModel,
       vectorProvider: config.vectorSearchProvider,
+      storageProvider: config.storageProvider,
+      maxFileSizeMB: config.maxFileSizeMB,
+      supportedFileTypes: ['.pdf', '.docx', '.doc', '.txt'],
+      chunkTargetTokens: config.chunkTargetTokens,
+      chunkOverlapTokens: config.chunkOverlapTokens,
+      userDailyAiCap: parseInt(process.env.USER_DAILY_AI_CAP || '30', 10),
+      llmRpmLimit: 10,
+      llmDailyLimit: 500,
     },
   });
 });

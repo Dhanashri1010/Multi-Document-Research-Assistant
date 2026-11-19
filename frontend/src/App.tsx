@@ -68,9 +68,9 @@ export function App() {
               {/* Legacy route alias for Insights */}
               <Route path="/nlp-lab" element={<Navigate to="/insights" replace />} />
 
-              {/* Technical Workflow & Architecture Guide */}
+              {/* How it works & Architecture Guide */}
               <Route path="/workflow-guide" element={<WorkflowGuidePage />} />
-              <Route path="/rubric-coverage" element={<Navigate to="/workflow-guide" replace />} />
+              <Route path="/how-it-works" element={<Navigate to="/workflow-guide" replace />} />
 
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
