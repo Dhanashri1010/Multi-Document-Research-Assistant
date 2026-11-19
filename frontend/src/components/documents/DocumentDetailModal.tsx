@@ -210,6 +210,48 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
     }
   }, [isOpen, doc, initialTab, initialPage, isWordDoc, loadSummary]);
 
+  const runDeepInsights = useCallback(async () => {
+    if (!doc?._id) return;
+    setLoadingInsights(true);
+    setInsightsError(null);
+    try {
+      setInsightsProgress('1/3 Analyzing tokens and lexical statistics...');
+      const prepRes = await NlpService.preprocessText({ documentId: doc._id }).catch((e) => {
+        console.warn('Preprocess error:', e);
+        return null;
+      });
+
+      setInsightsProgress('2/3 Evaluating document tone & sentiment...');
+      const sentRes = await NlpService.analyzeSentiment(doc._id, { runGemini: false }).catch((e) => {
+        console.warn('Sentiment error:', e);
+        return null;
+      });
+
+      setInsightsProgress('3/3 Extracting academic entities & keyphrases...');
+      const extRes = await NlpService.extractInformation(doc._id, { runGemini: false }).catch((e) => {
+        console.warn('Extract error:', e);
+        return null;
+      });
+
+      setInsightsData({
+        preprocessing: prepRes,
+        sentiment: sentRes,
+        extraction: extRes,
+      });
+    } catch (err: any) {
+      setInsightsError(err.message || 'Failed to generate document insights.');
+    } finally {
+      setLoadingInsights(false);
+      setInsightsProgress('');
+    }
+  }, [doc?._id]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'insights' && doc?._id && !insightsData && !loadingInsights) {
+      runDeepInsights();
+    }
+  }, [isOpen, activeTab, doc?._id, insightsData, loadingInsights, runDeepInsights]);
+
   if (!isOpen || !doc) return null;
 
   const docTitle = doc.title || doc.originalName.replace(/\.(pdf|docx|doc|txt)$/i, '');
@@ -275,48 +317,6 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
   const handleDownloadOriginal = () => {
     documentService.downloadFile(doc._id, doc.originalName);
   };
-
-  const runDeepInsights = useCallback(async () => {
-    if (!doc?._id) return;
-    setLoadingInsights(true);
-    setInsightsError(null);
-    try {
-      setInsightsProgress('1/3 Analyzing tokens and lexical statistics...');
-      const prepRes = await NlpService.preprocessText({ documentId: doc._id }).catch((e) => {
-        console.warn('Preprocess error:', e);
-        return null;
-      });
-
-      setInsightsProgress('2/3 Evaluating document tone & sentiment...');
-      const sentRes = await NlpService.analyzeSentiment(doc._id, { runGemini: false }).catch((e) => {
-        console.warn('Sentiment error:', e);
-        return null;
-      });
-
-      setInsightsProgress('3/3 Extracting academic entities & keyphrases...');
-      const extRes = await NlpService.extractInformation(doc._id, { runGemini: false }).catch((e) => {
-        console.warn('Extract error:', e);
-        return null;
-      });
-
-      setInsightsData({
-        preprocessing: prepRes,
-        sentiment: sentRes,
-        extraction: extRes,
-      });
-    } catch (err: any) {
-      setInsightsError(err.message || 'Failed to generate document insights.');
-    } finally {
-      setLoadingInsights(false);
-      setInsightsProgress('');
-    }
-  }, [doc?._id]);
-
-  useEffect(() => {
-    if (isOpen && activeTab === 'insights' && doc?._id && !insightsData && !loadingInsights) {
-      runDeepInsights();
-    }
-  }, [isOpen, activeTab, doc?._id, insightsData, loadingInsights, runDeepInsights]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
