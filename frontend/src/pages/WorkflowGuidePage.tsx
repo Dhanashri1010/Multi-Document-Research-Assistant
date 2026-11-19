@@ -1100,7 +1100,7 @@ export const WorkflowGuidePage: React.FC = () => {
                 Text Extraction, Preprocessing, Cleaning & Vectorization
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Extracts PDF, DOCX, and TXT with low-density scanned document warning (<20 chars/page). Features an 8-step selectable preprocessing pipeline with character and token reduction metrics, alongside TF-IDF term frequency and pairwise cosine similarity matrices.
+                Extracts PDF, DOCX, and TXT with low-density scanned document warning (&lt;20 chars/page). Features an 8-step selectable preprocessing pipeline with character and token reduction metrics, alongside TF-IDF term frequency and pairwise cosine similarity matrices.
               </p>
               <div className="text-[11px] font-mono text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                 UI: NLP Lab → Preprocessing & Vectorization<br />
