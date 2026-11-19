@@ -308,8 +308,9 @@ export class NlpMultilingualService {
     question: string;
     documentIds?: string[];
     targetLanguage?: string;
+    userId?: string;
   }): Promise<CrossLingualAnswerResult> {
-    const { question, documentIds, targetLanguage } = options;
+    const { question, documentIds, targetLanguage, userId } = options;
     const startTime = performance.now();
 
     // 1. Detect language
@@ -335,6 +336,9 @@ export class NlpMultilingualService {
 
     // 3. Retrieve relevant chunks
     const chunkFilter: any = { embedding: { $exists: true, $ne: [] } };
+    if (userId) {
+      chunkFilter.userId = userId;
+    }
     if (documentIds && documentIds.length > 0) {
       chunkFilter.documentId = { $in: documentIds };
     }

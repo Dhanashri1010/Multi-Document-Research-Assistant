@@ -40,6 +40,24 @@ export function createApp(): express.Application {
   // Mount API Routes
   app.use('/api', apiRouter);
 
+  // 404 Handler for unmatched API routes (returns clear JSON, never bare HTML)
+  app.use('/api', (req, res) => {
+    res.status(404).json({
+      success: false,
+      error: 'Endpoint not found',
+      message: `The requested endpoint ${req.method} /api${req.url} does not exist. Please check the URL and HTTP method.`,
+    });
+  });
+
+  // Global 404 Handler for other unmatched routes
+  app.use((req, res) => {
+    res.status(404).json({
+      success: false,
+      error: 'Not found',
+      message: `Cannot ${req.method} ${req.originalUrl}`,
+    });
+  });
+
   // Centralized Error Handler
   app.use(errorHandler);
 

@@ -29,14 +29,21 @@ export class NlpController {
   static async preprocess(req: Request, res: Response): Promise<void> {
     try {
       const { documentId, steps, rawText: customText, useCache = true } = req.body;
+      const userId = req.user?.id;
 
       let textToProcess = customText || '';
       let docId = documentId || 'ad_hoc';
 
       if (!textToProcess && documentId) {
-        const doc = await DocumentModel.findById(documentId);
+        const docQuery: any = { _id: documentId };
+        if (userId) docQuery.userId = userId;
+        const doc = await DocumentModel.findOne(docQuery);
         if (!doc) {
-          res.status(404).json({ error: `Document ${documentId} not found.` });
+          res.status(404).json({
+            success: false,
+            error: 'Document not found',
+            message: `Document ${documentId} could not be found or belongs to another user.`,
+          });
           return;
         }
         const chunks = await DocumentChunkModel.find({ documentId: doc._id })
@@ -46,7 +53,11 @@ export class NlpController {
       }
 
       if (!textToProcess) {
-        res.status(400).json({ error: 'No document text found to preprocess.' });
+        res.status(400).json({
+          success: false,
+          error: 'Missing text content',
+          message: 'No document text was provided or found to analyze.',
+        });
         return;
       }
 
@@ -60,7 +71,11 @@ export class NlpController {
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:preprocess] Error:', err);
-      res.status(500).json({ error: err.message || 'Preprocessing failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Preprocessing error',
+        message: err.message || 'An error occurred during text preprocessing.',
+      });
     }
   }
 
@@ -71,22 +86,47 @@ export class NlpController {
   static async vectorize(req: Request, res: Response): Promise<void> {
     try {
       const { documentIds, useCache = true } = req.body;
+      const userId = req.user?.id;
 
       if (!Array.isArray(documentIds) || documentIds.length === 0) {
-        res.status(400).json({ error: 'documentIds array is required.' });
+        res.status(400).json({
+          success: false,
+          error: 'Invalid input',
+          message: 'documentIds array is required.',
+        });
         return;
       }
 
       if (documentIds.length > 10) {
-        res.status(400).json({ error: 'Maximum 10 documents allowed for vectorization matrix.' });
+        res.status(400).json({
+          success: false,
+          error: 'Limit exceeded',
+          message: 'Maximum 10 documents allowed for vectorization matrix comparison.',
+        });
         return;
+      }
+
+      if (userId) {
+        const count = await DocumentModel.countDocuments({ _id: { $in: documentIds }, userId });
+        if (count === 0) {
+          res.status(404).json({
+            success: false,
+            error: 'Documents not found',
+            message: 'None of the requested documents were found in your library.',
+          });
+          return;
+        }
       }
 
       const result = await NlpVectorizationService.vectorizeDocuments(documentIds, useCache);
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:vectorize] Error:', err);
-      res.status(500).json({ error: err.message || 'Vectorization failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Vectorization error',
+        message: err.message || 'Vectorization comparison failed.',
+      });
     }
   }
 
@@ -97,9 +137,26 @@ export class NlpController {
   static async sentiment(req: Request, res: Response): Promise<void> {
     try {
       const { documentId, runGemini = true, sampleSize = 35, useCache = true } = req.body;
+      const userId = req.user?.id;
 
       if (!documentId) {
-        res.status(400).json({ error: 'documentId is required.' });
+        res.status(400).json({
+          success: false,
+          error: 'Invalid input',
+          message: 'documentId is required.',
+        });
+        return;
+      }
+
+      const docQuery: any = { _id: documentId };
+      if (userId) docQuery.userId = userId;
+      const doc = await DocumentModel.findOne(docQuery);
+      if (!doc) {
+        res.status(404).json({
+          success: false,
+          error: 'Document not found',
+          message: `Document ${documentId} could not be found in your library.`,
+        });
         return;
       }
 
@@ -112,7 +169,11 @@ export class NlpController {
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:sentiment] Error:', err);
-      res.status(500).json({ error: err.message || 'Sentiment analysis failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Sentiment error',
+        message: err.message || 'Sentiment analysis failed.',
+      });
     }
   }
 
@@ -123,9 +184,26 @@ export class NlpController {
   static async extract(req: Request, res: Response): Promise<void> {
     try {
       const { documentId, runGemini = true, useCache = true } = req.body;
+      const userId = req.user?.id;
 
       if (!documentId) {
-        res.status(400).json({ error: 'documentId is required.' });
+        res.status(400).json({
+          success: false,
+          error: 'Invalid input',
+          message: 'documentId is required.',
+        });
+        return;
+      }
+
+      const docQuery: any = { _id: documentId };
+      if (userId) docQuery.userId = userId;
+      const doc = await DocumentModel.findOne(docQuery);
+      if (!doc) {
+        res.status(404).json({
+          success: false,
+          error: 'Document not found',
+          message: `Document ${documentId} could not be found in your library.`,
+        });
         return;
       }
 
@@ -138,7 +216,11 @@ export class NlpController {
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:extract] Error:', err);
-      res.status(500).json({ error: err.message || 'Information extraction failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Extraction error',
+        message: err.message || 'Information extraction failed.',
+      });
     }
   }
 
@@ -153,7 +235,11 @@ export class NlpController {
       res.status(200).json({ success: true, data: report });
     } catch (err: any) {
       console.error('[NlpController:runEvaluation] Error:', err);
-      res.status(500).json({ error: err.message || 'Evaluation run failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Evaluation error',
+        message: err.message || 'Evaluation benchmark run failed.',
+      });
     }
   }
 
@@ -167,7 +253,11 @@ export class NlpController {
       res.status(200).json({ success: true, data: report });
     } catch (err: any) {
       console.error('[NlpController:getEvaluationReport] Error:', err);
-      res.status(500).json({ error: err.message || 'Failed to retrieve evaluation report.' });
+      res.status(500).json({
+        success: false,
+        error: 'Evaluation report error',
+        message: err.message || 'Failed to retrieve evaluation report.',
+      });
     }
   }
 
@@ -187,17 +277,36 @@ export class NlpController {
   static async topics(req: Request, res: Response): Promise<void> {
     try {
       const { documentIds, k, sampleMax, generateAiTitles, forceRefresh } = req.body;
+      const userId = req.user?.id;
+
+      if (documentIds && documentIds.length > 0 && userId) {
+        const count = await DocumentModel.countDocuments({ _id: { $in: documentIds }, userId });
+        if (count === 0) {
+          res.status(404).json({
+            success: false,
+            error: 'Documents not found',
+            message: 'None of the specified documents were found in your library.',
+          });
+          return;
+        }
+      }
+
       const result = await NlpTopicService.runTopicModeling({
         documentIds,
         k: k ? parseInt(k, 10) : undefined,
         sampleMax: sampleMax ? parseInt(sampleMax, 10) : undefined,
         generateAiTitles: Boolean(generateAiTitles),
         forceRefresh: Boolean(forceRefresh),
+        userId,
       });
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:topics] Error:', err);
-      res.status(500).json({ error: err.message || 'Topic modeling failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Topic modeling error',
+        message: err.message || 'Topic modeling analysis failed.',
+      });
     }
   }
 
@@ -209,14 +318,22 @@ export class NlpController {
     try {
       const { text } = req.body;
       if (!text || typeof text !== 'string') {
-        res.status(400).json({ error: 'Text string is required for language detection.' });
+        res.status(400).json({
+          success: false,
+          error: 'Invalid input',
+          message: 'Text string is required for language detection.',
+        });
         return;
       }
       const result = NlpMultilingualService.detectLanguage(text);
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:detectLanguage] Error:', err);
-      res.status(500).json({ error: err.message || 'Language detection failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Language detection error',
+        message: err.message || 'Language detection failed.',
+      });
     }
   }
 
@@ -228,7 +345,11 @@ export class NlpController {
     try {
       const { text, targetLanguage, sourceLanguage, provider, forceRefresh } = req.body;
       if (!text || !targetLanguage) {
-        res.status(400).json({ error: 'Both text and targetLanguage are required.' });
+        res.status(400).json({
+          success: false,
+          error: 'Invalid input',
+          message: 'Both text and targetLanguage are required.',
+        });
         return;
       }
       const result = await NlpMultilingualService.translateText({
@@ -241,7 +362,11 @@ export class NlpController {
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:translate] Error:', err);
-      res.status(500).json({ error: err.message || 'Translation failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Translation error',
+        message: err.message || 'Translation failed.',
+      });
     }
   }
 
@@ -252,19 +377,43 @@ export class NlpController {
   static async askMultilingual(req: Request, res: Response): Promise<void> {
     try {
       const { question, documentIds, targetLanguage } = req.body;
+      const userId = req.user?.id;
+
       if (!question) {
-        res.status(400).json({ error: 'Question is required.' });
+        res.status(400).json({
+          success: false,
+          error: 'Invalid input',
+          message: 'Question is required.',
+        });
         return;
       }
+
+      if (documentIds && documentIds.length > 0 && userId) {
+        const count = await DocumentModel.countDocuments({ _id: { $in: documentIds }, userId });
+        if (count === 0) {
+          res.status(404).json({
+            success: false,
+            error: 'Documents not found',
+            message: 'None of the specified documents were found in your library.',
+          });
+          return;
+        }
+      }
+
       const result = await NlpMultilingualService.askCrossLingual({
         question,
         documentIds,
         targetLanguage,
+        userId,
       });
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:askMultilingual] Error:', err);
-      res.status(500).json({ error: err.message || 'Cross-lingual QA failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Cross-lingual QA error',
+        message: err.message || 'Cross-lingual QA failed.',
+      });
     }
   }
 
@@ -303,18 +452,42 @@ export class NlpController {
   static async literatureReview(req: Request, res: Response): Promise<void> {
     try {
       const { documentIds, forceRefresh } = req.body;
+      const userId = req.user?.id;
+
       if (!Array.isArray(documentIds) || documentIds.length < 2) {
-        res.status(400).json({ error: 'At least 2 document IDs are required for a literature review.' });
+        res.status(400).json({
+          success: false,
+          error: 'Invalid selection',
+          message: 'At least 2 document IDs are required for a multi-document literature review.',
+        });
         return;
       }
+
+      if (userId) {
+        const count = await DocumentModel.countDocuments({ _id: { $in: documentIds }, userId });
+        if (count < 2) {
+          res.status(404).json({
+            success: false,
+            error: 'Documents not found',
+            message: 'Could not find at least 2 valid documents belonging to your library from the selected IDs.',
+          });
+          return;
+        }
+      }
+
       const result = await NlpLiteratureReviewService.generateReview({
         documentIds,
         forceRefresh,
+        userId,
       });
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:literatureReview] Error:', err);
-      res.status(500).json({ error: err.message || 'Literature review synthesis failed.' });
+      res.status(500).json({
+        success: false,
+        error: 'Literature review error',
+        message: err.message || 'Literature review synthesis failed.',
+      });
     }
   }
 
@@ -322,9 +495,13 @@ export class NlpController {
    * POST /api/nlp/warm-cache
    * Warms cache for live demo on available documents.
    */
-  static async warmCache(_req: Request, res: Response): Promise<void> {
+  static async warmCache(req: Request, res: Response): Promise<void> {
     try {
-      const docs = await DocumentModel.find({ status: 'ready' }).limit(3).select('_id');
+      const userId = req.user?.id;
+      const docQuery: any = { status: 'ready' };
+      if (userId) docQuery.userId = userId;
+
+      const docs = await DocumentModel.find(docQuery).limit(3).select('_id');
       const docIds = docs.map((d) => d._id.toString());
       const tasksRun: string[] = [];
 
@@ -342,7 +519,7 @@ export class NlpController {
         tasksRun.push('extraction_rules');
 
         // Warm topic modeling
-        await NlpTopicService.runTopicModeling({ documentIds: docIds, forceRefresh: false }).catch(() => {});
+        await NlpTopicService.runTopicModeling({ documentIds: docIds, forceRefresh: false, userId }).catch(() => {});
         tasksRun.push('topic_modeling');
       }
 
@@ -352,12 +529,16 @@ export class NlpController {
 
       res.status(200).json({
         success: true,
-        message: 'Demo cache warmed successfully for instant viva responses.',
+        message: 'Cache warmed successfully for fast responses.',
         tasks: tasksRun,
       });
     } catch (err: any) {
       console.error('[NlpController:warmCache] Error:', err);
-      res.status(500).json({ error: err.message || 'Failed to warm demo cache.' });
+      res.status(500).json({
+        success: false,
+        error: 'Warm cache error',
+        message: err.message || 'Failed to warm cache.',
+      });
     }
   }
 }

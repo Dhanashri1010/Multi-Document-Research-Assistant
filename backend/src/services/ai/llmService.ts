@@ -61,15 +61,28 @@ export function getGeminiFallbackModel(primaryModel: string, attempt: number = 1
 export function isOverloadedError(err: any): boolean {
   if (!err) return false;
   const status = err.status || err.statusCode || err.response?.status;
-  const msg = String(err.message || '').toLowerCase();
+  const msg = String(err.message || err.toString() || '').toLowerCase();
   return (
     status === 503 ||
     status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 504 ||
     msg.includes('503') ||
+    msg.includes('429') ||
+    msg.includes('500') ||
+    msg.includes('502') ||
+    msg.includes('504') ||
     msg.includes('overloaded') ||
     msg.includes('resource_exhausted') ||
     msg.includes('rate limit') ||
-    msg.includes('temporarily unavailable')
+    msg.includes('temporarily unavailable') ||
+    msg.includes('service unavailable') ||
+    msg.includes('quota') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout')
   );
 }
 
@@ -238,7 +251,9 @@ export class LLMService {
           // Automatic model failover on 503 (high traffic/overloaded) or 429
           if (attempt > 0 && isOverloadedError(prevErr)) {
             const fallback = getGeminiFallbackModel(targetModel, attempt);
-            console.log(`[LLMService] Gemini model "${targetModel}" overloaded. Attempt ${attempt + 1}: failing over to "${fallback}".`);
+            console.warn(
+              `[LLM:Failover] Primary model "${targetModel}" failed (attempt ${attempt}) with upstream error: "${prevErr?.message || String(prevErr)}". Failing over to fallback model "${fallback}".`
+            );
             targetModel = fallback;
           }
 
@@ -373,10 +388,13 @@ export class LLMService {
 
       while (streamAttempt <= maxRetries) {
         try {
-          const activeModel =
-            streamAttempt > 0 && isOverloadedError(lastStreamErr)
-              ? getGeminiFallbackModel(targetModel, streamAttempt)
-              : targetModel;
+          let activeModel = targetModel;
+          if (streamAttempt > 0 && isOverloadedError(lastStreamErr)) {
+            activeModel = getGeminiFallbackModel(targetModel, streamAttempt);
+            console.warn(
+              `[LLM:Failover:Stream] Primary model "${targetModel}" failed stream initiation on attempt ${streamAttempt} with: "${lastStreamErr?.message || String(lastStreamErr)}". Failing over to "${activeModel}".`
+            );
+          }
 
           await LLMThrottleQueue.acquire();
           responseStream = await ai.models.generateContentStream({

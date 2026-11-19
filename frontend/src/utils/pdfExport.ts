@@ -117,3 +117,4 @@ export function exportContentToPdf(options: {
   `);
   printWindow.document.close();
 }
+

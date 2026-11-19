@@ -60,9 +60,13 @@ export class NlpTopicService {
     sampleMax?: number;
     generateAiTitles?: boolean;
     forceRefresh?: boolean;
+    userId?: string;
   }): Promise<TopicModelingResult> {
     const sampleMax = options.sampleMax ?? 500;
     const filter: any = { embedding: { $exists: true, $ne: [] } };
+    if (options.userId) {
+      filter.userId = options.userId;
+    }
     if (options.documentIds && options.documentIds.length > 0) {
       filter.documentId = { $in: options.documentIds };
     }

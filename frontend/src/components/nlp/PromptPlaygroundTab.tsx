@@ -48,10 +48,101 @@ const STRATEGY_STYLES: Record<string, { label: string; badge: string; border: st
   },
 };
 
+const FALLBACK_PROMPTS: PromptTemplateInfo[] = [
+  {
+    id: 'rag_qa.v2',
+    name: 'RAG Grounded Question Answering (Strict Delimiters)',
+    version: '2.0.0',
+    author: 'Multi-Document Research Assistant Team',
+    purpose: 'Generates evidence-backed answers with strict claim-level bracket citations [n].',
+    strategy: 'chain-of-thought',
+    variables: ['context', 'question'],
+    rationale: 'Wraps untrusted retrieved chunks inside explicit delimiter tags to prevent prompt injection and hallucination.',
+    template: 'Context:\n{{context}}\n\nQuestion: {{question}}\n\nAnswer the question strictly based on the context above. For every factual claim, provide a citation marker [n].',
+  },
+  {
+    id: 'rag_qa.v1',
+    name: 'RAG Grounded Question Answering (Baseline)',
+    version: '1.0.0',
+    author: 'Multi-Document Research Assistant Team',
+    purpose: 'Standard zero-shot grounded QA baseline.',
+    strategy: 'zero-shot',
+    variables: ['context', 'question'],
+    rationale: 'Provides un-delimited context for baseline benchmarking against advanced defense mechanisms.',
+    template: 'Context:\n{{context}}\n\nQuestion: {{question}}\n\nAnswer based on context:',
+  },
+  {
+    id: 'document_summary.v2',
+    name: 'Adaptive Structured Document Summary',
+    version: '2.0.0',
+    author: 'Multi-Document Research Assistant Team',
+    purpose: 'Extracts 5 structured sections with page-level attribution.',
+    strategy: 'structured-json',
+    variables: ['documentTitle', 'fullText'],
+    rationale: 'Produces machine-verifiable JSON with explicit page citations for every key finding.',
+    template: 'Synthesize document "{{documentTitle}}" into 5 structured sections with citations.',
+  },
+  {
+    id: 'comparison_matrix.v2',
+    name: 'Cross-Document Comparison Matrix',
+    version: '2.0.0',
+    author: 'Multi-Document Research Assistant Team',
+    purpose: 'Synthesizes 2 to 5 research documents across 10 structured dimensions.',
+    strategy: 'structured-json',
+    variables: ['context'],
+    rationale: 'Enforces comparison across objectives, methodologies, datasets, and performance metrics.',
+    template: 'Generate a comparative matrix across 10 evaluation dimensions based on:\n{{context}}',
+  },
+  {
+    id: 'entity_extraction.v1',
+    name: 'Structured Entity & Metric Extraction',
+    version: '1.0.0',
+    author: 'Multi-Document Research Assistant Team',
+    purpose: 'Extracts entities across 7 validated types (PERSON, ORG, DATASET, METRIC, MODEL, DATE, LOCATION).',
+    strategy: 'few-shot',
+    variables: ['text'],
+    rationale: 'Enforces schema compliance for downstream academic metadata extraction.',
+    template: 'Extract all entities from the text into typed JSON categories:\n{{text}}',
+  },
+  {
+    id: 'topic_naming.v1',
+    name: 'K-Means Topic Labeling & Synthesis',
+    version: '1.0.0',
+    author: 'Multi-Document Research Assistant Team',
+    purpose: 'Generates concise academic topic titles from c-TF-IDF keyword clusters.',
+    strategy: 'few-shot',
+    variables: ['keywords', 'context'],
+    rationale: 'Provides human-interpretable titles for clusters found via unsupervised k-means.',
+    template: 'Given the keywords: {{keywords}} and excerpts: {{context}}, provide a concise academic topic name.',
+  },
+  {
+    id: 'cross_lingual_qa.v1',
+    name: 'Cross-Lingual Grounded Q&A',
+    version: '1.0.0',
+    author: 'Multi-Document Research Assistant Team',
+    purpose: 'Answers multilingual questions in the question language using English context.',
+    strategy: 'few-shot',
+    variables: ['question', 'context'],
+    rationale: 'Bridges linguistic gaps in academic literature access.',
+    template: 'Answer question "{{question}}" in its native language using English excerpts:\n{{context}}',
+  },
+  {
+    id: 'literature_review.v1',
+    name: 'Multi-Document Literature Review Synthesis',
+    version: '1.0.0',
+    author: 'Multi-Document Research Assistant Team',
+    purpose: 'Synthesizes 2 to 5 papers into an objective academic literature review.',
+    strategy: 'chain-of-thought',
+    variables: ['context'],
+    rationale: 'Evaluates methodological convergence, comparative performance, and open challenges.',
+    template: 'Synthesize these research papers into a cohesive literature review:\n{{context}}',
+  },
+];
+
 export const PromptPlaygroundTab: React.FC<PromptPlaygroundTabProps> = ({ documents }) => {
   // Playground State
-  const [prompts, setPrompts] = useState<PromptTemplateInfo[]>([]);
-  const [selectedPromptId, setSelectedPromptId] = useState<string>('rag_qa_v2');
+  const [prompts, setPrompts] = useState<PromptTemplateInfo[]>(FALLBACK_PROMPTS);
+  const [selectedPromptId, setSelectedPromptId] = useState<string>('rag_qa.v2');
   const [temperature, setTemperature] = useState<number>(0.2);
   const [maxTokens, setMaxTokens] = useState<number>(1024);
   const [variables, setVariables] = useState<Record<string, string>>({

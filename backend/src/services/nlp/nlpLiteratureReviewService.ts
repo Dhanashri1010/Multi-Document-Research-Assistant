@@ -23,8 +23,9 @@ export class NlpLiteratureReviewService {
   static async generateReview(options: {
     documentIds: string[];
     forceRefresh?: boolean;
+    userId?: string;
   }): Promise<LiteratureReviewResult> {
-    const { documentIds, forceRefresh } = options;
+    const { documentIds, forceRefresh, userId } = options;
 
     if (!Array.isArray(documentIds) || documentIds.length < 2) {
       throw new Error('A multi-document literature review requires selecting at least 2 research papers.');
@@ -35,7 +36,11 @@ export class NlpLiteratureReviewService {
     }
 
     // 1. Fetch documents
-    const docs = await DocumentModel.find({ _id: { $in: documentIds } }).select('title originalName');
+    const docQuery: any = { _id: { $in: documentIds } };
+    if (userId) {
+      docQuery.userId = userId;
+    }
+    const docs = await DocumentModel.find(docQuery).select('title originalName');
     if (docs.length < 2) {
       throw new Error('Could not find at least 2 valid documents from the provided IDs.');
     }
