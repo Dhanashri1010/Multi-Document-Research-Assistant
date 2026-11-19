@@ -494,7 +494,14 @@ export function getEmbeddingProvider(): EmbeddingProvider {
     activeProvider = new MockEmbeddingProvider();
   } else if (providerType === 'gemini') {
     if (!config.embeddingApiKey) {
-      console.warn(`[EmbeddingService] Warning: GEMINI API key not provided for embeddings, falling back to local model.`);
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          `[EmbeddingService] Fatal Configuration Error: EMBEDDING_API_KEY (or LLM_API_KEY) is required when EMBEDDING_PROVIDER=gemini in production. The system will never silently fallback to 384-dim local embeddings in production to prevent mixed vector dimensions.`
+        );
+      }
+      console.warn(
+        `[EmbeddingService] Warning: GEMINI API key not provided for embeddings, falling back to local 384-d model for offline local development only.`
+      );
       activeProvider = new LocalEmbeddingProvider();
     } else {
       activeProvider = new GeminiEmbeddingProvider(config.embeddingApiKey, config.embeddingModel);

@@ -37,3 +37,4 @@ export async function fetchSystemConfig(): Promise<SystemConfig> {
     return DEFAULT_SYSTEM_CONFIG;
   }
 }
+

@@ -833,7 +833,7 @@ export const WorkflowGuidePage: React.FC = () => {
                     </tr>
                     <tr>
                       <td className="p-3 font-semibold text-slate-900">Dense Embeddings</td>
-                      <td className="p-3 text-slate-600">Generates 768-dimensional float vectors mapping semantic concepts.</td>
+                      <td className="p-3 text-slate-600">Generates 768-dimensional float vectors via Gemini (gemini-embedding-001). Local 384-d ONNX is reserved exclusively for offline local development, never mixed into production.</td>
                       <td className="p-3 text-slate-600">Enables semantic search that matches synonyms and conceptual intent.</td>
                       <td className="p-3 text-slate-600">System Activity / Ready Badge</td>
                       <td className="p-3 font-mono text-[10px] text-slate-500">backend/src/services/ai/geminiEmbeddingProvider.ts</td>
@@ -1253,6 +1253,16 @@ export const WorkflowGuidePage: React.FC = () => {
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   Multi-user security uses bcryptjs password hashing and JWT authentication. Your documents, chat sessions, chunks, and cached insights are strictly isolated to your user ID—other accounts cannot search or view your uploads.
+                </p>
+              </div>
+
+              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-2 md:col-span-2">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                  <Binary className="w-4 h-4 text-emerald-600" />
+                  <span>Strict Vector Consistency (768-d Only)</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Production strictly enforces <strong>768-dimensional Gemini embeddings</strong> (<code>gemini-embedding-001</code>). The system will never silently fall back to 384-dimensional local embeddings in production to prevent mixing vector dimensions. Local 384-d ONNX embeddings are reserved exclusively for offline local development and unit tests.
                 </p>
               </div>
             </div>
