@@ -197,6 +197,96 @@ export interface LLMQuotaStatus {
   resetTimeUtc: string;
 }
 
+export interface TopicInfo {
+  topicId: number;
+  title: string;
+  keywords: { word: string; score: number }[];
+  chunkCount: number;
+  coherenceScore: number;
+}
+
+export interface DocumentTopicShare {
+  documentId: string;
+  documentName: string;
+  topicDistribution: Record<number, number>;
+}
+
+export interface TopicModelingResult {
+  k: number;
+  silhouetteScore: number;
+  coherenceScore: number;
+  topics: TopicInfo[];
+  points: {
+    id: string;
+    documentId: string;
+    documentName: string;
+    chunkIndex: number;
+    textSnippet: string;
+    x: number;
+    y: number;
+    cluster: number;
+  }[];
+  documentDistributions: DocumentTopicShare[];
+  totalChunksAnalyzed: number;
+  cached?: boolean;
+}
+
+export interface LanguageDetectionResult {
+  code: string;
+  iso639_1: string;
+  name: string;
+  confidence: number;
+}
+
+export interface TranslationResult {
+  translatedText: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  provider: 'google_cloud' | 'gemini' | 'local_fallback';
+  latencyMs: number;
+  cached?: boolean;
+}
+
+export interface CrossLingualAnswerResult {
+  answer: string;
+  detectedQuestionLanguage: LanguageDetectionResult;
+  translatedQuestionToEnglish?: string;
+  retrievedPassages: {
+    documentId: string;
+    documentTitle?: string;
+    pageNumber?: number;
+    chunkIndex: number;
+    text: string;
+    score: number;
+  }[];
+  latencyMs: number;
+  provider: string;
+}
+
+export interface PromptTemplateInfo {
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  purpose: string;
+  strategy: 'zero-shot' | 'few-shot' | 'chain-of-thought' | 'structured-json';
+  variables: string[];
+  rationale: string;
+  template: string;
+}
+
+export interface LiteratureReviewResult {
+  reviewMarkdown: string;
+  papersIncluded: {
+    documentId: string;
+    title: string;
+    chunkCount: number;
+  }[];
+  generatedAt: string;
+  latencyMs: number;
+  cached?: boolean;
+}
+
 export class NlpService {
   static async preprocessText(payload: {
     documentId?: string;
@@ -252,6 +342,65 @@ export class NlpService {
 
   static async getLlmQuota(): Promise<LLMQuotaStatus> {
     const res = await apiClient.get<{ success: boolean; data: LLMQuotaStatus }>('/nlp/llm-quota');
+    return res.data.data;
+  }
+
+  static async getTopics(options: {
+    documentIds?: string[];
+    k?: number;
+    sampleMax?: number;
+    generateAiTitles?: boolean;
+    forceRefresh?: boolean;
+  } = {}): Promise<TopicModelingResult> {
+    const res = await apiClient.post<{ success: boolean; data: TopicModelingResult }>('/nlp/topics', options);
+    return res.data.data;
+  }
+
+  static async detectLanguage(text: string): Promise<LanguageDetectionResult> {
+    const res = await apiClient.post<{ success: boolean; data: LanguageDetectionResult }>('/nlp/multilingual/detect', {
+      text,
+    });
+    return res.data.data;
+  }
+
+  static async translateText(options: {
+    text: string;
+    targetLanguage: string;
+    sourceLanguage?: string;
+    provider?: 'auto' | 'google_cloud' | 'gemini' | 'local';
+    forceRefresh?: boolean;
+  }): Promise<TranslationResult> {
+    const res = await apiClient.post<{ success: boolean; data: TranslationResult }>('/nlp/multilingual/translate', options);
+    return res.data.data;
+  }
+
+  static async askCrossLingual(options: {
+    question: string;
+    documentIds?: string[];
+    targetLanguage?: string;
+  }): Promise<CrossLingualAnswerResult> {
+    const res = await apiClient.post<{ success: boolean; data: CrossLingualAnswerResult }>('/nlp/multilingual/ask', options);
+    return res.data.data;
+  }
+
+  static async warmCache(): Promise<{ success: boolean; message: string; tasks: string[] }> {
+    const res = await apiClient.post<{ success: boolean; message: string; tasks: string[] }>('/nlp/warm-cache', {});
+    return res.data;
+  }
+
+  static async getPrompts(): Promise<PromptTemplateInfo[]> {
+    const res = await apiClient.get<{ success: boolean; data: PromptTemplateInfo[] }>('/nlp/prompts');
+    return res.data.data;
+  }
+
+  static async generateLiteratureReview(options: {
+    documentIds: string[];
+    forceRefresh?: boolean;
+  }): Promise<LiteratureReviewResult> {
+    const res = await apiClient.post<{ success: boolean; data: LiteratureReviewResult }>(
+      '/nlp/literature-review',
+      options
+    );
     return res.data.data;
   }
 }

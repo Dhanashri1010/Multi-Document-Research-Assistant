@@ -35,7 +35,12 @@ export const ProcessingStatusBadge: React.FC<ProcessingStatusProps> = ({
       let label = 'Preparing';
       if (isCooldown) {
         const secMatch = message?.match(/(\d+)\s*s/);
-        label = secMatch ? `Rate limit cooldown (${secMatch[1]}s)` : 'Rate limit cooldown';
+        const secText = secMatch ? `${secMatch[1]}s` : 'waiting';
+        if (typeof embeddedChunkCount === 'number' && typeof totalChunkCount === 'number' && totalChunkCount > 0) {
+          label = `Cooldown (${secText}) · ${embeddedChunkCount}/${totalChunkCount}`;
+        } else {
+          label = secMatch ? `Rate limit cooldown (${secMatch[1]}s)` : 'Rate limit cooldown';
+        }
       } else if (typeof embeddedChunkCount === 'number' && typeof totalChunkCount === 'number' && totalChunkCount > 0) {
         label = `Embedding ${embeddedChunkCount}/${totalChunkCount}`;
       } else if (message) {
@@ -49,7 +54,7 @@ export const ProcessingStatusBadge: React.FC<ProcessingStatusProps> = ({
 
       return (
         <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${colorClass}`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 border ${colorClass}`}
           title={message || label}
         >
           {showIcon && <Loader2 className={`w-3.5 h-3.5 ${iconColor} animate-spin`} />}

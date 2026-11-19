@@ -57,6 +57,37 @@ const evaluationRunSchema = z.object({
   forceRefresh: z.boolean().optional(),
 });
 
+const topicsBodySchema = z.object({
+  documentIds: z.array(z.string()).optional(),
+  k: z.number().int().min(2).max(6).optional(),
+  sampleMax: z.number().int().min(10).max(1000).optional(),
+  generateAiTitles: z.boolean().optional(),
+  forceRefresh: z.boolean().optional(),
+});
+
+const detectLangSchema = z.object({
+  text: z.string().min(1).max(50_000),
+});
+
+const translateSchema = z.object({
+  text: z.string().min(1).max(10_000),
+  targetLanguage: z.string().min(2).max(10),
+  sourceLanguage: z.string().max(10).optional(),
+  provider: z.enum(['auto', 'google_cloud', 'gemini', 'local']).optional(),
+  forceRefresh: z.boolean().optional(),
+});
+
+const crossLingualQaSchema = z.object({
+  question: z.string().min(1).max(2000),
+  documentIds: z.array(z.string()).optional(),
+  targetLanguage: z.string().max(10).optional(),
+});
+
+const literatureReviewSchema = z.object({
+  documentIds: z.array(z.string().min(1)).min(2).max(5),
+  forceRefresh: z.boolean().optional(),
+});
+
 // Endpoints
 router.post('/preprocess', validateBody(preprocessBodySchema), NlpController.preprocess);
 router.post('/vectorize', validateBody(vectorizeBodySchema), NlpController.vectorize);
@@ -65,6 +96,13 @@ router.post('/extract', validateBody(extractBodySchema), NlpController.extract);
 router.post('/evaluation/run', validateBody(evaluationRunSchema), NlpController.runEvaluation);
 router.get('/evaluation/results', NlpController.getEvaluationReport);
 router.get('/llm-quota', NlpController.getLlmQuota);
+router.get('/prompts', NlpController.listPrompts);
+router.post('/topics', validateBody(topicsBodySchema), NlpController.topics);
+router.post('/multilingual/detect', validateBody(detectLangSchema), NlpController.detectLanguage);
+router.post('/multilingual/translate', validateBody(translateSchema), NlpController.translate);
+router.post('/multilingual/ask', validateBody(crossLingualQaSchema), NlpController.askMultilingual);
+router.post('/literature-review', validateBody(literatureReviewSchema), NlpController.literatureReview);
+router.post('/warm-cache', NlpController.warmCache);
 
 export default router;
 
