@@ -15,9 +15,9 @@ interface RequestRecord {
 
 export class EmbeddingThrottleQueue {
   private static readonly WINDOW_MS = 60_000;
-  private static readonly MAX_REQUESTS_PER_MINUTE = 50;
-  private static readonly MAX_TOKENS_PER_MINUTE = 18_000;
-  private static readonly MIN_CALL_SPACING_MS = 1_200;
+  private static readonly MAX_REQUESTS_PER_MINUTE = 60;
+  private static readonly MAX_TOKENS_PER_MINUTE = 28_000;
+  private static readonly MIN_CALL_SPACING_MS = 1_000;
 
   private static history: RequestRecord[] = [];
   private static lastCallTimestamp = 0;
@@ -120,19 +120,20 @@ export class EmbeddingThrottleQueue {
 
         // 3. Check sliding 60-second window capacity
         const usage = this.getWindowUsage(now);
-        const wouldExceedRequests = usage.requests + 1 > this.MAX_REQUESTS_PER_MINUTE;
-        const wouldExceedTokens = usage.tokens + tokenEstimate > this.MAX_TOKENS_PER_MINUTE;
+        const hasHistory = this.history.length > 0;
+        const wouldExceedRequests = hasHistory && (usage.requests + 1 > this.MAX_REQUESTS_PER_MINUTE);
+        const wouldExceedTokens = hasHistory && (usage.tokens + tokenEstimate > this.MAX_TOKENS_PER_MINUTE);
 
         if (wouldExceedRequests || wouldExceedTokens) {
           // Find earliest expiring record to know how long to sleep
           const oldest = this.history[0];
-          const timeToWait = oldest ? Math.max(1000, oldest.timestamp + this.WINDOW_MS - now + 100) : 2000;
+          const timeToWait = oldest ? Math.max(1000, oldest.timestamp + this.WINDOW_MS - now + 100) : 1000;
           const waitSec = Math.ceil(timeToWait / 1000);
           const reason = wouldExceedTokens
             ? `Token capacity (${usage.tokens + tokenEstimate}/${this.MAX_TOKENS_PER_MINUTE} TPM)`
             : `Request capacity (${usage.requests + 1}/${this.MAX_REQUESTS_PER_MINUTE} RPM)`;
 
-          console.log(`[EmbeddingThrottleQueue] Window full: waiting ${waitSec}s for ${reason}...`);
+          console.log(`[EmbeddingThrottleQueue] Window capacity reached: waiting ${waitSec}s for ${reason}...`);
           if (onWaiting) {
             await onWaiting(waitSec, reason);
           }

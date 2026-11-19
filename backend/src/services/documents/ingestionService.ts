@@ -317,8 +317,8 @@ export class IngestionService {
         `[Ingestion] Chunks: ${chunks.length} total, ${existingChunkMap.size} already embedded, ${missingChunks.length} to embed.`
       );
 
-      // Embed missing chunks in batches of 30, persisting each batch immediately
-      const batchSize = 30;
+      // Embed missing chunks in batches of 15, persisting each batch immediately
+      const batchSize = 15;
       for (let i = 0; i < missingChunks.length; i += batchSize) {
         const batch = missingChunks.slice(i, i + batchSize);
         const batchTexts = batch.map((c) => c.embeddingText || c.text);

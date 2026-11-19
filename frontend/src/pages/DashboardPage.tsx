@@ -299,10 +299,10 @@ export const DashboardPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-xs font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3 px-4">Document Title</th>
-                    <th className="py-3 px-4">Pages</th>
-                    <th className="py-3 px-4">Uploaded</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Quick Action</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Pages</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Uploaded</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Status</th>
+                    <th className="py-3 px-4 text-right whitespace-nowrap">Quick Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
@@ -316,16 +316,16 @@ export const DashboardPage: React.FC = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-600">
+                      <td className="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">
                         {doc.pageCount > 0 ? `${doc.pageCount} pgs` : '—'}
                       </td>
-                      <td className="py-3 px-4 text-slate-500">
+                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
                         {new Date(doc.createdAt).toLocaleDateString(undefined, {
                           month: 'short',
                           day: 'numeric',
                         })}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <ProcessingStatusBadge
                             status={doc.status}
@@ -344,7 +344,7 @@ export const DashboardPage: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
                         {doc.status === 'ready' ? (
                           <button
                             onClick={() => handleStartResearch(doc._id)}
@@ -363,24 +363,13 @@ export const DashboardPage: React.FC = () => {
                             <span>Retry</span>
                           </button>
                         ) : doc.status === 'processing' ? (
-                          <span
-                            className="inline-flex items-center gap-1 text-blue-600 font-medium text-xs italic"
-                            title={doc.processingMessage || undefined}
-                          >
-                            <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-                            <span>
-                              {doc.processingMessage
-                                ? doc.processingMessage.length > 24
-                                  ? doc.processingMessage.slice(0, 22) + '...'
-                                  : doc.processingMessage
-                                : doc.totalChunkCount
-                                ? `Embedding ${doc.embeddedChunkCount || 0}/${doc.totalChunkCount}`
-                                : 'Preparing...'}
-                            </span>
+                          <span className="inline-flex items-center gap-1.5 text-blue-600 font-medium text-xs whitespace-nowrap">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            <span>Processing...</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-amber-600 font-medium italic">
-                            <Clock className="w-3 h-3" />
+                          <span className="inline-flex items-center gap-1.5 text-amber-600 font-medium text-xs whitespace-nowrap">
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
                             <span>Queued</span>
                           </span>
                         )}
