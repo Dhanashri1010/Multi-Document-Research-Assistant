@@ -1,4 +1,5 @@
 import { config } from '../../config/env.js';
+import { LLMThrottleQueue } from './llmThrottleQueue.js';
 
 export interface LLMGenerateOptions {
   systemPrompt?: string;
@@ -41,15 +42,43 @@ function isRetryableError(err: any): boolean {
   );
 }
 
+export function canonicalizeGeminiModel(rawName: string): string {
+  const trimmed = (rawName || '').trim().toLowerCase();
+  const validModels = [
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-pro',
+    'gemini-2.5-flash',
+  ];
+  if (validModels.includes(trimmed)) {
+    return trimmed;
+  }
+  // Safely auto-map typos or invalid variants (e.g. gemini-3.1-flash-lite -> gemini-2.0-flash-lite)
+  if (trimmed.includes('flash-lite')) {
+    return 'gemini-2.0-flash-lite';
+  }
+  if (trimmed.includes('flash')) {
+    return 'gemini-2.0-flash';
+  }
+  if (trimmed.includes('pro')) {
+    return 'gemini-1.5-pro';
+  }
+  return 'gemini-2.0-flash';
+}
+
 export function getGeminiFallbackModel(primaryModel: string, attempt: number = 1): string {
   const configuredFallback = (config.llmFallbackModel || '').trim();
-  const trimmed = (primaryModel || '').trim();
-  if (attempt === 1 && configuredFallback && configuredFallback !== trimmed) {
-    return configuredFallback;
+  const canonicalPrimary = canonicalizeGeminiModel(primaryModel);
+  const canonicalFallback = configuredFallback ? canonicalizeGeminiModel(configuredFallback) : '';
+
+  if (attempt === 1 && canonicalFallback && canonicalFallback !== canonicalPrimary) {
+    return canonicalFallback;
   }
   // High-availability fallbacks: gemini-1.5-flash has the highest quota and lowest 503 overload rate
-  if (trimmed === 'gemini-1.5-flash') {
-    return 'gemini-2.5-flash';
+  if (canonicalPrimary === 'gemini-1.5-flash') {
+    return 'gemini-2.0-flash';
   }
   return 'gemini-1.5-flash';
 }
@@ -110,6 +139,9 @@ async function withRetry<T>(
         }
 
         const delay = serverDelayMs || (Math.min(1500 * Math.pow(2, attempt), 6000) + Math.floor(Math.random() * 250));
+        if (msg.includes('429') || msg.includes('rate limit') || msg.includes('resource_exhausted')) {
+          LLMThrottleQueue.pause(delay, 'Gemini 429 rate limit backoff');
+        }
         console.warn(`[LLMService] Retryable error encountered (attempt ${attempt + 1}/${maxRetries}): ${err.message}. Retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         attempt++;
@@ -226,10 +258,7 @@ export class LLMService {
             httpOptions: { timeout: Math.max(10000, timeoutMs) },
           });
 
-          let targetModel = (model || '').trim();
-          if (!targetModel) {
-            throw new Error('LLM_MODEL is not configured in backend/.env.');
-          }
+          let targetModel = canonicalizeGeminiModel(model || 'gemini-2.0-flash');
 
           // Automatic model failover on 503 (high traffic/overloaded) or 429
           if (attempt > 0 && isOverloadedError(prevErr)) {
@@ -237,6 +266,8 @@ export class LLMService {
             console.log(`[LLMService] Gemini model "${targetModel}" overloaded. Attempt ${attempt + 1}: failing over to "${fallback}".`);
             targetModel = fallback;
           }
+
+          await LLMThrottleQueue.acquire();
 
           try {
             const response = await ai.models.generateContent({
@@ -358,7 +389,7 @@ export class LLMService {
         apiKey,
         httpOptions: { timeout: Math.max(10000, options.timeoutMs ?? config.llmTimeoutMs) },
       });
-      const targetModel = (model || '').trim();
+      const targetModel = canonicalizeGeminiModel(model || 'gemini-2.0-flash');
 
       const maxRetries = options.maxRetries ?? config.llmMaxRetries ?? 3;
       let responseStream: any = null;
@@ -372,6 +403,7 @@ export class LLMService {
               ? getGeminiFallbackModel(targetModel, streamAttempt)
               : targetModel;
 
+          await LLMThrottleQueue.acquire();
           responseStream = await ai.models.generateContentStream({
             model: activeModel,
             contents: prompt,

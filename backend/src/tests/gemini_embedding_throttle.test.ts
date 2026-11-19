@@ -141,8 +141,8 @@ describe('Gemini Embedding Throttle & 429 Resilience', () => {
 
       expect(vectors).toHaveLength(65);
       expect(vectors[0]).toHaveLength(768);
-      // Batch size is 15, so 65 items = 5 batches (15, 15, 15, 15, 5)
-      expect(mockEmbedContent).toHaveBeenCalledTimes(5);
+      // Batch size is 10, so 65 items = 7 batches (6 x 10 + 1 x 5)
+      expect(mockEmbedContent).toHaveBeenCalledTimes(7);
       expect(progressUpdates.length).toBeGreaterThan(0);
     });
   });

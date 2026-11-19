@@ -11,6 +11,7 @@ import { DocumentsPage } from './pages/DocumentsPage.js';
 import { ResearchPage } from './pages/ResearchPage.js';
 import { ComparePage } from './pages/ComparePage.js';
 import { WorkflowGuidePage } from './pages/WorkflowGuidePage.js';
+import { NlpLabPage } from './pages/NlpLabPage.js';
 
 export function App() {
   return (
@@ -53,6 +54,14 @@ export function App() {
                 element={
                   <ProtectedRoute>
                     <ComparePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/nlp-lab"
+                element={
+                  <ProtectedRoute>
+                    <NlpLabPage />
                   </ProtectedRoute>
                 }
               />

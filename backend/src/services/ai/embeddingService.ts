@@ -316,7 +316,7 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
 
     const results: number[][] = [];
-    const batchSize = 15; // Max 15 chunks per call (~5-6k tokens) to stay well under TPM limits
+    const batchSize = 10; // Max 10 chunks per call (~2.5-3k tokens) to stay well under TPM limits
     const total = texts.length;
 
     for (let i = 0; i < total; i += batchSize) {

@@ -1,0 +1,238 @@
+[
+  {
+    "id": 1,
+    "passage": "In 2020, researchers at Google DeepMind trained BERT on the SQuAD dataset to optimize F1-score.",
+    "goldEntities": [
+      { "text": "2020", "type": "DATE" },
+      { "text": "Google DeepMind", "type": "ORG" },
+      { "text": "BERT", "type": "MODEL" },
+      { "text": "SQuAD", "type": "DATASET" },
+      { "text": "F1-score", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 2,
+    "passage": "OpenAI evaluated GPT-4 on the GLUE benchmark in 2023, reporting superior accuracy across all tasks.",
+    "goldEntities": [
+      { "text": "OpenAI", "type": "ORG" },
+      { "text": "GPT-4", "type": "MODEL" },
+      { "text": "GLUE", "type": "DATASET" },
+      { "text": "2023", "type": "DATE" },
+      { "text": "accuracy", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 3,
+    "passage": "A study proposed by John Smith at Stanford University evaluated Transformer latency on ImageNet in 2022.",
+    "goldEntities": [
+      { "text": "John Smith", "type": "PERSON" },
+      { "text": "Stanford University", "type": "ORG" },
+      { "text": "Transformer", "type": "MODEL" },
+      { "text": "latency", "type": "METRIC" },
+      { "text": "ImageNet", "type": "DATASET" },
+      { "text": "2022", "type": "DATE" }
+    ]
+  },
+  {
+    "id": 4,
+    "passage": "Meta AI released LLaMA in 2023 to measure perplexity and BLEU on Common Crawl.",
+    "goldEntities": [
+      { "text": "Meta AI", "type": "ORG" },
+      { "text": "LLaMA", "type": "MODEL" },
+      { "text": "2023", "type": "DATE" },
+      { "text": "perplexity", "type": "METRIC" },
+      { "text": "BLEU", "type": "METRIC" },
+      { "text": "Common Crawl", "type": "DATASET" }
+    ]
+  },
+  {
+    "id": 5,
+    "passage": "Researchers at MIT measured throughput and precision of ResNet on CIFAR-10 in 2021.",
+    "goldEntities": [
+      { "text": "MIT", "type": "ORG" },
+      { "text": "throughput", "type": "METRIC" },
+      { "text": "precision", "type": "METRIC" },
+      { "text": "ResNet", "type": "MODEL" },
+      { "text": "CIFAR-10", "type": "DATASET" },
+      { "text": "2021", "type": "DATE" }
+    ]
+  },
+  {
+    "id": 6,
+    "passage": "The study by Alice Brown in 2024 evaluated RoBERTa on MS MARCO, measuring recall and MRR.",
+    "goldEntities": [
+      { "text": "Alice Brown", "type": "PERSON" },
+      { "text": "2024", "type": "DATE" },
+      { "text": "RoBERTa", "type": "MODEL" },
+      { "text": "MS MARCO", "type": "DATASET" },
+      { "text": "recall", "type": "METRIC" },
+      { "text": "MRR", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 7,
+    "passage": "Google evaluated Gemini on HotpotQA in 2024, focusing on multi-hop question answering loss.",
+    "goldEntities": [
+      { "text": "Google", "type": "ORG" },
+      { "text": "Gemini", "type": "MODEL" },
+      { "text": "HotpotQA", "type": "DATASET" },
+      { "text": "2024", "type": "DATE" },
+      { "text": "loss", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 8,
+    "passage": "Microsoft Research deployed CNN models on MNIST in 2019 to evaluate classification error rate.",
+    "goldEntities": [
+      { "text": "Microsoft Research", "type": "ORG" },
+      { "text": "CNN", "type": "MODEL" },
+      { "text": "MNIST", "type": "DATASET" },
+      { "text": "2019", "type": "DATE" }
+    ]
+  },
+  {
+    "id": 9,
+    "passage": "Experiments conducted at Harvard in 2022 compared T5 against BART using ROUGE-L on WikiText.",
+    "goldEntities": [
+      { "text": "Harvard", "type": "ORG" },
+      { "text": "2022", "type": "DATE" },
+      { "text": "T5", "type": "MODEL" },
+      { "text": "BART", "type": "MODEL" },
+      { "text": "ROUGE-L", "type": "METRIC" },
+      { "text": "WikiText", "type": "DATASET" }
+    ]
+  },
+  {
+    "id": 10,
+    "passage": "An investigation by David Miller assessed LSTM models on Natural Questions in 2020, tracking MAP.",
+    "goldEntities": [
+      { "text": "David Miller", "type": "PERSON" },
+      { "text": "LSTM", "type": "MODEL" },
+      { "text": "Natural Questions", "type": "DATASET" },
+      { "text": "2020", "type": "DATE" },
+      { "text": "MAP", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 11,
+    "passage": "Carnegie Mellon tested Claude on SuperGLUE in 2023, observing substantial gains in macro F1.",
+    "goldEntities": [
+      { "text": "Carnegie Mellon", "type": "ORG" },
+      { "text": "Claude", "type": "MODEL" },
+      { "text": "SuperGLUE", "type": "DATASET" },
+      { "text": "2023", "type": "DATE" },
+      { "text": "F1", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 12,
+    "passage": "In 2021, Amazon evaluated Mistral on MultiRC to quantify inference latency.",
+    "goldEntities": [
+      { "text": "2021", "type": "DATE" },
+      { "text": "Amazon", "type": "ORG" },
+      { "text": "Mistral", "type": "MODEL" },
+      { "text": "MultiRC", "type": "DATASET" },
+      { "text": "latency", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 13,
+    "passage": "The team led by Robert Davis at Berkeley measured AUC-ROC of AutoEncoder on CIFAR-100 in 2022.",
+    "goldEntities": [
+      { "text": "Robert Davis", "type": "PERSON" },
+      { "text": "Berkeley", "type": "ORG" },
+      { "text": "AUC-ROC", "type": "METRIC" },
+      { "text": "AutoEncoder", "type": "MODEL" },
+      { "text": "CIFAR-100", "type": "DATASET" },
+      { "text": "2022", "type": "DATE" }
+    ]
+  },
+  {
+    "id": 14,
+    "passage": "Apple researchers benchmarked Transformer architectures on SQuAD-v2 in 2023, tracking BLEU-4.",
+    "goldEntities": [
+      { "text": "Apple", "type": "ORG" },
+      { "text": "Transformer", "type": "MODEL" },
+      { "text": "SQuAD-v2", "type": "DATASET" },
+      { "text": "2023", "type": "DATE" },
+      { "text": "BLEU-4", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 15,
+    "passage": "DeepSeek was evaluated by IBM in 2024 to minimize perplexity across scientific corpora.",
+    "goldEntities": [
+      { "text": "DeepSeek", "type": "MODEL" },
+      { "text": "IBM", "type": "ORG" },
+      { "text": "2024", "type": "DATE" },
+      { "text": "perplexity", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 16,
+    "passage": "In 2020, IEEE published an analysis by Carol White examining BERT accuracy on GLUE.",
+    "goldEntities": [
+      { "text": "2020", "type": "DATE" },
+      { "text": "IEEE", "type": "ORG" },
+      { "text": "Carol White", "type": "PERSON" },
+      { "text": "BERT", "type": "MODEL" },
+      { "text": "accuracy", "type": "METRIC" },
+      { "text": "GLUE", "type": "DATASET" }
+    ]
+  },
+  {
+    "id": 17,
+    "passage": "Stanford researchers deployed RoBERTa on HotpotQA in 2021, recording high precision and recall.",
+    "goldEntities": [
+      { "text": "Stanford", "type": "ORG" },
+      { "text": "RoBERTa", "type": "MODEL" },
+      { "text": "HotpotQA", "type": "DATASET" },
+      { "text": "2021", "type": "DATE" },
+      { "text": "precision", "type": "METRIC" },
+      { "text": "recall", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 18,
+    "passage": "ACM proceedings in 2023 reported GPT-3 perplexity evaluations conducted by Emily Clark.",
+    "goldEntities": [
+      { "text": "ACM", "type": "ORG" },
+      { "text": "2023", "type": "DATE" },
+      { "text": "GPT-3", "type": "MODEL" },
+      { "text": "perplexity", "type": "METRIC" },
+      { "text": "Emily Clark", "type": "PERSON" }
+    ]
+  },
+  {
+    "id": 19,
+    "passage": "OpenAI measured the p99 latency of Whisper on LibriSpeech in 2022.",
+    "goldEntities": [
+      { "text": "OpenAI", "type": "ORG" },
+      { "text": "latency", "type": "METRIC" },
+      { "text": "2022", "type": "DATE" }
+    ]
+  },
+  {
+    "id": 20,
+    "passage": "In 2024, Google DeepMind compared Gemini against GPT-4 on SuperGLUE, computing macro F1-score.",
+    "goldEntities": [
+      { "text": "2024", "type": "DATE" },
+      { "text": "Google DeepMind", "type": "ORG" },
+      { "text": "Gemini", "type": "MODEL" },
+      { "text": "GPT-4", "type": "MODEL" },
+      { "text": "SuperGLUE", "type": "DATASET" },
+      { "text": "F1-score", "type": "METRIC" }
+    ]
+  },
+  {
+    "id": 21,
+    "passage": "Microsoft evaluated ResNet-50 on ImageNet in 2018, obtaining remarkable throughput gains.",
+    "goldEntities": [
+      { "text": "Microsoft", "type": "ORG" },
+      { "text": "ResNet-50", "type": "MODEL" },
+      { "text": "ImageNet", "type": "DATASET" },
+      { "text": "2018", "type": "DATE" },
+      { "text": "throughput", "type": "METRIC" }
+    ]
+  }
+]

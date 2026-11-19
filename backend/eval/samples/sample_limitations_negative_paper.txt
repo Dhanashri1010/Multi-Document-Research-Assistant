@@ -1,0 +1,17 @@
+Title: Failure Modes and Memory Bottlenecks in Large Language Model Indexing
+Authors: Alan Turing, Ada Lovelace
+Affiliations: Cambridge Institute of Computing
+Publication Year: 2023
+Abstract: This paper provides an empirical investigation into critical failure modes, Out-Of-Memory exceptions, and adversarial vulnerabilities in generative search pipelines.
+
+1. Introduction
+Despite widespread enthusiasm for large language models, deployed systems suffer from severe vulnerabilities and frequent runtime failures. High query latencies of 5.8 seconds make current neural search pipelines unsuitable for real-time applications.
+
+2. Empirical Vulnerabilities and Bottlenecks
+During stress testing, severe memory degradation and Out-Of-Memory crashes occurred whenever batch sizes exceeded 16 documents. Furthermore, catastrophic loss divergence plagued fine-tuning runs on non-standard scientific corpora. Under noisy conditions with OCR errors, retrieval precision dropped by an unacceptable 34%, leading to persistent hallucinations and factually incorrect citations.
+
+3. Security Evaluation
+We evaluated model robustness against adversarial prompt injection attacks. The baseline completely failed to reject malicious inputs, exposing internal system prompts and generating unverified claims. Additionally, uncalibrated confidence scores resulted in dangerously overconfident predictions.
+
+4. Conclusion
+Current architectures exhibit acute sensitivity to hyperparameter choices and suffer from unacceptable computational overhead. Substantial architectural revisions are mandatory before these systems can be safely trusted in production environments.

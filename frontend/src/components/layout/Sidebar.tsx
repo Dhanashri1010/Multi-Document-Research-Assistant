@@ -5,6 +5,7 @@ import {
   FileText,
   Sparkles,
   GitCompare,
+  FlaskConical,
   BookOpenCheck,
   GraduationCap,
   LogOut,
@@ -41,6 +42,12 @@ export const Sidebar: React.FC = () => {
       to: '/compare',
       label: 'Compare Documents',
       icon: GitCompare,
+      badge: null,
+    },
+    {
+      to: '/nlp-lab',
+      label: 'NLP Lab',
+      icon: FlaskConical,
       badge: null,
     },
   ];

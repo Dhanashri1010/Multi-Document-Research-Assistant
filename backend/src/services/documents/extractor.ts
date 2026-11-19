@@ -123,11 +123,7 @@ export async function extractTxt(filePath: string): Promise<ExtractionResult> {
   const cleaned = cleanText(data);
 
   if (!cleaned.trim()) {
-    return {
-      totalPages: 0,
-      pages: [],
-      fullText: '',
-    };
+    throw new Error('Empty TXT: The uploaded text document contains no readable content.');
   }
 
   const pageSize = 3000;
@@ -639,10 +635,10 @@ export async function extractPdf(filePath: string): Promise<ExtractionResult> {
   const totalPagesCount = parsed.numpages || cleanedPages.length || 1;
   const avgCharsPerPage = totalChars / totalPagesCount;
 
-  // Truly image-only / empty PDFs: hard rejection
+  // Truly image-only / empty PDFs: hard rejection with clear scanned PDF diagnostic
   if (totalChars < 50 || avgCharsPerPage < 20) {
     throw new Error(
-      `Image-Only / Scanned Document: No machine-readable text found in the PDF (found only ${totalChars} characters across ${totalPagesCount} page(s)). OCR is required to extract content from this document.`
+      `Image-Only / Scanned Document: No machine-readable text found in the PDF (found only ${totalChars} characters across ${totalPagesCount} page(s)). This document appears to be a scanned image or protected bitmap. Optical Character Recognition (OCR) is required to extract content from this document.`
     );
   }
 
