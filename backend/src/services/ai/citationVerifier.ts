@@ -457,6 +457,7 @@ export class CitationVerifier {
           }
           if (crossRes.status === 'verified' || crossRes.status === 'partially_supported') {
             verifiedIndices.push(candidate.index);
+            unsupportedIndices.length = 0;
             chunkDetails[candidate.index] = {
               status: crossRes.status,
               isSupported: crossRes.isSupported,

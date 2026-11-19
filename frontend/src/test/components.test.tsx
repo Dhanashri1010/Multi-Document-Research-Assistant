@@ -80,10 +80,11 @@ describe('Frontend Component Tests: SourceCitation', () => {
     render(<SourceCitation citations={sampleCitations} />);
 
     expect(screen.getByText(/Retrieved Evidence & Citations \(2\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 unverified citation flagged/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 of 2 claims verified/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 verified · 1 unverified/i)).toBeInTheDocument();
 
-    expect(screen.getByText('verified')).toBeInTheDocument();
-    expect(screen.getByText('unverified')).toBeInTheDocument();
+    expect(screen.getByText('Verified')).toBeInTheDocument();
+    expect(screen.getByText('Unsupported')).toBeInTheDocument();
   });
 
   it('expands citation excerpt and shows Open in PDF Viewer button upon click', () => {
@@ -117,7 +118,7 @@ describe('Frontend Component Tests: SourceCitation', () => {
     const docHeader = screen.getByText('RAG_Paper.pdf');
     fireEvent.click(docHeader);
 
-    expect(screen.getByText(/Referenced Claim/i)).toBeInTheDocument();
+    expect(screen.getByText(/Referenced Statement/i)).toBeInTheDocument();
     expect(
       screen.getByText(/"RAG models outperform standard parametric seq2seq models on open-domain question answering."/i)
     ).toBeInTheDocument();
@@ -129,7 +130,7 @@ describe('Frontend Component Tests: SourceCitation', () => {
     expect(markEl?.textContent).toContain('Retrieval-Augmented Generation outperforms parametric models');
   });
 
-  it('correctly handles and displays not checked citation state when unverified by AI', () => {
+  it('correctly defaults unverified citations to 3-state confidence unsupported instead of not checked', () => {
     const uncheckCitations: ICitation[] = [
       {
         documentId: 'doc3',
@@ -142,8 +143,9 @@ describe('Frontend Component Tests: SourceCitation', () => {
 
     render(<SourceCitation citations={uncheckCitations} />);
 
-    expect(screen.getByText(/sources not checked/i)).toBeInTheDocument();
-    expect(screen.getByText('not checked')).toBeInTheDocument();
+    expect(screen.getByText(/0 of 1 claims verified/i)).toBeInTheDocument();
+    expect(screen.getByText('Unsupported')).toBeInTheDocument();
+    expect(screen.queryByText(/not checked/i)).toBeNull();
   });
 });
 

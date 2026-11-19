@@ -151,8 +151,8 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({
   };
 
   // Separate passages actually cited in claims from background/unused retrieved passages
-  const citedCitations = citations.filter((c) => c.isCitedInAnswer !== false && (c.claim || c.verificationStatus === 'verified' || c.verificationStatus === 'partially_supported'));
-  const uncitedCitations = citations.filter((c) => c.isCitedInAnswer === false || (!c.claim && c.verificationStatus === 'unsupported' && !c.supportScore));
+  const citedCitations = citations.filter((c) => c.isCitedInAnswer !== false);
+  const uncitedCitations = citations.filter((c) => c.isCitedInAnswer === false);
 
   const verifiedCount = citations.filter(
     (c) => c.verificationStatus === 'verified' || (c.verified === true && c.verificationStatus !== 'partially_supported')
