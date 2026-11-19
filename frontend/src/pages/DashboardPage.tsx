@@ -12,6 +12,8 @@ import {
   GitCompare,
   MessageSquare,
   History,
+  RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import { documentService } from '../services/documentService.js';
 import { researchService } from '../services/researchService.js';
@@ -33,6 +35,8 @@ export const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [retryingDocId, setRetryingDocId] = useState<string | null>(null);
+  const [selectedErrorDoc, setSelectedErrorDoc] = useState<IDocument | null>(null);
 
   const navigate = useNavigate();
   const { selectAllDocs, setSelectedDocIds, refreshDocuments } = useWorkspace();
@@ -58,6 +62,34 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Auto-refresh when any recent document is currently processing or uploaded
+  useEffect(() => {
+    const hasPending = recentDocs.some(
+      (d) => d.status === 'processing' || d.status === 'uploaded'
+    );
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [recentDocs]);
+
+  const handleRetryDocument = async (docId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      setRetryingDocId(docId);
+      await documentService.reprocess(docId);
+      await fetchDashboardData();
+      await refreshDocuments();
+    } catch (err: any) {
+      console.error('Failed to retry document:', err);
+    } finally {
+      setRetryingDocId(null);
+    }
+  };
 
   const handleUploadDone = async () => {
     setIsUploadOpen(false);
@@ -294,7 +326,18 @@ export const DashboardPage: React.FC = () => {
                         })}
                       </td>
                       <td className="py-3 px-4">
-                        <ProcessingStatusBadge status={doc.status} />
+                        <div className="flex items-center gap-1.5">
+                          <ProcessingStatusBadge status={doc.status} />
+                          {doc.status === 'failed' && doc.errorDetails && (
+                            <button
+                              onClick={() => setSelectedErrorDoc(doc)}
+                              title="View error details"
+                              className="p-1 rounded-md text-rose-500 hover:bg-rose-50 transition-colors"
+                            >
+                              <AlertCircle className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-right">
                         {doc.status === 'ready' ? (
@@ -304,8 +347,26 @@ export const DashboardPage: React.FC = () => {
                           >
                             <Sparkles className="w-3.5 h-3.5" /> Research
                           </button>
+                        ) : doc.status === 'failed' ? (
+                          <button
+                            onClick={(e) => handleRetryDocument(doc._id, e)}
+                            disabled={retryingDocId === doc._id}
+                            className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-800 font-semibold cursor-pointer disabled:opacity-50"
+                            title={doc.errorDetails ? `Retry: ${doc.errorDetails}` : 'Retry processing this document'}
+                          >
+                            <RotateCcw className={`w-3.5 h-3.5 ${retryingDocId === doc._id ? 'animate-spin' : ''}`} />
+                            <span>Retry</span>
+                          </button>
+                        ) : doc.status === 'processing' ? (
+                          <span className="inline-flex items-center gap-1 text-blue-600 font-medium italic">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Preparing...</span>
+                          </span>
                         ) : (
-                          <span className="text-slate-400 italic">Processing...</span>
+                          <span className="inline-flex items-center gap-1 text-amber-600 font-medium italic">
+                            <Clock className="w-3 h-3" />
+                            <span>Queued</span>
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -417,6 +478,47 @@ export const DashboardPage: React.FC = () => {
       >
         <DocumentUploader onUploadComplete={handleUploadDone} />
       </Modal>
+
+      {/* Error Details Modal */}
+      {selectedErrorDoc && (
+        <Modal
+          isOpen={!!selectedErrorDoc}
+          onClose={() => setSelectedErrorDoc(null)}
+          title="Document Processing Error"
+          maxWidth="md"
+        >
+          <div className="space-y-4">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 font-mono break-words">
+              {selectedErrorDoc.errorDetails || 'An unexpected error occurred while processing this document.'}
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              You can retry processing now or navigate to the Documents page to manage or replace the file.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedErrorDoc(null)}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<RotateCcw className={`w-3.5 h-3.5 ${retryingDocId === selectedErrorDoc._id ? 'animate-spin' : ''}`} />}
+                isLoading={retryingDocId === selectedErrorDoc._id}
+                onClick={async () => {
+                  const docId = selectedErrorDoc._id;
+                  setSelectedErrorDoc(null);
+                  await handleRetryDocument(docId);
+                }}
+              >
+                Retry Processing
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
