@@ -321,9 +321,8 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
                   {pageNum && (
                     <span
                       onClick={() => onNavigateToPage?.(pageNum)}
-                      className={`px-2 py-0.5 bg-brand-50 text-brand-700 rounded text-[10px] font-semibold border border-brand-200 shrink-0 ${
-                        onNavigateToPage ? 'cursor-pointer hover:bg-brand-100' : ''
-                      }`}
+                      className={`px-2 py-0.5 bg-brand-50 text-brand-700 rounded text-[10px] font-semibold border border-brand-200 shrink-0 ${onNavigateToPage ? 'cursor-pointer hover:bg-brand-100' : ''
+                        }`}
                     >
                       Page {pageNum}
                     </span>

@@ -11,6 +11,9 @@ export interface ICitation {
   excerpt: string;
   score?: number;
   verified?: boolean;
+  verificationStatus?: 'verified' | 'partially_supported' | 'unsupported';
+  confidence?: 'high' | 'medium' | 'low';
+  isCitedInAnswer?: boolean;
   supportScore?: number;
   claim?: string;
   verificationReason?: string;

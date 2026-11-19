@@ -11,6 +11,9 @@ export interface ICitation {
   excerpt: string;
   score?: number;
   verified?: boolean;
+  verificationStatus?: 'verified' | 'partially_supported' | 'unsupported';
+  confidence?: 'high' | 'medium' | 'low';
+  isCitedInAnswer?: boolean;
   supportScore?: number;
   claim?: string;
   verificationReason?: string;
@@ -40,6 +43,9 @@ const CitationSchema = new Schema<ICitation>(
     excerpt: { type: String, required: true },
     score: { type: Number },
     verified: { type: Boolean, required: false },
+    verificationStatus: { type: String, enum: ['verified', 'partially_supported', 'unsupported'] },
+    confidence: { type: String, enum: ['high', 'medium', 'low'] },
+    isCitedInAnswer: { type: Boolean, default: false },
     supportScore: { type: Number },
     claim: { type: String },
     verificationReason: { type: String },

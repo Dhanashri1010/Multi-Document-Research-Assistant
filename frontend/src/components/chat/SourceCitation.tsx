@@ -151,23 +151,28 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({
   };
 
   // Separate passages actually cited in claims from background/unused retrieved passages
-  const hasEvaluatedClaims = citations.some((c) => c.verified !== undefined || c.claim);
-  const citedCitations = hasEvaluatedClaims
-    ? citations.filter((c) => c.verified !== undefined || c.claim)
-    : citations;
-  const uncitedCitations = hasEvaluatedClaims
-    ? citations.filter((c) => c.verified === undefined && !c.claim)
-    : [];
+  const citedCitations = citations.filter((c) => c.isCitedInAnswer !== false && (c.claim || c.verificationStatus === 'verified' || c.verificationStatus === 'partially_supported'));
+  const uncitedCitations = citations.filter((c) => c.isCitedInAnswer === false || (!c.claim && c.verificationStatus === 'unsupported' && !c.supportScore));
 
-  const verifiedCount = citations.filter((c) => c.verified === true).length;
-  const unverifiedCount = citations.filter((c) => c.verified === false).length;
-  const notCheckedCount = citations.filter((c) => c.verified === undefined).length;
-  const totalEvaluated = verifiedCount + unverifiedCount;
+  const verifiedCount = citations.filter(
+    (c) => c.verificationStatus === 'verified' || (c.verified === true && c.verificationStatus !== 'partially_supported')
+  ).length;
+  const partiallySupportedCount = citations.filter(
+    (c) => c.verificationStatus === 'partially_supported'
+  ).length;
+  const unsupportedCount = citations.filter(
+    (c) => c.verificationStatus === 'unsupported' || c.verified === false
+  ).length;
+  const totalClaims = citedCitations.length > 0 ? citedCitations.length : citations.length;
 
   const renderCitationCard = (cite: ICitation, index: number, isUncited: boolean = false) => {
     const isExpanded = activeExpandedIndex === index;
     const cardId = `citation-card-${messageId || 'msg'}-${index}`;
     const relevancePercent = Math.round(((cite as any).relevanceScore ?? 0.88) * 100);
+
+    const isVerified = cite.verificationStatus === 'verified' || (cite.verified === true && cite.verificationStatus !== 'partially_supported');
+    const isPartial = cite.verificationStatus === 'partially_supported';
+    const isUnsupported = cite.verificationStatus === 'unsupported' || (!isVerified && !isPartial);
 
     return (
       <div
@@ -176,11 +181,11 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({
         className={`p-2.5 rounded-lg border transition-all text-xs ${
           isExpanded ? 'col-span-1 sm:col-span-2 shadow-xs' : ''
         } ${
-          cite.verified === false
+          isVerified
+            ? 'border-emerald-200/80 bg-white hover:border-slate-300'
+            : isPartial
             ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
-            : cite.verified === true
-            ? 'border-emerald-200/60 bg-white hover:border-slate-300'
-            : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
+            : 'border-rose-200/70 bg-rose-50/30 hover:border-rose-300'
         }`}
       >
         {/* Header row */}
@@ -211,28 +216,30 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({
                 ? `para ${cite.paragraphNumber}`
                 : cite.heading || cite.section || 'section'}
             </span>
-            {cite.verified === true ? (
+
+            {isVerified ? (
               <span
-                title="Citation verified: exact metrics and content overlap verified locally"
-                className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold text-[10px] flex items-center gap-0.5 border border-emerald-200/60"
+                title="Verified (>= 70% confidence): strong lexical containment and TF-IDF similarity"
+                className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold text-[10px] flex items-center gap-0.5 border border-emerald-200/80"
               >
                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                verified
+                Verified
               </span>
-            ) : cite.verified === false ? (
+            ) : isPartial ? (
               <span
-                title="Unverified: missing metrics or low semantic overlap"
-                className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold text-[10px] flex items-center gap-0.5 border border-amber-300/60"
+                title="Partially Supported (40% - 70% confidence): moderate token overlap"
+                className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold text-[10px] flex items-center gap-0.5 border border-amber-300/80"
               >
                 <AlertCircle className="w-3 h-3 text-amber-600" />
-                unverified
+                Partially Supported
               </span>
             ) : (
               <span
-                title="Source retrieved as context; not evaluated against a specific claim"
-                className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium text-[10px] flex items-center gap-0.5 border border-slate-200"
+                title="Unsupported (< 40% confidence): missing metrics or insufficient evidence in passage"
+                className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold text-[10px] flex items-center gap-0.5 border border-rose-200"
               >
-                not checked
+                <AlertCircle className="w-3 h-3 text-rose-500" />
+                Unsupported
               </span>
             )}
             {isExpanded ? (
@@ -250,7 +257,7 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({
             {cite.claim && (
               <div className="p-2.5 rounded-md bg-brand-50/50 border border-brand-200/60 text-xs">
                 <span className="font-semibold text-brand-900 block text-[10px] uppercase tracking-wider mb-1">
-                  Referenced Claim
+                  Referenced Statement
                 </span>
                 <p className="text-brand-950 text-xs leading-relaxed italic">
                   "{cite.claim}"
@@ -261,39 +268,39 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({
             {/* Verification Status & Meaningful Explanation */}
             <div
               className={`p-2.5 rounded-md border text-xs flex items-start gap-2.5 ${
-                cite.verified === true
+                isVerified
                   ? 'bg-emerald-50/50 border-emerald-200/80 text-emerald-950'
-                  : cite.verified === false
+                  : isPartial
                   ? 'bg-amber-50/60 border-amber-200 text-amber-950'
-                  : 'bg-slate-50 border-slate-200 text-slate-800'
+                  : 'bg-rose-50/50 border-rose-200 text-rose-950'
               }`}
             >
-              {cite.verified === true ? (
+              {isVerified ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              ) : cite.verified === false ? (
+              ) : isPartial ? (
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               ) : (
-                <HelpCircle className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               )}
               <div className="space-y-1">
                 <span className="font-semibold block text-[11px]">
-                  {cite.verified === true
-                    ? 'Verified by Local Citation Grounding'
-                    : cite.verified === false
-                    ? 'Citation Grounding Warning'
-                    : 'Contextual Retrieval Source'}
+                  {isVerified
+                    ? 'Verified by Grounded Evidence'
+                    : isPartial
+                    ? 'Partially Supported Claim'
+                    : 'Unsupported / Contextual Passage'}
                 </span>
                 <p className="text-[11px] leading-relaxed text-slate-600">
                   {cite.verificationReason ||
-                    (cite.verified === true
+                    (isVerified
                       ? 'Exact metrics, numbers, and key concepts match the source passage.'
-                      : cite.verified === false
-                      ? 'The passage does not fully support the claimed numerical values or concepts.'
-                      : 'Retrieved to augment knowledge; not tied to an individual sentence claim.')}
+                      : isPartial
+                      ? 'The passage moderately supports this concept but lacks complete metric alignment.'
+                      : 'This passage does not sufficiently support the statement.')}
                 </p>
                 {cite.highlightSpans && cite.highlightSpans.length > 0 && (
                   <p className="text-[10px] text-amber-800 font-medium pt-0.5">
-                    ✦ Verified supporting evidence highlighted below
+                    ✦ Direct supporting spans highlighted below
                   </p>
                 )}
               </div>
@@ -387,51 +394,39 @@ export const SourceCitation: React.FC<SourceCitationProps> = ({
               <FileText className="w-3.5 h-3.5 text-brand-600" />
               Retrieved Evidence & Citations ({citations.length})
             </span>
-            {totalEvaluated > 0 && (
-              <span
-                className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1"
-                title="Local verification compares each claim against cited passages with exact number/metric matching, content-word containment, and TF-IDF cosine."
-              >
-                {verifiedCount} of {totalEvaluated} claims verified
-                <HelpCircle className="w-3 h-3 text-slate-400 cursor-help" />
-              </span>
-            )}
+            <span
+              className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1"
+              title="Verification compares statements against excerpts: score = 0.35*containment + 0.35*TF-IDF + 0.15*numbers + 0.15*embedding"
+            >
+              {verifiedCount} of {totalClaims} claims verified
+            </span>
           </div>
 
           {/* Dynamic Status Badge */}
-          {verifiedCount === citations.length && citations.length > 0 ? (
+          {verifiedCount === totalClaims && totalClaims > 0 ? (
             <span
-              title="All retrieved citations were verified against claimed facts"
-              className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold flex items-center gap-1 border border-emerald-200/60"
+              title="All answer claims verified against cited source passages"
+              className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold flex items-center gap-1 border border-emerald-200/80"
             >
               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-              all citations verified
+              all claims verified
             </span>
-          ) : notCheckedCount === citations.length ? (
+          ) : unsupportedCount === 0 && partiallySupportedCount > 0 ? (
             <span
-              title="Passages retrieved as background context (not evaluated against specific claims)"
-              className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium flex items-center gap-1 border border-slate-200"
-            >
-              <HelpCircle className="w-3 h-3 text-slate-400" />
-              sources not checked
-            </span>
-          ) : unverifiedCount > 0 ? (
-            <span
-              title="Some citations could not be verified with high semantic confidence"
-              className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-semibold flex items-center gap-1 border border-amber-300/70"
+              title="All claims supported (some with moderate conceptual alignment)"
+              className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-semibold flex items-center gap-1 border border-amber-300/80"
             >
               <AlertCircle className="w-3 h-3 text-amber-600" />
-              {verifiedCount > 0
-                ? `${verifiedCount} verified · ${unverifiedCount} unverified citation${unverifiedCount > 1 ? 's' : ''} flagged${notCheckedCount > 0 ? ` · ${notCheckedCount} not checked` : ''}`
-                : `${unverifiedCount} unverified citation${unverifiedCount > 1 ? 's' : ''} flagged${notCheckedCount > 0 ? ` · ${notCheckedCount} not checked` : ''}`}
+              {verifiedCount} verified · {partiallySupportedCount} partially supported
             </span>
           ) : (
             <span
-              title="Some citations verified; remaining sources are contextual background"
+              title="Verification summary for cited statements"
               className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-medium flex items-center gap-1 border border-slate-200"
             >
-              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-              {verifiedCount} verified · {notCheckedCount} not checked
+              {verifiedCount > 0 ? `${verifiedCount} verified` : ''}
+              {partiallySupportedCount > 0 ? ` · ${partiallySupportedCount} partial` : ''}
+              {unsupportedCount > 0 ? ` · ${unsupportedCount} unverified` : ''}
             </span>
           )}
         </div>

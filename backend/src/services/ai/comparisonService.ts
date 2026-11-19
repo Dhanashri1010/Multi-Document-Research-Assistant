@@ -379,7 +379,7 @@ Compare the provided research papers across 10 structured academic dimensions:
 
 RULES:
 - Ground every claim strictly in the provided excerpts.
-- Keep each finding concise and direct (1-2 sentences per document dimension) citing exact page numbers. Do NOT output long multi-paragraph essays in individual cells.
+- Keep each finding concise and direct (1-2 sentences per document dimension). Every cell finding, similarity, difference, and limitation sentence MUST include a bracketed citation marker [p. X] or [Doc, p. X] verifying that cell's factual claim.
 - If a document does not report, state, or contain evidence for a particular dimension, explicitly state "Not reported in the provided document" for that document. Never invent, extrapolate, or speculate!
 - Output MUST be valid JSON conforming to this schema:
 {

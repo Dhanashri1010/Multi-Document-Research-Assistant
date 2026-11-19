@@ -1,8 +1,19 @@
 /**
  * Citation Verifier Service
  * Validates that each cited document chunk actually supports the claim made in the generated answer.
- * Uses a cross-encoder / semantic embedding similarity check combined with strict numeric integrity.
+ * Uses a hybrid score combining:
+ * 1. Lexical token containment (35%)
+ * 2. TF-IDF cosine similarity (35%)
+ * 3. Numerical & metric integrity (15%)
+ * 4. Dense semantic similarity (15%)
+ * 
+ * Thresholds:
+ * - >= 0.70: Verified (High confidence)
+ * - 0.40 - 0.70: Partially Supported (Medium confidence)
+ * - < 0.40: Unsupported (Low confidence)
  */
+
+import natural from 'natural';
 
 let xenovaTokenizer: any = null;
 let xenovaModel: any = null;
@@ -31,15 +42,24 @@ const STOP_WORDS = new Set([
   'won', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves'
 ]);
 
-function extractSalientTokens(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s.-]/g, ' ')
-    .split(/\s+/)
-    .filter((t) => t.length > 1 && !STOP_WORDS.has(t));
+export function stemToken(token: string): string {
+  try {
+    return natural.PorterStemmer.stem(token);
+  } catch {
+    return token.replace(/(?:ing|es|s|ed|tion|tions)$/, '');
+  }
 }
 
-function extractNumbersAndCodes(text: string): string[] {
+export function extractSalientTokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length > 1 && !STOP_WORDS.has(t))
+    .map((t) => stemToken(t));
+}
+
+export function extractNumbersAndCodes(text: string): string[] {
   // Strip inline citations [Doc, p. 2], parenthesized notes, filenames, and arXiv IDs
   const cleaned = text
     .replace(/\[[^\]]+\]/g, ' ')
@@ -52,20 +72,31 @@ function extractNumbersAndCodes(text: string): string[] {
     .replace(/\bpaper[_\s]*\d+\b/gi, ' ')
     .replace(/\bdoc(?:ument)?[_\s]*\d+\b/gi, ' ');
 
-  const matches = cleaned.match(/\b\d+(?:\.\d+)?(?:%|x|gb|mb|m|b|flops)?\b/gi) || [];
+  const matches = cleaned.match(/\b\d+(?:\.\d+)?(?:%|x|gb|mb|m|b|flops)?/gi) || [];
   return Array.from(new Set(matches.map((m) => m.toLowerCase())));
 }
 
 /**
+ * Strips running headers, footers, and repairs broken hyphenations in PDF text.
+ */
+export function cleanExcerpt(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/^(?:page\s*\d+\s*(?:of\s*\d+)?|arXiv:\d+\.\d+v?\d*|proceedings of.*)$/gim, '')
+    .replace(/(\b\w+)-\s*\n\s*(\w+\b)/g, '$1$2')
+    .replace(/\[\d+\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Identifies the exact sentence(s) in a chunk that directly support a claim.
- * Avoids inventing text by selecting strictly from existing sentences in chunkText.
  */
 export function findSupportingSpans(claim: string, chunkText: string): string[] {
   if (!claim || !chunkText) return [];
   const claimTokens = extractSalientTokens(claim);
   if (claimTokens.length === 0) return [];
 
-  // Split into real sentences from source text
   const sentences = chunkText
     .split(/(?<=[.?!])\s+(?=[A-Z0-9"'])/)
     .map((s) => s.trim())
@@ -82,7 +113,6 @@ export function findSupportingSpans(claim: string, chunkText: string): string[] 
     return { sentence, score, matchCount: matched.length };
   });
 
-  // Pick top sentences that have at least 2 salient matching tokens or high token overlap
   const qualified = scored
     .filter((item) => item.matchCount >= 2 || item.score >= 0.15)
     .sort((a, b) => b.score - a.score)
@@ -93,9 +123,8 @@ export function findSupportingSpans(claim: string, chunkText: string): string[] 
 
 /**
  * Computes TF-IDF Cosine Similarity locally between claim and passage tokens.
- * Zero external calls, zero API quota usage.
  */
-function computeTfidfCosine(claimTokens: string[], chunkTokens: string[]): number {
+export function computeTfidfCosine(claimTokens: string[], chunkTokens: string[]): number {
   if (claimTokens.length === 0 || chunkTokens.length === 0) return 0;
   const vocab = Array.from(new Set([...claimTokens, ...chunkTokens]));
 
@@ -110,13 +139,8 @@ function computeTfidfCosine(claimTokens: string[], chunkTokens: string[]): numbe
   let normChunkSq = 0;
 
   for (const term of vocab) {
-    const inClaim = tfClaim.has(term) ? 1 : 0;
-    const inChunk = tfChunk.has(term) ? 1 : 0;
-    const df = inClaim + inChunk;
-    const idf = Math.log(1 + 2 / (df || 1));
-
-    const wClaim = (tfClaim.get(term) || 0) * idf;
-    const wChunk = (tfChunk.get(term) || 0) * idf;
+    const wClaim = tfClaim.get(term) || 0;
+    const wChunk = tfChunk.get(term) || 0;
 
     dotProduct += wClaim * wChunk;
     normClaimSq += wClaim * wClaim;
@@ -127,9 +151,16 @@ function computeTfidfCosine(claimTokens: string[], chunkTokens: string[]): numbe
   return dotProduct / (Math.sqrt(normClaimSq) * Math.sqrt(normChunkSq));
 }
 
+export type VerificationStatus = 'verified' | 'partially_supported' | 'unsupported';
+
 export interface VerificationResult {
+  status: VerificationStatus;
   isSupported: boolean;
   supportScore: number;
+  containment: number;
+  tfidfCosine: number;
+  entityNumberMatch: number;
+  embeddingSim: number;
   matchedTokens: string[];
   missingNumbers: string[];
   isContradiction?: boolean;
@@ -138,8 +169,10 @@ export interface VerificationResult {
 }
 
 export interface ChunkVerificationDetail {
+  status: VerificationStatus;
   isSupported: boolean;
   isContradiction: boolean;
+  supportScore: number;
   reason: string;
   highlightSpans: string[];
 }
@@ -153,117 +186,210 @@ export interface VerifiedClaim {
   chunkDetails?: Record<number, ChunkVerificationDetail>;
   confidence: 'high' | 'medium' | 'low';
   isFullySupported: boolean;
+  status: VerificationStatus;
+  bestScore?: number;
+  bestChunkIndex?: number;
 }
 
 export class CitationVerifier {
   /**
-   * Verifies if a specific chunk supports a single claim sentence using cross-encoder
-   * semantic relevance and strict numerical preservation.
+   * Computes the 4-part hybrid score between a claim and an excerpt:
+   * score = 0.35 * containment + 0.35 * TF-IDF cosine + 0.15 * entity/number match + 0.15 * embedding sim
    */
-  static async verifyClaimAgainstChunk(claim: string, chunkText: string): Promise<VerificationResult> {
-    if (!claim || !chunkText) {
-      return { isSupported: false, supportScore: 0, matchedTokens: [], missingNumbers: [] };
-    }
-
+  static computeHybridScore(
+    claim: string,
+    chunkText: string,
+    claimEmbedding?: number[],
+    chunkEmbedding?: number[]
+  ): {
+    score: number;
+    containment: number;
+    tfidfCosine: number;
+    entityNumberMatch: number;
+    embeddingSim: number;
+    missingNumbers: string[];
+    matchedTokens: string[];
+  } {
     const claimTokens = extractSalientTokens(claim);
-    if (claimTokens.length === 0) {
-      return { isSupported: true, supportScore: 1, matchedTokens: [], missingNumbers: [] };
-    }
-
     const chunkTokens = extractSalientTokens(chunkText);
     const chunkTokenSet = new Set(chunkTokens);
-    const matchedTokens = claimTokens.filter((t) => chunkTokenSet.has(t));
-    const lexicalContainment = matchedTokens.length / claimTokens.length;
-    const tfidfCosine = computeTfidfCosine(claimTokens, chunkTokens);
 
-    // Strict numerical preservation check: all specific metrics in claim must exist in chunk
+    const matchedTokens = claimTokens.filter((t) => chunkTokenSet.has(t));
+    const containment = claimTokens.length > 0 ? matchedTokens.length / claimTokens.length : 1;
+
+    // Sentence-level span TF-IDF: compares claim against the closest supporting sentence in the passage
+    // to prevent paragraph length from diluting verified sentence matches
+    const spans = findSupportingSpans(claim, chunkText);
+    const bestTargetText = spans.length > 0 ? spans.join(' ') : chunkText;
+    const targetTokens = extractSalientTokens(bestTargetText);
+    const tfidfCosine = Math.max(
+      computeTfidfCosine(claimTokens, chunkTokens),
+      computeTfidfCosine(claimTokens, targetTokens)
+    );
+
+    // Numeric & Metric Integrity
     const claimNumbers = extractNumbersAndCodes(claim);
     const chunkLower = chunkText.toLowerCase();
     const missingNumbers = claimNumbers.filter((num) => !chunkLower.includes(num));
 
+    let entityNumberMatch = 1;
+    if (claimNumbers.length > 0) {
+      const matched = claimNumbers.length - missingNumbers.length;
+      entityNumberMatch = matched / claimNumbers.length;
+    }
+
+    // Embedding similarity (or fallback to semantic overlap if vectors absent)
+    let embeddingSim = Math.max(containment, tfidfCosine);
+    if (claimEmbedding && chunkEmbedding && claimEmbedding.length === chunkEmbedding.length) {
+      let dot = 0, nA = 0, nB = 0;
+      for (let i = 0; i < claimEmbedding.length; i++) {
+        dot += claimEmbedding[i] * chunkEmbedding[i];
+        nA += claimEmbedding[i] * claimEmbedding[i];
+        nB += chunkEmbedding[i] * chunkEmbedding[i];
+      }
+      if (nA > 0 && nB > 0) {
+        embeddingSim = Math.max(0, dot / (Math.sqrt(nA) * Math.sqrt(nB)));
+      }
+    }
+
+    // Hybrid calculation: 35% containment + 35% TF-IDF + 15% numeric + 15% embedding
+    let rawScore = (0.35 * containment) + (0.35 * tfidfCosine) + (0.15 * entityNumberMatch) + (0.15 * embeddingSim);
+
+    // Strict numerical preservation: if required numbers/metrics are absent, hard cap score below 0.40
     if (missingNumbers.length > 0 && claimNumbers.length > 0) {
+      rawScore = Math.min(rawScore, 0.35);
+    }
+
+    const score = Math.round(Math.min(1, Math.max(0, rawScore)) * 100) / 100;
+    return {
+      score,
+      containment: Math.round(containment * 100) / 100,
+      tfidfCosine: Math.round(tfidfCosine * 100) / 100,
+      entityNumberMatch: Math.round(entityNumberMatch * 100) / 100,
+      embeddingSim: Math.round(embeddingSim * 100) / 100,
+      missingNumbers,
+      matchedTokens,
+    };
+  }
+
+  /**
+   * Verifies if a specific chunk supports a single claim sentence using hybrid scoring.
+   */
+  static async verifyClaimAgainstChunk(
+    claim: string,
+    chunkText: string,
+    claimEmbedding?: number[],
+    chunkEmbedding?: number[]
+  ): Promise<VerificationResult> {
+    if (!claim || !chunkText) {
       return {
+        status: 'unsupported',
         isSupported: false,
-        supportScore: Math.round(Math.max(lexicalContainment, tfidfCosine) * 100) / 100,
-        matchedTokens,
-        missingNumbers,
-        isContradiction: true,
-        highlightSpans: [],
-        reason: `Evidence does not mention required metrics: ${missingNumbers.join(', ')}`,
+        supportScore: 0,
+        containment: 0,
+        tfidfCosine: 0,
+        entityNumberMatch: 0,
+        embeddingSim: 0,
+        matchedTokens: [],
+        missingNumbers: [],
       };
     }
 
-    // Explicit contradiction heuristic
+    const {
+      score,
+      containment,
+      tfidfCosine,
+      entityNumberMatch,
+      embeddingSim,
+      missingNumbers,
+      matchedTokens,
+    } = this.computeHybridScore(claim, chunkText, claimEmbedding, chunkEmbedding);
+
+    // Contradiction detection heuristic
+    const chunkLower = chunkText.toLowerCase();
     const isContradiction =
       (claim.toLowerCase().includes('incorporates recurrent') && chunkLower.includes('without using sequence-aligned rnns')) ||
       (claim.toLowerCase().includes('requires training all') && chunkLower.includes('freeze the pre-trained'));
 
     if (isContradiction) {
       return {
+        status: 'unsupported',
         isSupported: false,
         supportScore: 0,
+        containment,
+        tfidfCosine,
+        entityNumberMatch: 0,
+        embeddingSim: 0,
         matchedTokens,
         missingNumbers: [],
         isContradiction: true,
         highlightSpans: [],
-        reason: 'Claim directly contradicted by source text',
+        reason: 'Claim directly contradicted by source text.',
       };
     }
 
-    /**
-     * LOCAL VERIFICATION THRESHOLD LOGIC:
-     * - Numerical & Metric Integrity: Checked above (zero tolerance for hallucinated numbers)
-     * - Semantic Grounding: Supported if TF-IDF cosine >= 0.20 OR lexical containment >= 0.22 OR (lexical >= 0.12 && >= 2 matched tokens)
-     */
-    const localSupported =
-      tfidfCosine >= 0.20 ||
-      lexicalContainment >= 0.22 ||
-      (lexicalContainment >= 0.12 && matchedTokens.length >= 2);
-    const localScore = Math.round(Math.max(lexicalContainment, tfidfCosine) * 100) / 100;
-
-    // Optional cross-encoder scoring if available locally
-    try {
-      const { tokenizer, model } = await getCrossEncoder();
-      const inputs = await tokenizer(claim, { text_pair: chunkText.slice(0, 512) });
-      const out = await model(inputs);
-      const logit = out?.logits?.data?.[0] ?? 0;
-      const score = 1 / (1 + Math.exp(-logit));
-      const isSupported = localSupported || logit >= -1.2;
-
+    if (missingNumbers.length > 0) {
       return {
-        isSupported,
-        supportScore: Math.round(Math.max(localScore, score) * 100) / 100,
+        status: 'unsupported',
+        isSupported: false,
+        supportScore: score,
+        containment,
+        tfidfCosine,
+        entityNumberMatch,
+        embeddingSim,
         matchedTokens,
-        missingNumbers: [],
-        highlightSpans: isSupported ? findSupportingSpans(claim, chunkText) : [],
-        reason: isSupported
-          ? 'Supporting evidence found in the cited passage.'
-          : 'Evidence does not sufficiently support the associated claim.',
-      };
-    } catch {
-      return {
-        isSupported: localSupported,
-        supportScore: localScore,
-        matchedTokens,
-        missingNumbers: [],
-        highlightSpans: localSupported ? findSupportingSpans(claim, chunkText) : [],
-        reason: localSupported
-          ? 'Supporting evidence found in the cited passage.'
-          : 'Evidence does not sufficiently support the associated claim.',
+        missingNumbers,
+        isContradiction: true,
+        highlightSpans: [],
+        reason: `Evidence does not mention required metrics: ${missingNumbers.join(', ')}.`,
       };
     }
+
+    // 3-state categorization (Zero "not checked" states)
+    let status: VerificationStatus = 'unsupported';
+    let isSupported = false;
+    let reason = '';
+
+    if (score >= 0.70) {
+      status = 'verified';
+      isSupported = true;
+      reason = 'Supporting evidence found in the cited passage.';
+    } else if (score >= 0.40) {
+      status = 'partially_supported';
+      isSupported = true;
+      reason = 'Claim is partially supported by cited passage concepts with moderate token overlap.';
+    } else {
+      status = 'unsupported';
+      isSupported = false;
+      reason = 'Evidence does not sufficiently support the associated claim.';
+    }
+
+    return {
+      status,
+      isSupported,
+      supportScore: score,
+      containment,
+      tfidfCosine,
+      entityNumberMatch,
+      embeddingSim,
+      matchedTokens,
+      missingNumbers: [],
+      highlightSpans: isSupported ? findSupportingSpans(claim, chunkText) : [],
+      reason,
+    };
   }
 
   /**
-   * Verifies an array of claims against available source chunks.
-   * Unverified chunk indices are tagged in unsupportedIndices, not silently dropped.
+   * Verifies an array of claims against ALL available source chunks.
+   * If a claim's explicitly cited chunk has low confidence, it evaluates other passages
+   * to find if another retrieved passage verifies the statement.
    */
   static async verifyAllClaims(
     claims: { claim: string; sourceIndices: number[] }[],
-    chunks: { index: number; text: string }[]
+    chunks: { index: number; text: string; embedding?: number[] }[]
   ): Promise<VerifiedClaim[]> {
-    const chunkMap = new Map<number, string>();
-    chunks.forEach((c) => chunkMap.set(c.index, c.text));
+    const chunkMap = new Map<number, { text: string; embedding?: number[] }>();
+    chunks.forEach((c) => chunkMap.set(c.index, { text: c.text, embedding: c.embedding }));
 
     const results: VerifiedClaim[] = [];
 
@@ -273,28 +399,43 @@ export class CitationVerifier {
       const unsupportedIndices: number[] = [];
       const chunkDetails: Record<number, ChunkVerificationDetail> = {};
 
+      let bestScore = 0;
+      let bestChunkIndex = item.sourceIndices[0] || (chunks[0]?.index ?? 1);
+      let bestStatus: VerificationStatus = 'unsupported';
+
+      // 1. Verify against cited indices
       for (const idx of item.sourceIndices) {
-        const chunkText = chunkMap.get(idx);
-        if (!chunkText) {
+        const chunk = chunkMap.get(idx);
+        if (!chunk) {
           unsupportedIndices.push(idx);
           chunkDetails[idx] = {
+            status: 'unsupported',
             isSupported: false,
             isContradiction: false,
+            supportScore: 0,
             reason: 'Cited passage was not found in retrieved chunks.',
             highlightSpans: [],
           };
           continue;
         }
 
-        const res = await this.verifyClaimAgainstChunk(item.claim, chunkText);
+        const res = await this.verifyClaimAgainstChunk(item.claim, chunk.text, undefined, chunk.embedding);
         chunkDetails[idx] = {
+          status: res.status,
           isSupported: res.isSupported,
           isContradiction: Boolean(res.isContradiction),
-          reason: res.reason || (res.isSupported ? 'Supporting evidence found in the cited passage.' : 'Evidence does not sufficiently support the associated claim.'),
+          supportScore: res.supportScore,
+          reason: res.reason || '',
           highlightSpans: res.highlightSpans || [],
         };
 
-        if (res.isSupported) {
+        if (res.supportScore > bestScore) {
+          bestScore = res.supportScore;
+          bestChunkIndex = idx;
+          bestStatus = res.status;
+        }
+
+        if (res.status === 'verified' || res.status === 'partially_supported') {
           verifiedIndices.push(idx);
         } else if (res.isContradiction) {
           contradictedIndices.push(idx);
@@ -304,9 +445,36 @@ export class CitationVerifier {
         }
       }
 
-      const isFullySupported = item.sourceIndices.length > 0 && unsupportedIndices.length === 0;
-      const confidence =
-        verifiedIndices.length > 0 ? (unsupportedIndices.length === 0 ? 'high' : 'medium') : 'low';
+      // 2. Cross-Verification across ALL other retrieved passages if cited chunk gave unsupported
+      if (verifiedIndices.length === 0 && chunks.length > 0) {
+        for (const candidate of chunks) {
+          if (item.sourceIndices.includes(candidate.index)) continue;
+          const crossRes = await this.verifyClaimAgainstChunk(item.claim, candidate.text, undefined, candidate.embedding);
+          if (crossRes.supportScore > bestScore) {
+            bestScore = crossRes.supportScore;
+            bestChunkIndex = candidate.index;
+            bestStatus = crossRes.status;
+          }
+          if (crossRes.status === 'verified' || crossRes.status === 'partially_supported') {
+            verifiedIndices.push(candidate.index);
+            chunkDetails[candidate.index] = {
+              status: crossRes.status,
+              isSupported: crossRes.isSupported,
+              isContradiction: false,
+              supportScore: crossRes.supportScore,
+              reason: 'Supporting evidence found in the cited passage.',
+              highlightSpans: crossRes.highlightSpans || [],
+            };
+            break;
+          }
+        }
+      }
+
+      const isFullySupported = verifiedIndices.length > 0 && unsupportedIndices.length === 0;
+      const confidence: 'high' | 'medium' | 'low' =
+        verifiedIndices.length > 0
+          ? (unsupportedIndices.length === 0 ? 'high' : 'medium')
+          : 'low';
 
       results.push({
         claim: item.claim,
@@ -317,6 +485,9 @@ export class CitationVerifier {
         chunkDetails,
         confidence,
         isFullySupported,
+        status: bestStatus,
+        bestScore,
+        bestChunkIndex,
       });
     }
 

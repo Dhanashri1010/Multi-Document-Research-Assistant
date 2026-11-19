@@ -6,7 +6,7 @@ import { getEmbeddingProvider } from './embeddingService.js';
 import { VectorStore } from './vectorStore.js';
 import { LLMService, formatSafeErrorMessage } from './llmService.js';
 import { StructuredRAGAnswerSchema } from './schemas.js';
-import { CitationVerifier } from './citationVerifier.js';
+import { CitationVerifier, cleanExcerpt } from './citationVerifier.js';
 import { NlpMultilingualService } from '../nlp/nlpMultilingualService.js';
 import { config } from '../../config/env.js';
 
@@ -726,8 +726,8 @@ RESPONSE QUALITY & STYLE DIRECTIVES:
 1. Use simple, clear English. Explain technical concepts in understandable language. Avoid unnecessarily complicated vocabulary.
 2. Short paragraphs and meaningful headings. Use numbered or bulleted lists wherever appropriate.
 3. Answer the exact question asked without repeating information. Avoid unnecessary generic introductions and conclusions.
-4. Citations should appear naturally inline after the statements they support, showing document name and page number: e.g. [Document Name, p. X] for PDFs or [Document Name, Section Y] for Word documents.
-5. Avoid unnecessary repeated citations on every single sentence if referring to the same passage. Never invent page numbers or sources.
+4. Every factual claim sentence, list item, and table cell MUST be followed immediately by a bracketed citation marker [n] pointing to the retrieved passage number (e.g. [1], [2]) that directly verifies that specific statement.
+5. In tables or lists, place citation brackets [n] inside each cell or item verifying that finding or metric.
 6. Do NOT print a duplicate list of references or citations at the end of your answer text (the application UI automatically displays retrieved citation cards).
 7. If only one paper is selected, do not describe the answer as a comparison across multiple papers.
 
@@ -912,19 +912,28 @@ Generate your JSON response now.`;
           }
         }
 
-        // Visibly flag any persistent unverified claims
-        for (const vc of verifiedClaims) {
-          if (!vc.isFullySupported && vc.claim && finalAnswer.includes(vc.claim)) {
-            if (!finalAnswer.includes('*(unverified)*')) {
-              finalAnswer = finalAnswer.replace(vc.claim, `${vc.claim} *(unverified)*`);
+        // Visibly flag any persistent unverified claims and append note
+        const persistentUnverified = verifiedClaims.filter((vc) => !vc.isFullySupported);
+        if (persistentUnverified.length > 0) {
+          for (const vc of persistentUnverified) {
+            if (vc.claim && finalAnswer.includes(vc.claim)) {
+              if (!finalAnswer.includes('*(unverified)*')) {
+                finalAnswer = finalAnswer.replace(vc.claim, `${vc.claim} *(unverified)*`);
+              }
             }
+          }
+          if (!finalAnswer.includes('could not be verified against the indexed passages')) {
+            finalAnswer += '\n\n*(Note: Some statements could not be verified against the indexed passages)*';
           }
         }
 
         const chunkEvaluations = new Map<
           number,
           {
-            verified?: boolean;
+            verified: boolean;
+            status: 'verified' | 'partially_supported' | 'unsupported';
+            confidence: 'high' | 'medium' | 'low';
+            supportScore: number;
             claim?: string;
             reason?: string;
             highlightSpans?: string[];
@@ -936,12 +945,15 @@ Generate your JSON response now.`;
             for (const [idxStr, detail] of Object.entries(vc.chunkDetails)) {
               const idx = parseInt(idxStr, 10);
               const existing = chunkEvaluations.get(idx);
-              // If already verified by another claim, retain verified status
-              if (existing?.verified === true && !detail.isSupported) {
+              // If already verified by another claim, retain higher status
+              if (existing?.status === 'verified' && detail.status !== 'verified') {
                 continue;
               }
               chunkEvaluations.set(idx, {
-                verified: detail.isSupported ? true : false,
+                verified: detail.isSupported,
+                status: detail.status,
+                confidence: detail.status === 'verified' ? 'high' : detail.status === 'partially_supported' ? 'medium' : 'low',
+                supportScore: detail.supportScore,
                 claim: vc.claim,
                 reason: detail.reason,
                 highlightSpans: detail.highlightSpans || [],
@@ -953,23 +965,35 @@ Generate your JSON response now.`;
         citations.forEach((cite, idx) => {
           const chunkIdx = idx + 1;
           const evaluation = chunkEvaluations.get(chunkIdx);
+          cite.excerpt = cleanExcerpt(cite.excerpt);
           if (evaluation) {
             cite.verified = evaluation.verified;
+            cite.verificationStatus = evaluation.status;
+            cite.confidence = evaluation.confidence;
+            cite.supportScore = evaluation.supportScore;
+            cite.isCitedInAnswer = true;
             cite.claim = evaluation.claim;
             cite.verificationReason = evaluation.reason;
             cite.highlightSpans = evaluation.highlightSpans;
           } else {
-            // Source was retrieved as background context, but not cited for a specific claim
-            cite.verified = undefined;
+            // Source was retrieved as background context, not explicitly cited for an answer claim
+            cite.verified = false;
+            cite.verificationStatus = 'unsupported';
+            cite.confidence = 'low';
+            cite.isCitedInAnswer = false;
             cite.verificationReason =
-              'This passage was retrieved as background context and was not evaluated against a specific claim.';
+              'This passage was retrieved as background context and was not cited for a specific claim in the answer.';
             cite.highlightSpans = [];
           }
         });
       } else {
-        // No claim-level citations returned; mark as not checked
+        // No claim-level citations returned
         citations.forEach((cite) => {
-          cite.verified = undefined;
+          cite.excerpt = cleanExcerpt(cite.excerpt);
+          cite.verified = false;
+          cite.verificationStatus = 'unsupported';
+          cite.confidence = 'low';
+          cite.isCitedInAnswer = false;
           cite.verificationReason =
             'This passage was retrieved as background context and was not evaluated against a specific claim.';
           cite.highlightSpans = [];
@@ -1179,7 +1203,10 @@ Generate your JSON response now.`;
       const chunkEvaluations = new Map<
         number,
         {
-          verified?: boolean;
+          verified: boolean;
+          status: 'verified' | 'partially_supported' | 'unsupported';
+          confidence: 'high' | 'medium' | 'low';
+          supportScore: number;
           claim?: string;
           reason?: string;
           highlightSpans?: string[];
@@ -1191,12 +1218,15 @@ Generate your JSON response now.`;
           for (const [idxStr, detail] of Object.entries(vc.chunkDetails)) {
             const idx = parseInt(idxStr, 10);
             const existing = chunkEvaluations.get(idx);
-            // If already verified by another claim, retain verified status
-            if (existing?.verified === true && !detail.isSupported) {
+            // If already verified by another claim, retain higher status
+            if (existing?.status === 'verified' && detail.status !== 'verified') {
               continue;
             }
             chunkEvaluations.set(idx, {
-              verified: detail.isSupported ? true : false,
+              verified: detail.isSupported,
+              status: detail.status,
+              confidence: detail.status === 'verified' ? 'high' : detail.status === 'partially_supported' ? 'medium' : 'low',
+              supportScore: detail.supportScore,
               claim: vc.claim,
               reason: detail.reason,
               highlightSpans: detail.highlightSpans || [],
@@ -1208,22 +1238,34 @@ Generate your JSON response now.`;
       citations.forEach((cite, idx) => {
         const chunkIdx = idx + 1;
         const evaluation = chunkEvaluations.get(chunkIdx);
+        cite.excerpt = cleanExcerpt(cite.excerpt);
         if (evaluation) {
           cite.verified = evaluation.verified;
+          cite.verificationStatus = evaluation.status;
+          cite.confidence = evaluation.confidence;
+          cite.supportScore = evaluation.supportScore;
+          cite.isCitedInAnswer = true;
           cite.claim = evaluation.claim;
           cite.verificationReason = evaluation.reason;
           cite.highlightSpans = evaluation.highlightSpans;
         } else {
-          // Source was retrieved as background context, but not cited for a specific claim
-          cite.verified = undefined;
+          // Source was retrieved as background context, not cited for an answer claim
+          cite.verified = false;
+          cite.verificationStatus = 'unsupported';
+          cite.confidence = 'low';
+          cite.isCitedInAnswer = false;
           cite.verificationReason =
-            'This passage was retrieved as background context and was not evaluated against a specific claim.';
+            'This passage was retrieved as background context and was not cited for a specific claim in the answer.';
           cite.highlightSpans = [];
         }
       });
     } else {
       citations.forEach((cite) => {
-        cite.verified = undefined;
+        cite.excerpt = cleanExcerpt(cite.excerpt);
+        cite.verified = false;
+        cite.verificationStatus = 'unsupported';
+        cite.confidence = 'low';
+        cite.isCitedInAnswer = false;
         cite.verificationReason =
           'This passage was retrieved as background context and was not evaluated against a specific claim.';
         cite.highlightSpans = [];

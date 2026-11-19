@@ -121,11 +121,10 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   return (
     <>
       <div
-        className={`p-5 rounded-2xl border transition-all bg-white flex flex-col justify-between ${
-          isSelected
+        className={`p-5 rounded-2xl border transition-all bg-white flex flex-col justify-between ${isSelected
             ? 'border-brand-500 ring-2 ring-brand-100 shadow-md'
             : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
-        }`}
+          }`}
       >
         <div>
           {/* Card Top Row: Checkbox, Category, Status & Delete */}
@@ -211,11 +210,10 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             </span>
 
             <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold border ${
-                isWord
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold border ${isWord
                   ? 'bg-blue-50 text-blue-700 border-blue-200'
                   : 'bg-red-50 text-red-700 border-red-200'
-              }`}
+                }`}
             >
               {fileExt}
             </span>

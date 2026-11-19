@@ -465,8 +465,8 @@ COMMUNICATION PRINCIPLES:
 1. Balanced tone: Neither overly simplified nor excessively academic. Preserve critical technical terminology, equations/methods, and numerical facts, while clearly explaining complex concepts.
 2. Grounded accuracy: Synthesize ONLY from the provided document excerpts. Never invent metrics, findings, or conclusions.
 3. Concise & High-density: Avoid introductory fluff ("This paper provides...", "Here is a summary...", "In summary"). State findings and insights directly.
-4. Source Attribution: Where a finding, metric, or concept appears on a specific page, cite that page number using the integer provided in "[Page X]" markers.
-5. Research Paper Sections: For research papers and academic articles, ensure sections explicitly cover Objective, Method, Dataset, Results, and Limitations. Each sentence must include a page citation from the text; if not mentioned in the excerpts, state "Not found in the provided document".
+4. Source Attribution: Every factual claim sentence, list item, and table cell MUST be followed immediately by a citation bracket [Page X] or [Section Y] referencing the source passage that verifies it.
+5. Research Paper Sections: For research papers and academic articles, ensure sections explicitly cover Objective, Method, Dataset, Results, and Limitations. Each sentence must include a bracketed citation marker from the text; if not mentioned in the excerpts, state "Not found in the provided document".
 6. Structure Adaptation: Choose the single most accurate category from:
    - "Research Paper"
    - "Academic Article"
