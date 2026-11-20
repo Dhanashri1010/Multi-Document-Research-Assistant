@@ -552,14 +552,18 @@ export const DashboardPage: React.FC = () => {
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {t.keywords?.slice(0, 4).map((kw: string, kidx: number) => (
-                          <span
-                            key={kidx}
-                            className="px-2 py-0.5 rounded text-[10px] font-medium bg-brand-50 text-brand-700"
-                          >
-                            {kw}
-                          </span>
-                        ))}
+                        {t.keywords?.slice(0, 4).map((kw: any, kidx: number) => {
+                          const kwText = typeof kw === 'string' ? kw : (kw?.word || kw?.term || '');
+                          if (!kwText) return null;
+                          return (
+                            <span
+                              key={kidx}
+                              className="px-2 py-0.5 rounded text-[10px] font-medium bg-brand-50 text-brand-700"
+                            >
+                              {kwText}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

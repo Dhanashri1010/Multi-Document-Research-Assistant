@@ -1128,14 +1128,18 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {doc.keyphrases && doc.keyphrases.length > 0 ? (
-                      doc.keyphrases.map((kp, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-brand-50 text-brand-700 border border-brand-200"
-                        >
-                          #{kp}
-                        </span>
-                      ))
+                      doc.keyphrases.map((kp: any, i) => {
+                        const kpText = typeof kp === 'string' ? kp : (kp?.phrase || kp?.word || '');
+                        if (!kpText) return null;
+                        return (
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-brand-50 text-brand-700 border border-brand-200"
+                          >
+                            #{kpText}
+                          </span>
+                        );
+                      })
                     ) : (
                       <span className="text-xs text-slate-400 italic">
                         Run Deep Insights below to extract keyphrases.

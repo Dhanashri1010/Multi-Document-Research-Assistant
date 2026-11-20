@@ -269,15 +269,19 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           {/* Keyphrase Chips */}
           {document.keyphrases && document.keyphrases.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              {document.keyphrases.slice(0, 3).map((kp, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200 truncate max-w-[150px]"
-                  title={kp}
-                >
-                  #{kp}
-                </span>
-              ))}
+              {document.keyphrases.slice(0, 3).map((kp: any, idx) => {
+                const kpText = typeof kp === 'string' ? kp : (kp?.phrase || kp?.word || '');
+                if (!kpText) return null;
+                return (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200 truncate max-w-[150px]"
+                    title={kpText}
+                  >
+                    #{kpText}
+                  </span>
+                );
+              })}
             </div>
           )}
 
