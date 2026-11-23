@@ -1,155 +1,175 @@
+
 # Multi-Document Research Assistant
 
-> Production-ready AI web application for multi-document academic research, dense & lexical hybrid vector retrieval (RAG), claim-level citation verification, 10-dimension paper comparison, and full compliance with all 4 Course Outcomes (CO1 to CO4, 30 Marks) of the Natural Language Processing (NLP) curriculum.
+A web application that helps students and researchers work with multiple documents in one place. Instead of reading every page to find a particular detail, users can upload their documents, ask questions, generate summaries, and compare information across different sources.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.0-green)](https://nodejs.org/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas%20%7C%20GridFS-forestgreen)](https://www.mongodb.com/)
-[![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-teal)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Backend%20Tests-239%20Passing-brightgreen)](https://vitest.dev/)
-[![Frontend Tests](https://img.shields.io/badge/Frontend%20Tests-16%20Passing-brightgreen)](https://vitest.dev/)
+We built this project as part of our **Natural Language Processing (NLP)** coursework to explore how traditional text-processing techniques and modern AI models can work together in a useful research tool.
 
----
+## What the project does
 
-## 1. NLP Course Rubric Compliance Matrix (30 / 30 Marks)
+- **Upload documents:** Work with PDF, Word (`.doc`, `.docx`), and text (`.txt`) files.
+- **Ask questions:** Search across selected documents and receive answers based on relevant passages, with references to the source material.
+- **Summarize and compare:** Get an overview of a document or compare key points across multiple research papers.
+- **Explore NLP techniques:** Try text preprocessing, TF-IDF, sentiment analysis, named entity recognition, topic modeling, and multilingual tools through the NLP Insights section.
+- **Review supporting evidence:** Check the passages used to produce an answer instead of relying on a response without context.
 
-| Outcome | Marks | Description | Implemented Features & Algorithms | Route & UI Location | Status |
-| :--- | :---: | :--- | :--- | :--- | :---: |
-| **CO1** | **7** | Text extraction, preprocessing, cleaning, vectorization | • Multi-format extraction: PDF (`pdf-parse`), DOCX (`mammoth`), TXT, low-density scanned warning (<20 chars/page)<br>• 8-Step pipeline: Unicode NFKC, lowercase, noise removal, header/footer strip, hyphenation repair, tokenization, stopwords, Porter stemming<br>• Preprocessing metrics: Char/Word/Sentence/Token reduction %<br>• Vectorization: Term Frequency (TF), TF-IDF, pairwise cosine similarity matrix | `/nlp-lab`<br>Tab 1: Preprocessing & Vectorization | **Full** (7/7) |
-| **CO2** | **8** | Sentiment analysis, information extraction & evaluation | • Dual-method sentiment: AFINN-165 rule-based lexicon vs Gemini 3.1 Flash Lite<br>• Scientific NER: 7 entity types (PERSON, ORG, DATASET, METRIC, MODEL, DATE, LOCATION)<br>• RAKE keyphrase extraction & Zod structured paper schema<br>• Empirical Benchmark: Run on `eval/sentiment_gold.json` (52 items) & `entities_gold.json` (21 items)<br>• Metrics: Accuracy, Macro P/R/F1, 3x3 Confusion Matrix, Exact/Partial NER | `/nlp-lab`<br>Tab 2: Sentiment & Extraction<br>Tab 6: Evaluation Benchmark | **Full** (8/8) |
-| **CO3** | **7** | Topic modeling OR multilingual NLP via cloud services | • **Topic Modeling**: K-Means on existing 768d embeddings, Silhouette auto-k selection (k=2..6), c-TF-IDF keyword extraction, topic coherence score, 2D PCA coordinate projection (interactive SVG scatter plot)<br>• **Multilingual NLP**: `franc` language identification (distinguishing Marathi vs Hindi), Google Cloud Translation REST API with Gemini fallback, cross-lingual grounded QA (ask in Marathi/Hindi, retrieve English context, generate native-language answer with page citations) | `/nlp-lab`<br>Tab 3: Topic Modeling<br>Tab 4: Multilingual NLP | **Full** (7/7) |
-| **CO4** | **8** | Generative AI/LLM, prompt engineering & working demo | • Versioned Prompt Library: 8 documented templates with written design rationales in `backend/src/prompts/`<br>• Prompt Playground: Interactive strategy comparison (Zero-Shot vs Few-Shot vs Chain-of-Thought) with temperature, token limits, latency, and token estimates<br>• Local Claim Verification: TF-IDF cosine + strict entity/number matching with grounding score (>=0.7 green, 0.4-0.7 amber, <0.4 red) and single regeneration gate<br>• Multi-Doc Literature Review: Synthesizes 2 to 5 papers into 5 structured sections with explicit cross-paper contradictions and page citations, downloadable as Markdown | `/nlp-lab`<br>Tab 5: Prompt Playground<br>`/research` (Workspace)<br>`/compare` (Matrix) | **Full** (8/8) |
+## How it works
 
----
+When a document is uploaded, the application extracts its text, cleans it, and divides it into smaller sections. These sections are stored with information about where they came from.
 
-## 2. System Architecture
+When a user asks a question, the system looks for relevant sections using a combination of semantic search and keyword-based search. It then uses the retrieved text to generate a response and provide source references. This approach is called **Retrieval-Augmented Generation (RAG)**.
+
+The application also includes an **NLP Insights** section where users can explore individual NLP concepts and see how different techniques process and analyze text.
+
+## Technologies used
+
+| Area | Technologies |
+| --- | --- |
+| Frontend | React, TypeScript, Vite, Tailwind CSS |
+| Backend | Node.js, Express, TypeScript |
+| Database | MongoDB, Mongoose |
+| NLP and retrieval | Sentence Transformers, BM25, semantic search, RAG |
+| AI integration | Configurable language-model providers, including Gemini, OpenAI, and Ollama |
+| Testing | Vitest |
+
+
+
+## System Architecture
+
+The Multi-Document Research Assistant is built using a full-stack architecture that connects a React frontend with a Node.js backend, a MongoDB database, and NLP-based processing services.
+
+The application has three main functions: processing uploaded documents, answering research questions, and providing an interactive NLP laboratory.
 
 ```mermaid
-flowchart TD
-    subgraph Ingestion ["1. Document Ingestion & Storage"]
-        A[User Upload / PDF Drop] --> B[File Validator: Magic Bytes & Format]
-        B --> C[Page-Aware Extractor: PDF / DOCX / TXT]
-        C --> D{Scanned Check <20 chars/pg?}
-        D -- Yes --> D1[Scanned PDF Warning Banner]
-        D -- No --> E[Cross-Page Token Chunker + Section Headings]
-        E --> F[Gemini Batch Embedding 10-15 chunks/call]
-        F --> G[(MongoDB DocumentChunks & GridFS/Supabase)]
-    end
+flowchart TB
+    A["User"] --> B["React + TypeScript Frontend"]
+    B <--> C["Node.js + Express REST API"]
 
-    subgraph HybridRetrieval ["2. Hybrid Retrieval & Adaptive Gating"]
-        H[User Research Query] --> I[Contextual Session History Rewriter]
-        I --> J[Dense Cosine Similarity Search]
-        I --> K[Sparse BM25 Lexical Search]
-        J & K --> L[Reciprocal Rank Fusion RRF k=60]
-        L --> M[MMR Diversity & Threshold Gating]
-    end
+    C --> D["Authentication"]
+    C --> E["Document Processing"]
+    C --> F["Research Assistant (RAG)"]
+    C --> G["NLP Insights Lab"]
+    C --> H["Summarization & Comparison"]
 
-    subgraph GroundedGen ["3. Grounded Generation & Citation Verification"]
-        M --> N[Chain-of-Thought Prompt Formulation]
-        N --> O[Gemini 3.1 Flash Lite API Call]
-        O --> P[Local Claim-Level Citation Verifier]
-        P --> Q{Grounding Score >= 0.7?}
-        Q -- No --> R[Single Targeted Re-Prompt Gate]
-        R --> S[Final Verified Answer with Page Navigation]
-        Q -- Yes --> S
-    end
+    E --> I["Extract PDF / Word / TXT"]
+    I --> J["Clean & Chunk Text"]
+    J --> K["Generate Embeddings"]
+    K --> L[("MongoDB: Documents, Chunks & Vectors")]
+    E --> M[("File Storage")]
 
-    subgraph NlpLab ["4. NLP Laboratory Suite (CO1 - CO4)"]
-        S --> T1[CO1: 8-Step Preprocessing & TF-IDF Cosine Matrix]
-        S --> T2[CO2: AFINN vs Gemini & Gold Benchmark Evaluation]
-        S --> T3[CO3: K-Means Topic Modeling & Multilingual franc/Google Cloud]
-        S --> T4[CO4: Versioned Prompt Library & Multi-Doc Literature Review]
-    end
+    L --> N["Hybrid Search: BM25 + Semantic"]
+    F --> N
+    N --> O["RRF Fusion + MMR"]
+    O --> P["LLM: Gemini / OpenAI / Ollama"]
+    P --> Q["Evidence & Citation Verification"]
+
+    H --> L
+    H --> P
+    G --> R["Preprocessing, TF-IDF, Sentiment, NER, Topics & Translation"]
+    D --> L
+    Q --> C
 ```
 
----
+### How the System Works
 
-## 3. Quota-Safe Architecture (Free-Tier Optimization)
+**1. Frontend**
 
-Because the project runs on Google AI Studio Free Tier (`gemini-3.1-flash-lite` with 15 RPM / 500 requests/day):
-1. **Local-First Computation**: Preprocessing (8 steps), vectorization (TF-IDF), AFINN lexicon, RAKE keyphrases, rule-based NER, `franc` language detection, K-Means clustering, c-TF-IDF keywords, PCA 2D coordinates, and claim citation verification run entirely locally in-process without spending Gemini API quota.
-2. **Batch Embeddings**: Embeddings are batched (10-15 chunks per call via `ai.models.embedContent({ contents: batch })`), reducing API calls by ~90% and persisting incrementally to MongoDB.
-3. **MongoDB Caching (`NlpCache`)**: Analysis results are keyed by `documentId + contentHash + task + paramsHash + promptVersion + model`. Subsequent views load instantly from cache without hitting external APIs.
-4. **LLM Throttle Queue**: Enforces a strict 10-15 RPM window and tracks cumulative daily usage against the 500-request limit with UTC midnight reset.
-5. **Warm Demo Cache**: A dedicated button in the NLP Lab pre-runs analysis on sample documents, ensuring zero quota delays during live evaluation.
+The user interacts with a web application developed using React and TypeScript. It provides pages for uploading documents, asking questions, comparing research papers, and exploring NLP tools.
 
----
+**2. Backend**
 
-## 4. Environment Variables
+The Node.js and Express backend handles API requests, user authentication, document processing, database operations, and communication with NLP services.
 
-### Backend Configuration (Render)
-| Variable | Description | Example / Default |
-| :--- | :--- | :--- |
-| `PORT` | Backend listening port | `5000` |
-| `NODE_ENV` | Environment mode | `production` |
-| `MONGODB_URI` | MongoDB Atlas connection string | `mongodb+srv://...` |
-| `LLM_API_KEY` | Google Gemini API key | `AIzaSy...` |
-| `LLM_MODEL` | Primary generative LLM | `gemini-3.1-flash-lite` |
-| `LLM_FALLBACK_MODEL` | Fallback generative LLM | `gemini-3.5-flash-lite` |
-| `EMBEDDING_PROVIDER` | Vector embedding engine | `gemini` (or `local`) |
-| `EMBEDDING_MODEL` | Embedding model identifier | `gemini-embedding-001` |
-| `GOOGLE_CLOUD_API_KEY` | Optional Google Cloud Translation key | `AIzaSy...` |
-| `STORAGE_PROVIDER` | Document storage engine | `supabase` (or `gridfs`) |
-| `SUPABASE_URL` | Supabase project URL (if supabase) | `https://xyz.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service key (if supabase) | `eyJhbG...` |
-| `FRONTEND_URL` | Allowed frontend origin for CORS | `https://your-app.vercel.app` |
+**3. Document Processing**
 
-### Frontend Configuration (Vercel)
-| Variable | Description | Example / Default |
-| :--- | :--- | :--- |
-| `VITE_API_URL` | URL of deployed Render backend | `https://your-api.onrender.com/api` |
+Uploaded PDF, Word, and text documents are processed to extract their content. The extracted text is cleaned and divided into smaller overlapping chunks. Each chunk is converted into a numerical embedding and stored with its document information.
 
----
+**4. Hybrid Search and RAG**
 
-## 5. Local Setup & Testing
+When a user asks a question, the system searches relevant document chunks using both semantic similarity and BM25 keyword matching. The results are combined using Reciprocal Rank Fusion (RRF), while Maximal Marginal Relevance (MMR) helps reduce duplicate information.
 
-### 1. Clone & Install
+The selected passages are passed to a language model to generate an answer based on the available evidence.
+
+**5. Citation Verification**
+
+The system checks how well generated claims are supported by retrieved passages and provides references to the source documents.
+
+**6. NLP Insights Lab**
+
+Alongside the research assistant, the project includes an NLP laboratory for exploring text preprocessing, TF-IDF, sentiment analysis, named entity recognition, topic modeling, and multilingual processing.
+
+**7. Database and Storage**
+
+MongoDB stores user accounts, document information, text chunks, embeddings, and research sessions. Uploaded files are handled through configurable storage options, including MongoDB GridFS, Supabase, or local storage.
+
+Together, these components allow users to manage multiple documents, retrieve relevant information, and perform NLP-based research analysis through a single interface.
+
+## Getting started
+
+### Requirements
+
+- Node.js and npm
+- A running MongoDB instance (local or cloud-hosted)
+- API credentials if using a hosted language-model provider
+
+### 1. Install dependencies
+
+From the project folder, run:
+
 ```bash
-git clone https://github.com/Dhanashri1010/Multi-Document-Research-Assistant.git
-cd Multi-Document-Research-Assistant
-
-# Backend setup
-cd backend
-npm install
-cp .env.example .env
-
-# Frontend setup
-cd ../frontend
-npm install
+npm install --prefix backend
+npm install --prefix frontend
 ```
 
-### 2. Run Test Suites
+### 2. Set up environment variables
+
+Create a `backend/.env` file using `backend/.env.example` as a reference. Add your database connection and the settings for the AI provider you want to use.
+
+**Do not upload your `.env` file or API keys to GitHub.**
+
+### 3. Start the application
+
+Run the backend:
+
 ```bash
-# Backend unit & integration tests (23 test files, 239 passed)
-cd backend
-npm test
-
-# Frontend component & UI tests (16 passed)
-cd ../frontend
-npm test
+npm run dev:backend
 ```
 
-### 3. Build & Run Locally
+In a second terminal, run the frontend:
+
 ```bash
-# Terminal 1: Backend
-cd backend
-npm run dev
-
-# Terminal 2: Frontend
-cd frontend
-npm run dev
+npm run dev:frontend
 ```
 
----
+Open the local URL shown in your frontend terminal (usually `http://localhost:5173`).
 
-## 6. 5-Minute Viva / Mentor Demonstration Script
+## Project structure
 
-| Time | Target Rubric | Action in Application | What to Highlight to the Evaluator |
-| :---: | :---: | :--- | :--- |
-| **0:00 - 1:00** | **CO1 (7M)** | Go to `/nlp-lab` → **Preprocessing & Vectorization** tab. Select sample document. Toggle cleaning steps (Noise removal, Stopwords, Stemming). | Show real-time reduction metrics (`<character and token reduction % shown on screen>`). View Top-10 TF-IDF terms and the pairwise TF-IDF cosine similarity heatmap across papers. |
-| **1:00 - 2:00** | **CO2 (8M)** | Go to `/nlp-lab` → **Sentiment & Extraction** tab. Run dual sentiment analysis and NER. Then open **Evaluation Benchmark** tab. | Contrast rule-based AFINN lexicon against Gemini. View the 7 scientific entity types. In Evaluation Benchmark, display the custom 3x3 Confusion Matrix, Accuracy (`<accuracy % shown on screen>`), and Macro F1 score (`<F1 score shown on screen>`) dynamically computed on the gold standard set. |
-| **2:00 - 3:00** | **CO3 (7M)** | Go to `/nlp-lab` → **Topic Modeling** tab. Click "Run Topic Modeling" with Auto-k. Then switch to **Multilingual NLP** tab. | Show K-Means clustering on existing 768d embeddings, Silhouette score evaluation (`<score shown on screen>`), c-TF-IDF keyword cards, and the interactive 2D PCA scatter plot. In Multilingual, test Marathi language detection (`franc`) (`<confidence % shown on screen>`) and Google Cloud REST translation. |
-| **3:00 - 4:00** | **CO4 (8M)** | Go to `/nlp-lab` → **Prompt Playground** tab. Select `rag_qa_v2` (Chain-of-Thought) vs `rag_qa_v1` (Zero-Shot). Run prompt. | Explain the design rationale of the 8 versioned templates. Show how CoT forces evidence extraction before synthesis to eliminate hallucinations. View latency and token metrics (`<latency ms and token count shown on screen>`). |
-| **4:00 - 5:00** | **CO4 & Synthesis** | In Prompt Playground, select 2 papers and click **"Generate Literature Review"**. Download `.md` or `.pdf`. Then visit `/rubric-coverage`. | Show the synthesized 5-section review with explicit contradictions between Paper A and Paper B and page citations. Conclude at `/rubric-coverage` showing live verified status per Course Outcome. |
+- `frontend/` — user interface and application pages
+- `backend/` — API routes, document processing, NLP services, and database models
+- `samples/` — sample documents for exploring the application
+- `docs/` — additional documentation and evaluation notes
+
+## Testing and evaluation
+
+The repository includes tests and evaluation material for document retrieval and other NLP features. To run the available backend tests:
+
+```bash
+npm run test:backend
+```
+
+For the documented evaluation setup and results, see [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md). These results describe specific test datasets and should not be interpreted as the accuracy of every feature or answer.
+
+## Limitations and future improvements
+
+The application is an academic project and still has room to improve. In particular, scanned PDFs may need OCR before they can be analyzed properly, and AI-generated answers should be checked against their cited passages.
+
+Future work could include OCR support, testing on larger collections of research papers, and improving answer and citation reliability.
+
+## Project team
+
+**Dhanashri Khatavkar** — PRN: 202502110005  
+**Atulya Mishra** — PRN: 202401110051
+
+**Course:** Natural Language Processing (NLP)  
+**Department:** Computer Science / AI & ML
