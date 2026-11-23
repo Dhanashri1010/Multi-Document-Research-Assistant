@@ -287,6 +287,9 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
           rawMsg = parsed?.error?.message || parsed?.message || rawMsg;
         }
       } catch {}
+      if (typeof rawMsg === 'string' && (rawMsg.toLowerCase().includes('timed out') || rawMsg.toLowerCase().includes('timeout'))) {
+        rawMsg = 'AI request timed out during synthesis. Please retry or generate from a smaller paper subset.';
+      }
       setReviewError(rawMsg);
     } finally {
       setGeneratingReview(false);
