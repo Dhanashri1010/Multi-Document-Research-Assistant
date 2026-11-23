@@ -20,6 +20,7 @@ import {
   literatureReviewPromptV1,
 } from '../prompts/index.js';
 import { LLMThrottleQueue } from '../services/ai/llmThrottleQueue.js';
+import { formatSafeErrorMessage } from '../services/ai/llmService.js';
 
 export class NlpController {
   /**
@@ -483,10 +484,11 @@ export class NlpController {
       res.status(200).json({ success: true, data: result });
     } catch (err: any) {
       console.error('[NlpController:literatureReview] Error:', err);
+      const safeMessage = formatSafeErrorMessage(err);
       res.status(500).json({
         success: false,
         error: 'Literature review error',
-        message: err.message || 'Literature review synthesis failed.',
+        message: safeMessage,
       });
     }
   }

@@ -12,6 +12,7 @@ import {
   FileText,
   HelpCircle,
   Split,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   NlpService,
@@ -275,7 +276,18 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
       });
       setReviewResult(res);
     } catch (err: any) {
-      setReviewError(err?.response?.data?.error || err?.message || 'Literature review generation failed.');
+      let rawMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Literature review generation failed.';
+      try {
+        if (typeof rawMsg === 'string' && rawMsg.trim().startsWith('{')) {
+          const parsed = JSON.parse(rawMsg);
+          rawMsg = parsed?.error?.message || parsed?.message || rawMsg;
+        }
+      } catch {}
+      setReviewError(rawMsg);
     } finally {
       setGeneratingReview(false);
     }
@@ -568,6 +580,15 @@ The Transformer model achieved a 28.4 BLEU score on the WMT 2014 English-to-Germ
         {/* Generated Review Display */}
         {reviewResult && (
           <div className="space-y-4 pt-4 border-t border-slate-100">
+            {reviewResult.degraded && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  {reviewResult.degradedReason ||
+                    'AI service is temporarily experiencing high demand (503 Service Unavailable). Displaying grounded literature review synthesized directly from your documents.'}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-800">

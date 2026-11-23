@@ -285,6 +285,8 @@ export interface LiteratureReviewResult {
   generatedAt: string;
   latencyMs: number;
   cached?: boolean;
+  degraded?: boolean;
+  degradedReason?: string;
 }
 
 export class NlpService {
